@@ -49,8 +49,27 @@ export interface MoveResult {
   score: number;
 }
 
+// Challenge type for lobby system
+export interface Challenge {
+  id: string;
+  creatorSocketId: string;
+  creatorName: string;
+  createdAt: number;
+}
+
+// Data sent when a challenge is accepted and game starts
+export interface ChallengeAcceptedData {
+  roomId: string;
+  game: HistoricalGame;
+  players: Player[];
+  position: string;
+  turn: 'white' | 'black';
+  timeLimit: number;
+}
+
 // Socket Event Types
 export interface ServerToClientEvents {
+  // Room events (legacy)
   'room-joined': (data: { roomId: string; players: Player[]; availableGames: HistoricalGame[] }) => void;
   'player-joined': (player: Player) => void;
   'player-left': (playerId: string) => void;
@@ -61,11 +80,22 @@ export interface ServerToClientEvents {
   'turn-change': (data: { turn: 'white' | 'black'; position: string; moveIndex: number }) => void;
   'game-end': (data: { winner: string | null; players: Player[]; trivia: string[] }) => void;
   'error': (data: { message: string }) => void;
+  // Lobby events
+  'challenges-list': (challenges: Challenge[]) => void;
+  'challenge-created': (challenge: Challenge) => void;
+  'challenge-removed': (challengeId: string) => void;
+  'challenge-accepted': (data: ChallengeAcceptedData) => void;
 }
 
 export interface ClientToServerEvents {
+  // Room events (legacy)
   'join-room': (data: { roomId: string; playerName: string }) => void;
   'select-game': (data: { roomId: string; gameId: string }) => void;
   'submit-move': (data: { roomId: string; move: string; confidence: number }) => void;
   'start-game': (data: { roomId: string }) => void;
+  // Lobby events
+  'create-challenge': (data: { playerName: string }) => void;
+  'cancel-challenge': () => void;
+  'get-challenges': () => void;
+  'accept-challenge': (data: { challengeId: string; playerName: string }) => void;
 }

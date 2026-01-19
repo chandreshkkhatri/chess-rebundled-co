@@ -285,4 +285,36 @@ export class GameService {
   getAvailableGames(): HistoricalGame[] {
     return getAllGames();
   }
+
+  /**
+   * Select a random historical game
+   */
+  selectRandomGame(): HistoricalGame {
+    const games = getAllGames();
+    const randomIndex = Math.floor(Math.random() * games.length);
+    return games[randomIndex];
+  }
+
+  /**
+   * Create a matched room with both players and auto-select game (for lobby matching)
+   */
+  createMatchedRoom(
+    player1SocketId: string,
+    player1Name: string,
+    player2SocketId: string,
+    player2Name: string
+  ): { room: GameRoom; game: HistoricalGame } {
+    const roomId = `room-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const room = this.createRoom(roomId);
+
+    // Add both players
+    this.addPlayer(roomId, player1SocketId, player1Name);
+    this.addPlayer(roomId, player2SocketId, player2Name);
+
+    // Select random game
+    const game = this.selectRandomGame();
+    room.historicalGame = game;
+
+    return { room, game };
+  }
 }

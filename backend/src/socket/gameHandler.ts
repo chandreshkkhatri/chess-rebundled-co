@@ -1,5 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { GameService } from '../services/gameService.js';
+import { ChallengeService } from '../services/challengeService.js';
 import { TimerService } from '../services/timerService.js';
 import { ClientToServerEvents, ServerToClientEvents } from '../types/index.js';
 
@@ -7,10 +8,13 @@ type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 
 export class GameHandler {
   private gameService: GameService;
+  private challengeService: ChallengeService;
   private timerService: TimerService;
+  private socketToRoom: Map<string, string> = new Map();
 
   constructor(private io: Server<ClientToServerEvents, ServerToClientEvents>) {
     this.gameService = new GameService();
+    this.challengeService = new ChallengeService();
     this.timerService = new TimerService(io as Server, (roomId) =>
       this.handleTimeout(roomId)
     );
@@ -19,10 +23,18 @@ export class GameHandler {
   register(socket: GameSocket): void {
     console.log(`Client connected: ${socket.id}`);
 
+    // Legacy room events
     socket.on('join-room', (data) => this.handleJoinRoom(socket, data));
     socket.on('select-game', (data) => this.handleSelectGame(socket, data));
     socket.on('start-game', (data) => this.handleStartGame(socket, data));
     socket.on('submit-move', (data) => this.handleSubmitMove(socket, data));
+
+    // Lobby events
+    socket.on('create-challenge', (data) => this.handleCreateChallenge(socket, data));
+    socket.on('cancel-challenge', () => this.handleCancelChallenge(socket));
+    socket.on('get-challenges', () => this.handleGetChallenges(socket));
+    socket.on('accept-challenge', (data) => this.handleAcceptChallenge(socket, data));
+
     socket.on('disconnect', () => this.handleDisconnect(socket));
   }
 
@@ -223,11 +235,118 @@ export class GameHandler {
     );
   }
 
+  // Lobby event handlers
+  private handleCreateChallenge(
+    socket: GameSocket,
+    data: { playerName: string }
+  ): void {
+    const challenge = this.challengeService.createChallenge(socket.id, data.playerName);
+
+    // Join lobby room for broadcasts
+    socket.join('lobby');
+
+    // Notify all in lobby about new challenge
+    this.io.to('lobby').emit('challenge-created', challenge);
+
+    console.log(`Challenge created by ${data.playerName}: ${challenge.id}`);
+  }
+
+  private handleCancelChallenge(socket: GameSocket): void {
+    const challengeId = this.challengeService.removeChallengeBySocketId(socket.id);
+    if (challengeId) {
+      socket.leave('lobby');
+      this.io.to('lobby').emit('challenge-removed', challengeId);
+      console.log(`Challenge cancelled: ${challengeId}`);
+    }
+  }
+
+  private handleGetChallenges(socket: GameSocket): void {
+    const challenges = this.challengeService.getAllChallenges();
+    socket.emit('challenges-list', challenges);
+
+    // Join lobby to receive updates
+    socket.join('lobby');
+  }
+
+  private handleAcceptChallenge(
+    socket: GameSocket,
+    data: { challengeId: string; playerName: string }
+  ): void {
+    const challenge = this.challengeService.getChallenge(data.challengeId);
+
+    if (!challenge) {
+      socket.emit('error', { message: 'Challenge no longer available' });
+      return;
+    }
+
+    // Prevent self-acceptance
+    if (challenge.creatorSocketId === socket.id) {
+      socket.emit('error', { message: 'Cannot accept your own challenge' });
+      return;
+    }
+
+    // Remove challenge from lobby
+    this.challengeService.removeChallenge(data.challengeId);
+    this.io.to('lobby').emit('challenge-removed', data.challengeId);
+
+    // Create matched room with random game
+    const { room, game } = this.gameService.createMatchedRoom(
+      challenge.creatorSocketId,
+      challenge.creatorName,
+      socket.id,
+      data.playerName
+    );
+
+    // Start the game
+    const startResult = this.gameService.startGame(room.id);
+    if (!startResult) {
+      socket.emit('error', { message: 'Could not start game' });
+      return;
+    }
+
+    // Join both sockets to the room
+    const creatorSocket = this.io.sockets.sockets.get(challenge.creatorSocketId);
+    if (creatorSocket) {
+      creatorSocket.leave('lobby');
+      creatorSocket.join(room.id);
+      this.socketToRoom.set(challenge.creatorSocketId, room.id);
+    }
+    socket.leave('lobby');
+    socket.join(room.id);
+    this.socketToRoom.set(socket.id, room.id);
+
+    // Notify both players
+    const matchData = {
+      roomId: room.id,
+      game,
+      players: room.players,
+      position: startResult.position,
+      turn: startResult.turn,
+      timeLimit: room.timeLimit,
+    };
+
+    this.io.to(room.id).emit('challenge-accepted', matchData);
+
+    // Start the timer
+    this.timerService.startTimer(room.id, room.timeLimit);
+
+    console.log(`Challenge accepted. Room ${room.id} created. Game: ${game.title}`);
+  }
+
   private handleDisconnect(socket: GameSocket): void {
     console.log(`Client disconnected: ${socket.id}`);
 
-    // Find and clean up any rooms this player was in
-    // For simplicity in POC, we don't track which room the socket was in
-    // In production, you'd maintain a socket -> room mapping
+    // Clean up any challenge this socket created
+    const removedChallengeId = this.challengeService.removeChallengeBySocketId(socket.id);
+    if (removedChallengeId) {
+      this.io.to('lobby').emit('challenge-removed', removedChallengeId);
+    }
+
+    // Clean up room mapping
+    const roomId = this.socketToRoom.get(socket.id);
+    if (roomId) {
+      this.gameService.removePlayer(roomId, socket.id);
+      this.socketToRoom.delete(socket.id);
+    }
   }
 }

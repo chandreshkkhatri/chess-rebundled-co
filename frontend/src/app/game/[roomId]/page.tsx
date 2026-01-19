@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
-import { useParams, useSearchParams, useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
 import { useGameStore } from '@/stores/gameStore';
 import { ChessBoard } from '@/components/ChessBoard';
@@ -9,17 +9,14 @@ import { TimerDisplay } from '@/components/TimerDisplay';
 import { ScoreDisplay } from '@/components/ScoreDisplay';
 import { VoiceInput } from '@/components/VoiceInput';
 import { MoveHistory } from '@/components/MoveHistory';
-import { GameSelector } from '@/components/GameSelector';
 import { GameResults } from '@/components/GameResults';
 
 export default function GamePage() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const roomId = params.roomId as string;
-  const playerName = searchParams.get('name') || 'Player';
 
-  const { joinRoom, selectGame, startGame, submitMove } = useSocket();
+  const { submitMove } = useSocket();
   const {
     isConnected,
     status,
@@ -27,27 +24,23 @@ export default function GamePage() {
     currentTurn,
     myColor,
     selectedGame,
-    players,
     reset,
+    roomId: storeRoomId,
   } = useGameStore();
 
-  // Join room on mount
+  // Redirect to lobby if no game is in progress
   useEffect(() => {
-    if (isConnected && roomId) {
-      joinRoom(roomId, playerName);
+    if (isConnected && status !== 'playing' && status !== 'finished') {
+      router.push('/');
     }
-  }, [isConnected, roomId, playerName, joinRoom]);
+  }, [isConnected, status, router]);
 
-  const handleSelectGame = useCallback(
-    (gameId: string) => {
-      selectGame(roomId, gameId);
-    },
-    [roomId, selectGame]
-  );
-
-  const handleStartGame = useCallback(() => {
-    startGame(roomId);
-  }, [roomId, startGame]);
+  // Verify we're in the right room
+  useEffect(() => {
+    if (storeRoomId && storeRoomId !== roomId) {
+      router.push(`/game/${storeRoomId}`);
+    }
+  }, [storeRoomId, roomId, router]);
 
   const handleMoveSubmit = useCallback(
     (move: string, confidence: number) => {
@@ -70,55 +63,11 @@ export default function GamePage() {
     );
   }
 
-  // Render waiting/selecting state
-  if (status === 'waiting' || status === 'selecting' || status === 'joining') {
+  // Redirect to lobby if not playing
+  if (status !== 'playing' && status !== 'finished') {
     return (
-      <main className="min-h-screen p-4">
-        <div className="max-w-2xl mx-auto">
-          {/* Room info */}
-          <div className="bg-slate-800 rounded-lg p-4 mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-slate-400 text-sm">Room Code</div>
-                <div className="text-white text-2xl font-mono font-bold">{roomId}</div>
-              </div>
-              <div className="text-right">
-                <div className="text-slate-400 text-sm">Players</div>
-                <div className="text-white">{players.length}/2</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Players list */}
-          <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              Players
-            </h3>
-            <div className="space-y-2">
-              {players.map((player) => (
-                <div key={player.id} className="flex items-center gap-3">
-                  <div
-                    className={`w-4 h-4 rounded-full ${
-                      player.color === 'white'
-                        ? 'bg-white border-2 border-gray-400'
-                        : 'bg-gray-800'
-                    }`}
-                  />
-                  <span className="font-medium">{player.name}</span>
-                  <span className="text-sm text-gray-500">({player.color})</span>
-                </div>
-              ))}
-              {players.length < 2 && (
-                <div className="text-gray-400 italic">Waiting for opponent...</div>
-              )}
-            </div>
-          </div>
-
-          {/* Game selector */}
-          {players.length >= 2 && (
-            <GameSelector onSelectGame={handleSelectGame} onStartGame={handleStartGame} />
-          )}
-        </div>
+      <main className="min-h-screen flex items-center justify-center">
+        <div className="text-white text-xl">Redirecting to lobby...</div>
       </main>
     );
   }

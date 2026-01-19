@@ -3,11 +3,16 @@
 import { useEffect, useCallback } from 'react';
 import { getSocket, connectSocket, disconnectSocket } from '@/lib/socket';
 import { useGameStore } from '@/stores/gameStore';
-import { Player, HistoricalGame, MoveResult } from '@/types';
+import { Player, HistoricalGame, MoveResult, Challenge, ChallengeAcceptedData } from '@/types';
 
 export function useSocket() {
   const {
     setConnected,
+    setChallenges,
+    addChallenge,
+    removeChallenge,
+    setMyChallenge,
+    handleMatchFound,
     setRoom,
     addPlayer,
     removePlayer,
@@ -86,6 +91,31 @@ export function useSocket() {
       console.error('Socket error:', data.message);
     });
 
+    // Lobby events
+    socket.on('challenges-list', (challenges: Challenge[]) => {
+      console.log('Challenges received:', challenges.length);
+      setChallenges(challenges);
+    });
+
+    socket.on('challenge-created', (challenge: Challenge) => {
+      console.log('New challenge:', challenge);
+      // Check if this is our challenge
+      if (challenge.creatorSocketId === socket.id) {
+        setMyChallenge(challenge);
+      }
+      addChallenge(challenge);
+    });
+
+    socket.on('challenge-removed', (challengeId: string) => {
+      console.log('Challenge removed:', challengeId);
+      removeChallenge(challengeId);
+    });
+
+    socket.on('challenge-accepted', (data: ChallengeAcceptedData) => {
+      console.log('Challenge accepted, game starting:', data);
+      handleMatchFound(data, socket.id || '');
+    });
+
     connectSocket();
 
     return () => {
@@ -101,6 +131,10 @@ export function useSocket() {
       socket.off('turn-change');
       socket.off('game-end');
       socket.off('error');
+      socket.off('challenges-list');
+      socket.off('challenge-created');
+      socket.off('challenge-removed');
+      socket.off('challenge-accepted');
       disconnectSocket();
     };
   }, []);
@@ -125,10 +159,36 @@ export function useSocket() {
     socket.emit('submit-move', { roomId, move, confidence });
   }, []);
 
+  // Lobby actions
+  const createChallenge = useCallback((playerName: string) => {
+    const socket = getSocket();
+    socket.emit('create-challenge', { playerName });
+  }, []);
+
+  const cancelChallenge = useCallback(() => {
+    const socket = getSocket();
+    socket.emit('cancel-challenge');
+    setMyChallenge(null);
+  }, [setMyChallenge]);
+
+  const getChallenges = useCallback(() => {
+    const socket = getSocket();
+    socket.emit('get-challenges');
+  }, []);
+
+  const acceptChallenge = useCallback((challengeId: string, playerName: string) => {
+    const socket = getSocket();
+    socket.emit('accept-challenge', { challengeId, playerName });
+  }, []);
+
   return {
     joinRoom,
     selectGame,
     startGame: startGameAction,
     submitMove,
+    createChallenge,
+    cancelChallenge,
+    getChallenges,
+    acceptChallenge,
   };
 }

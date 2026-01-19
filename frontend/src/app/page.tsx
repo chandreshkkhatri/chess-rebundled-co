@@ -1,128 +1,177 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSocket } from '@/hooks/useSocket';
+import { useGameStore } from '@/stores/gameStore';
+
+function formatTimeAgo(timestamp: number): string {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.floor(minutes / 60)}h ago`;
+}
 
 export default function Home() {
   const router = useRouter();
   const [playerName, setPlayerName] = useState('');
-  const [roomCode, setRoomCode] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
+  const [hasEnteredLobby, setHasEnteredLobby] = useState(false);
 
-  const generateRoomCode = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let code = '';
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
+  const { createChallenge, cancelChallenge, getChallenges, acceptChallenge } = useSocket();
+  const {
+    isConnected,
+    challenges,
+    myChallenge,
+    status,
+    roomId,
+    setPlayerName: storeSetPlayerName,
+  } = useGameStore();
+
+  // Navigate to game when match is found
+  useEffect(() => {
+    if (status === 'playing' && roomId) {
+      router.push(`/game/${roomId}`);
     }
-    return code;
-  };
+  }, [status, roomId, router]);
 
-  const handleCreateRoom = () => {
+  // Fetch challenges when entering lobby
+  useEffect(() => {
+    if (hasEnteredLobby && isConnected) {
+      getChallenges();
+    }
+  }, [hasEnteredLobby, isConnected, getChallenges]);
+
+  const handleEnterLobby = () => {
     if (!playerName.trim()) {
       alert('Please enter your name');
       return;
     }
-    const code = generateRoomCode();
-    router.push(`/game/${code}?name=${encodeURIComponent(playerName)}`);
+    storeSetPlayerName(playerName);
+    setHasEnteredLobby(true);
   };
 
-  const handleJoinRoom = () => {
-    if (!playerName.trim()) {
-      alert('Please enter your name');
-      return;
-    }
-    if (!roomCode.trim()) {
-      alert('Please enter a room code');
-      return;
-    }
-    router.push(`/game/${roomCode.toUpperCase()}?name=${encodeURIComponent(playerName)}`);
+  const handleCreateChallenge = () => {
+    createChallenge(playerName);
   };
 
+  const handleCancelChallenge = () => {
+    cancelChallenge();
+  };
+
+  const handleAcceptChallenge = (challengeId: string) => {
+    acceptChallenge(challengeId, playerName);
+  };
+
+  // Name entry screen
+  if (!hasEnteredLobby) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-white mb-2">Chess Rebundled</h1>
+            <p className="text-slate-400">Test your chess memory with famous historical games</p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-xl p-6">
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Your Name
+              </label>
+              <input
+                type="text"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleEnterLobby()}
+                placeholder="Enter your name"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                maxLength={20}
+              />
+            </div>
+
+            <button
+              onClick={handleEnterLobby}
+              disabled={!isConnected}
+              className="w-full py-3 px-6 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg transition-all disabled:bg-gray-300"
+            >
+              {isConnected ? 'Enter Lobby' : 'Connecting...'}
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // Lobby screen
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        {/* Logo/Title */}
+    <main className="min-h-screen p-4">
+      <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">
-            ♟️ Chess Rebundled
-          </h1>
-          <p className="text-slate-400">
-            Test your chess memory with famous historical games
-          </p>
+          <h1 className="text-3xl font-bold text-white mb-2">Game Lobby</h1>
+          <p className="text-slate-400">Welcome, {playerName}!</p>
         </div>
 
-        {/* Main card */}
-        <div className="bg-white rounded-2xl shadow-xl p-6">
-          {/* Name input */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Your Name
-            </label>
-            <input
-              type="text"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              placeholder="Enter your name"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              maxLength={20}
-            />
-          </div>
-
-          {/* Create/Join toggle */}
-          <div className="flex mb-6 bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setIsCreating(true)}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                isCreating
-                  ? 'bg-white shadow text-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              Create Room
-            </button>
-            <button
-              onClick={() => setIsCreating(false)}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                !isCreating
-                  ? 'bg-white shadow text-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              Join Room
-            </button>
-          </div>
-
-          {isCreating ? (
-            /* Create room section */
-            <button
-              onClick={handleCreateRoom}
-              className="w-full py-3 px-6 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg transition-all"
-            >
-              Create New Room
-            </button>
-          ) : (
-            /* Join room section */
-            <div className="space-y-4">
+        {/* My Challenge Section */}
+        {myChallenge ? (
+          <div className="bg-yellow-100 border-2 border-yellow-400 rounded-lg p-6 mb-6">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Room Code
-                </label>
-                <input
-                  type="text"
-                  value={roomCode}
-                  onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                  placeholder="Enter 6-digit code"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none font-mono text-center text-xl tracking-wider uppercase"
-                  maxLength={6}
-                />
+                <h3 className="font-bold text-yellow-800">Your Challenge is Active</h3>
+                <p className="text-yellow-700 text-sm">Waiting for an opponent to accept...</p>
               </div>
               <button
-                onClick={handleJoinRoom}
-                className="w-full py-3 px-6 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-all"
+                onClick={handleCancelChallenge}
+                className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors"
               >
-                Join Room
+                Cancel
               </button>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <div className="animate-spin h-4 w-4 border-2 border-yellow-600 border-t-transparent rounded-full"></div>
+              <span className="text-yellow-700 text-sm">Searching for opponent...</span>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={handleCreateChallenge}
+            className="w-full py-4 px-6 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg mb-6 text-lg transition-colors"
+          >
+            Create Challenge
+          </button>
+        )}
+
+        {/* Available Challenges */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-bold mb-4 text-gray-800">Available Challenges</h2>
+
+          {challenges.filter((c) => c.id !== myChallenge?.id).length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              No open challenges. Create one or wait for others!
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {challenges
+                .filter((c) => c.id !== myChallenge?.id)
+                .map((challenge) => (
+                  <div
+                    key={challenge.id}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200"
+                  >
+                    <div>
+                      <span className="font-medium text-gray-800">{challenge.creatorName}</span>
+                      <span className="text-gray-500 text-sm ml-2">
+                        {formatTimeAgo(challenge.createdAt)}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleAcceptChallenge(challenge.id)}
+                      disabled={!!myChallenge}
+                      className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Accept
+                    </button>
+                  </div>
+                ))}
             </div>
           )}
         </div>
@@ -131,8 +180,8 @@ export default function Home() {
         <div className="mt-8 text-center text-slate-400 text-sm">
           <h3 className="font-semibold mb-2">How to Play</h3>
           <ol className="space-y-1 text-left max-w-xs mx-auto">
-            <li>1. Create or join a room with a friend</li>
-            <li>2. Select a famous chess game to replay</li>
+            <li>1. Create a challenge or accept one</li>
+            <li>2. A random famous chess game will be selected</li>
             <li>3. Speak the moves before time runs out</li>
             <li>4. Score points for correct moves!</li>
           </ol>

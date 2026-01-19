@@ -1,9 +1,14 @@
 import { create } from 'zustand';
-import { Player, HistoricalGame, MoveResult, GameStatus } from '@/types';
+import { Player, HistoricalGame, MoveResult, GameStatus, Challenge, ChallengeAcceptedData } from '@/types';
 
 interface GameState {
   // Connection
   isConnected: boolean;
+
+  // Lobby
+  challenges: Challenge[];
+  myChallenge: Challenge | null;
+  playerName: string;
 
   // Room
   roomId: string | null;
@@ -35,6 +40,12 @@ interface GameState {
 
   // Actions
   setConnected: (connected: boolean) => void;
+  setPlayerName: (name: string) => void;
+  setChallenges: (challenges: Challenge[]) => void;
+  addChallenge: (challenge: Challenge) => void;
+  removeChallenge: (challengeId: string) => void;
+  setMyChallenge: (challenge: Challenge | null) => void;
+  handleMatchFound: (data: ChallengeAcceptedData, mySocketId: string) => void;
   setRoom: (roomId: string, players: Player[], availableGames: HistoricalGame[]) => void;
   addPlayer: (player: Player) => void;
   removePlayer: (playerId: string) => void;
@@ -51,6 +62,9 @@ interface GameState {
 
 const initialState = {
   isConnected: false,
+  challenges: [] as Challenge[],
+  myChallenge: null as Challenge | null,
+  playerName: '',
   roomId: null,
   players: [],
   myPlayerId: null,
@@ -75,6 +89,47 @@ export const useGameStore = create<GameState>((set, get) => ({
   ...initialState,
 
   setConnected: (connected) => set({ isConnected: connected }),
+
+  setPlayerName: (name) => set({ playerName: name }),
+
+  setChallenges: (challenges) => set({ challenges }),
+
+  addChallenge: (challenge) =>
+    set((state) => ({
+      challenges: [challenge, ...state.challenges],
+    })),
+
+  removeChallenge: (challengeId) =>
+    set((state) => ({
+      challenges: state.challenges.filter((c) => c.id !== challengeId),
+      myChallenge: state.myChallenge?.id === challengeId ? null : state.myChallenge,
+    })),
+
+  setMyChallenge: (challenge) =>
+    set({
+      myChallenge: challenge,
+      status: challenge ? 'waiting-for-match' : 'in-lobby',
+    }),
+
+  handleMatchFound: (data, mySocketId) => {
+    const myPlayer = data.players.find((p) => p.socketId === mySocketId);
+    set({
+      roomId: data.roomId,
+      selectedGame: data.game,
+      players: data.players,
+      currentPosition: data.position,
+      currentTurn: data.turn,
+      timeLimit: data.timeLimit,
+      timeRemaining: data.timeLimit,
+      status: 'playing',
+      myPlayerId: myPlayer?.id || null,
+      myColor: myPlayer?.color || null,
+      myChallenge: null,
+      challenges: [],
+      moveIndex: 0,
+      lastMoveResult: null,
+    });
+  },
 
   setRoom: (roomId, players, availableGames) => {
     const myPlayer = players.find((p) => p.socketId === get().myPlayerId);

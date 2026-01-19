@@ -38,4 +38,22 @@ export interface MoveResult {
   score: number;
 }
 
-export type GameStatus = 'idle' | 'joining' | 'waiting' | 'selecting' | 'playing' | 'finished';
+// Challenge type for lobby system
+export interface Challenge {
+  id: string;
+  creatorSocketId: string;
+  creatorName: string;
+  createdAt: number;
+}
+
+// Data sent when a challenge is accepted and game starts
+export interface ChallengeAcceptedData {
+  roomId: string;
+  game: HistoricalGame;
+  players: Player[];
+  position: string;
+  turn: 'white' | 'black';
+  timeLimit: number;
+}
+
+export type GameStatus = 'idle' | 'in-lobby' | 'waiting-for-match' | 'joining' | 'waiting' | 'selecting' | 'playing' | 'finished';
