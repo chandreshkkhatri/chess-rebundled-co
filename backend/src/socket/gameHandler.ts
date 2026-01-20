@@ -35,6 +35,9 @@ export class GameHandler {
     socket.on('get-challenges', () => this.handleGetChallenges(socket));
     socket.on('accept-challenge', (data) => this.handleAcceptChallenge(socket, data));
 
+    // Rejoin events
+    socket.on('rejoin-room', (data) => this.handleRejoinRoom(socket, data));
+
     socket.on('disconnect', () => this.handleDisconnect(socket));
   }
 
@@ -343,6 +346,57 @@ export class GameHandler {
     this.timerService.startTimer(room.id, room.timeLimit);
 
     console.log(`Challenge accepted. Room ${room.id} created. Game: ${game.title}`);
+  }
+
+  private handleRejoinRoom(
+    socket: GameSocket,
+    data: { roomId: string; playerId: string }
+  ): void {
+    const { roomId, playerId } = data;
+
+    // Get room data for rejoin
+    const rejoinData = this.gameService.getRoomDataForRejoin(roomId, playerId);
+
+    if (!rejoinData) {
+      socket.emit('rejoin-failed', { message: 'Room or player not found' });
+      return;
+    }
+
+    const { room, player, currentPosition, expectedMove } = rejoinData;
+
+    // Game must be in progress to rejoin
+    if (room.status !== 'playing') {
+      socket.emit('rejoin-failed', { message: 'Game is not in progress' });
+      return;
+    }
+
+    // Update the player's socket ID
+    this.gameService.updatePlayerSocketId(roomId, playerId, socket.id);
+
+    // Join the socket.io room
+    socket.join(roomId);
+    this.socketToRoom.set(socket.id, roomId);
+
+    // Get remaining time from timer
+    const timeRemaining = this.timerService.getRemainingTime(roomId);
+
+    // Send rejoin data to the player
+    socket.emit('room-rejoined', {
+      roomId,
+      players: room.players,
+      selectedGame: room.historicalGame!,
+      status: room.status,
+      currentPosition,
+      currentTurn: room.currentTurn,
+      moveIndex: room.currentMoveIndex,
+      timeRemaining,
+      timeLimit: room.timeLimit,
+      expectedMove,
+      myPlayerId: player.id,
+      myColor: player.color,
+    });
+
+    console.log(`Player ${player.name} rejoined room ${roomId}`);
   }
 
   private handleDisconnect(socket: GameSocket): void {

@@ -3,7 +3,7 @@
 import { useEffect, useCallback } from 'react';
 import { getSocket, connectSocket, disconnectSocket } from '@/lib/socket';
 import { useGameStore } from '@/stores/gameStore';
-import { Player, HistoricalGame, MoveResult, Challenge, ChallengeAcceptedData, MoveDetails } from '@/types';
+import { Player, HistoricalGame, MoveResult, Challenge, ChallengeAcceptedData, MoveDetails, RejoinData } from '@/types';
 
 export function useSocket() {
   const {
@@ -23,6 +23,11 @@ export function useSocket() {
     setMoveResult,
     changeTurn,
     endGame,
+    handleRejoin,
+    reset,
+    roomId: storedRoomId,
+    myPlayerId: storedPlayerId,
+    status: storedStatus,
   } = useGameStore();
 
   useEffect(() => {
@@ -31,6 +36,16 @@ export function useSocket() {
     socket.on('connect', () => {
       console.log('Connected to server');
       setConnected(true);
+
+      // Check if we need to rejoin a room
+      const state = useGameStore.getState();
+      if (state.roomId && state.myPlayerId && state.status === 'playing') {
+        console.log('Attempting to rejoin room:', state.roomId);
+        socket.emit('rejoin-room', {
+          roomId: state.roomId,
+          playerId: state.myPlayerId,
+        });
+      }
     });
 
     socket.on('disconnect', () => {
@@ -116,6 +131,18 @@ export function useSocket() {
       handleMatchFound(data, socket.id || '');
     });
 
+    // Rejoin events
+    socket.on('room-rejoined', (data: RejoinData) => {
+      console.log('Rejoined room:', data);
+      handleRejoin(data);
+    });
+
+    socket.on('rejoin-failed', (data: { message: string }) => {
+      console.log('Rejoin failed:', data.message);
+      // Clear stored state since the room no longer exists
+      reset();
+    });
+
     connectSocket();
 
     return () => {
@@ -135,6 +162,8 @@ export function useSocket() {
       socket.off('challenge-created');
       socket.off('challenge-removed');
       socket.off('challenge-accepted');
+      socket.off('room-rejoined');
+      socket.off('rejoin-failed');
       disconnectSocket();
     };
   }, []);

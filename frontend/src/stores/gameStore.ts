@@ -1,22 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Player, HistoricalGame, MoveResult, GameStatus, Challenge, ChallengeAcceptedData, MoveDetails } from '@/types';
-
-// Data sent when rejoining a room
-export interface RejoinData {
-  roomId: string;
-  players: Player[];
-  selectedGame: HistoricalGame;
-  status: GameStatus;
-  currentPosition: string;
-  currentTurn: 'white' | 'black';
-  moveIndex: number;
-  timeRemaining: number;
-  timeLimit: number;
-  expectedMove: MoveDetails | null;
-  myPlayerId: string;
-  myColor: 'white' | 'black';
-}
+import { Player, HistoricalGame, MoveResult, GameStatus, Challenge, ChallengeAcceptedData, MoveDetails, RejoinData } from '@/types';
 
 interface GameState {
   // Connection
@@ -77,6 +61,7 @@ interface GameState {
   changeTurn: (turn: 'white' | 'black', position: string, moveIndex: number, expectedMove: MoveDetails | null) => void;
   endGame: (winnerId: string | null, players: Player[], trivia: string[]) => void;
   setVoiceState: (isListening: boolean, transcript: string, confidence: number) => void;
+  handleRejoin: (data: RejoinData) => void;
   reset: () => void;
 }
 
@@ -106,10 +91,12 @@ const initialState = {
   voiceConfidence: 0,
 };
 
-export const useGameStore = create<GameState>((set, get) => ({
-  ...initialState,
+export const useGameStore = create<GameState>()(
+  persist(
+    (set, get) => ({
+      ...initialState,
 
-  setConnected: (connected) => set({ isConnected: connected }),
+      setConnected: (connected) => set({ isConnected: connected }),
 
   setPlayerName: (name) => set({ playerName: name }),
 
@@ -230,5 +217,51 @@ export const useGameStore = create<GameState>((set, get) => ({
   setVoiceState: (isListening, transcript, confidence) =>
     set({ isListening, transcript, voiceConfidence: confidence }),
 
-  reset: () => set(initialState),
-}));
+  handleRejoin: (data) =>
+    set({
+      roomId: data.roomId,
+      players: data.players,
+      selectedGame: data.selectedGame,
+      status: data.status,
+      currentPosition: data.currentPosition,
+      currentTurn: data.currentTurn,
+      moveIndex: data.moveIndex,
+      timeRemaining: data.timeRemaining,
+      timeLimit: data.timeLimit,
+      currentExpectedMove: data.expectedMove,
+      myPlayerId: data.myPlayerId,
+      myColor: data.myColor,
+      challenges: [],
+      myChallenge: null,
+    }),
+
+      reset: () => set(initialState),
+    }),
+    {
+      name: 'chess-game-storage',
+      storage: {
+        getItem: (name) => {
+          if (typeof window === 'undefined') return null;
+          const str = sessionStorage.getItem(name);
+          return str ? JSON.parse(str) : null;
+        },
+        setItem: (name, value) => {
+          if (typeof window === 'undefined') return;
+          sessionStorage.setItem(name, JSON.stringify(value));
+        },
+        removeItem: (name) => {
+          if (typeof window === 'undefined') return;
+          sessionStorage.removeItem(name);
+        },
+      },
+      partialize: (state) => ({
+        // Only persist essential game state for rejoin
+        roomId: state.roomId,
+        myPlayerId: state.myPlayerId,
+        myColor: state.myColor,
+        playerName: state.playerName,
+        status: state.status,
+      }) as GameState,
+    }
+  )
+);

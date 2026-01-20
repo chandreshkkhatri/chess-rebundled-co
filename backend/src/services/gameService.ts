@@ -94,6 +94,49 @@ export class GameService {
   }
 
   /**
+   * Get player by player ID
+   */
+  getPlayerById(roomId: string, playerId: string): Player | undefined {
+    const room = this.rooms.get(roomId);
+    return room?.players.find(p => p.id === playerId);
+  }
+
+  /**
+   * Update player's socket ID (for reconnection)
+   */
+  updatePlayerSocketId(roomId: string, playerId: string, newSocketId: string): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) return false;
+
+    const player = room.players.find(p => p.id === playerId);
+    if (!player) return false;
+
+    player.socketId = newSocketId;
+    return true;
+  }
+
+  /**
+   * Get room data for rejoin (timer remaining is calculated at call time)
+   */
+  getRoomDataForRejoin(roomId: string, playerId: string): {
+    room: GameRoom;
+    player: Player;
+    currentPosition: string;
+    expectedMove: { san: string; from: string; to: string } | null;
+  } | null {
+    const room = this.rooms.get(roomId);
+    if (!room) return null;
+
+    const player = room.players.find(p => p.id === playerId);
+    if (!player) return null;
+
+    const currentPosition = this.getCurrentPosition(roomId);
+    const expectedMove = this.getCurrentExpectedMove(roomId);
+
+    return { room, player, currentPosition, expectedMove };
+  }
+
+  /**
    * Select a historical game for the room
    */
   selectGame(roomId: string, gameId: string): HistoricalGame | null {

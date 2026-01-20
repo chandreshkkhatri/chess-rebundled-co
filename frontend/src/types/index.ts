@@ -65,3 +65,19 @@ export interface ChallengeAcceptedData {
 }
 
 export type GameStatus = 'idle' | 'in-lobby' | 'waiting-for-match' | 'joining' | 'waiting' | 'selecting' | 'playing' | 'finished';
+
+// Data sent when rejoining a room
+export interface RejoinData {
+  roomId: string;
+  players: Player[];
+  selectedGame: HistoricalGame;
+  status: GameStatus;
+  currentPosition: string;
+  currentTurn: 'white' | 'black';
+  moveIndex: number;
+  timeRemaining: number;
+  timeLimit: number;
+  expectedMove: MoveDetails | null;
+  myPlayerId: string;
+  myColor: 'white' | 'black';
+}

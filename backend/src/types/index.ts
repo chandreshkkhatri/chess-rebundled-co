@@ -75,6 +75,22 @@ export interface ChallengeAcceptedData {
   expectedMove: MoveDetails | null;
 }
 
+// Data sent when rejoining a room
+export interface RejoinData {
+  roomId: string;
+  players: Player[];
+  selectedGame: HistoricalGame;
+  status: 'waiting' | 'selecting' | 'playing' | 'finished';
+  currentPosition: string;
+  currentTurn: 'white' | 'black';
+  moveIndex: number;
+  timeRemaining: number;
+  timeLimit: number;
+  expectedMove: MoveDetails | null;
+  myPlayerId: string;
+  myColor: 'white' | 'black';
+}
+
 // Socket Event Types
 export interface ServerToClientEvents {
   // Room events (legacy)
@@ -93,6 +109,9 @@ export interface ServerToClientEvents {
   'challenge-created': (challenge: Challenge) => void;
   'challenge-removed': (challengeId: string) => void;
   'challenge-accepted': (data: ChallengeAcceptedData) => void;
+  // Rejoin events
+  'room-rejoined': (data: RejoinData) => void;
+  'rejoin-failed': (data: { message: string }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -106,4 +125,6 @@ export interface ClientToServerEvents {
   'cancel-challenge': () => void;
   'get-challenges': () => void;
   'accept-challenge': (data: { challengeId: string; playerName: string }) => void;
+  // Rejoin events
+  'rejoin-room': (data: { roomId: string; playerId: string }) => void;
 }
