@@ -6,7 +6,7 @@ import { ClientToServerEvents, ServerToClientEvents } from '../types/index.js';
 export function initializeSocket(httpServer: HttpServer): Server {
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:3000',
+      origin: true,
       methods: ['GET', 'POST'],
       credentials: true,
     },
