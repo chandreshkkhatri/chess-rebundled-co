@@ -10,6 +10,7 @@ import { ScoreDisplay } from '@/components/ScoreDisplay';
 import { VoiceInput } from '@/components/VoiceInput';
 import { MoveHistory } from '@/components/MoveHistory';
 import { GameResults } from '@/components/GameResults';
+import { ReadyScreen } from '@/components/ReadyScreen';
 
 export default function GamePage() {
   const params = useParams();
@@ -24,6 +25,7 @@ export default function GamePage() {
     currentTurn,
     myColor,
     selectedGame,
+    players,
     reset,
     roomId: storeRoomId,
     currentExpectedMove,
@@ -31,7 +33,8 @@ export default function GamePage() {
 
   // Redirect to lobby if no game is in progress
   useEffect(() => {
-    if (isConnected && status !== 'playing' && status !== 'finished') {
+    const validStatuses = ['ready', 'countdown', 'playing', 'finished'];
+    if (isConnected && !validStatuses.includes(status)) {
       router.push('/');
     }
   }, [isConnected, status, router]);
@@ -64,13 +67,28 @@ export default function GamePage() {
     );
   }
 
-  // Redirect to lobby if not playing
-  if (status !== 'playing' && status !== 'finished') {
+  // Redirect to lobby if not in a valid game state
+  const validStatuses = ['ready', 'countdown', 'playing', 'finished'];
+  if (!validStatuses.includes(status)) {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-white text-xl">Redirecting to lobby...</div>
       </main>
     );
+  }
+
+  // Render ready/countdown screen
+  if (status === 'ready' || status === 'countdown') {
+    // If we don't have game data yet (e.g., after refresh), show validating state
+    // The rejoin logic will populate this data or redirect to lobby if room doesn't exist
+    if (!selectedGame || players.length === 0) {
+      return (
+        <main className="min-h-screen flex items-center justify-center">
+          <div className="text-white text-xl">Validating room...</div>
+        </main>
+      );
+    }
+    return <ReadyScreen />;
   }
 
   // Render game finished state
@@ -89,12 +107,36 @@ export default function GamePage() {
         {/* Header */}
         <div className="bg-slate-800 rounded-lg p-4 mb-6">
           <div className="flex items-center justify-between">
-            <div>
-              <div className="text-slate-400 text-sm">Now Playing</div>
-              <div className="text-white font-bold">{selectedGame?.title}</div>
-              <div className="text-slate-500 text-sm">
-                {selectedGame?.white.shortName} vs {selectedGame?.black.shortName} (
-                {selectedGame?.year})
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => {
+                  reset();
+                  router.push('/');
+                }}
+                className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition-colors"
+                title="Back to Home"
+              >
+                <svg
+                  className="w-5 h-5 text-slate-300"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                  />
+                </svg>
+              </button>
+              <div>
+                <div className="text-slate-400 text-sm">Now Playing</div>
+                <div className="text-white font-bold">{selectedGame?.title}</div>
+                <div className="text-slate-500 text-sm">
+                  {selectedGame?.white.shortName} vs {selectedGame?.black.shortName} (
+                  {selectedGame?.year})
+                </div>
               </div>
             </div>
             <div className="text-right">

@@ -53,18 +53,16 @@ export interface MoveDetails {
   to: string;
 }
 
-// Data sent when a challenge is accepted and game starts
+// Data sent when a challenge is accepted (goes to ready screen, game not started yet)
 export interface ChallengeAcceptedData {
   roomId: string;
   game: HistoricalGame;
   players: Player[];
   position: string;
-  turn: 'white' | 'black';
   timeLimit: number;
-  expectedMove: MoveDetails | null;
 }
 
-export type GameStatus = 'idle' | 'in-lobby' | 'waiting-for-match' | 'joining' | 'waiting' | 'selecting' | 'playing' | 'finished';
+export type GameStatus = 'idle' | 'in-lobby' | 'waiting-for-match' | 'joining' | 'waiting' | 'selecting' | 'ready' | 'countdown' | 'playing' | 'finished';
 
 // Data sent when rejoining a room
 export interface RejoinData {
@@ -75,9 +73,11 @@ export interface RejoinData {
   currentPosition: string;
   currentTurn: 'white' | 'black';
   moveIndex: number;
-  timeRemaining: number;
   timeLimit: number;
+  whiteTime: number;
+  blackTime: number;
   expectedMove: MoveDetails | null;
   myPlayerId: string;
   myColor: 'white' | 'black';
+  readyPlayers: string[];
 }

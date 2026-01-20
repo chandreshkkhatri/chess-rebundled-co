@@ -15,8 +15,8 @@ export class GameHandler {
   constructor(private io: Server<ClientToServerEvents, ServerToClientEvents>) {
     this.gameService = new GameService();
     this.challengeService = new ChallengeService();
-    this.timerService = new TimerService(io as Server, (roomId) =>
-      this.handleTimeout(roomId)
+    this.timerService = new TimerService(io as Server, (roomId, loser) =>
+      this.handleTimeoutLoss(roomId, loser)
     );
   }
 
@@ -28,6 +28,9 @@ export class GameHandler {
     socket.on('select-game', (data) => this.handleSelectGame(socket, data));
     socket.on('start-game', (data) => this.handleStartGame(socket, data));
     socket.on('submit-move', (data) => this.handleSubmitMove(socket, data));
+
+    // Ready event
+    socket.on('player-ready', (data) => this.handlePlayerReady(socket, data));
 
     // Lobby events
     socket.on('create-challenge', (data) => this.handleCreateChallenge(socket, data));
@@ -124,17 +127,19 @@ export class GameHandler {
     // Get the first expected move
     const expectedMove = this.gameService.getCurrentExpectedMove(roomId);
 
+    // Start the game timer (3 minutes per player)
+    const times = this.timerService.startGameTimer(roomId, startResult.turn);
+
     // Notify all players that game is starting
     this.io.to(roomId).emit('game-start', {
       position: startResult.position,
       turn: startResult.turn,
       timeLimit: room.timeLimit,
+      whiteTime: times.whiteTime,
+      blackTime: times.blackTime,
       players: room.players,
       expectedMove,
     });
-
-    // Start the timer for the first move
-    this.timerService.startTimer(roomId, room.timeLimit);
 
     console.log(`Game started in room ${roomId}`);
   }
@@ -158,8 +163,11 @@ export class GameHandler {
       return;
     }
 
-    // Stop timer and get remaining time
-    const timeRemaining = this.timerService.stopTimer(roomId);
+    // Get current times before switching
+    const currentTimes = this.timerService.getCurrentTimes(roomId);
+    const timeRemaining = currentTimes
+      ? (player.color === 'white' ? currentTimes.whiteTime : currentTimes.blackTime)
+      : 0;
 
     // Process the move
     const result = this.gameService.processMove(roomId, socket.id, move, timeRemaining);
@@ -179,54 +187,60 @@ export class GameHandler {
     if (this.gameService.isGameOver(roomId)) {
       this.endGame(roomId);
     } else {
-      // Notify turn change
+      // Get updated room state for turn change
       const newPosition = this.gameService.getCurrentPosition(roomId);
       const updatedRoom = this.gameService.getRoom(roomId)!;
       const expectedMove = this.gameService.getCurrentExpectedMove(roomId);
 
+      // Switch turn and get updated times
+      const times = this.timerService.switchTurn(roomId);
+      if (!times) {
+        console.error(`Failed to switch turn - timer not found for room ${roomId}`);
+        // Still emit turn change with room's stored times to prevent hang
+        this.io.to(roomId).emit('turn-change', {
+          turn: updatedRoom.currentTurn,
+          position: newPosition,
+          moveIndex: updatedRoom.currentMoveIndex,
+          whiteTime: updatedRoom.whiteTimeRemaining,
+          blackTime: updatedRoom.blackTimeRemaining,
+          expectedMove,
+        });
+        return;
+      }
+
+      // Notify turn change with timer values
       this.io.to(roomId).emit('turn-change', {
         turn: updatedRoom.currentTurn,
         position: newPosition,
         moveIndex: updatedRoom.currentMoveIndex,
+        whiteTime: times.whiteTime,
+        blackTime: times.blackTime,
         expectedMove,
       });
-
-      // Start timer for next move
-      this.timerService.startTimer(roomId, room.timeLimit);
     }
   }
 
-  private handleTimeout(roomId: string): void {
+  private handleTimeoutLoss(roomId: string, loser: 'white' | 'black'): void {
     const room = this.gameService.getRoom(roomId);
     if (!room || room.status !== 'playing') return;
 
-    console.log(`Timeout in room ${roomId} for ${room.currentTurn}`);
+    console.log(`Time expired in room ${roomId} for ${loser} - game over`);
 
-    // Record timeout as missed move
-    const result = this.gameService.handleTimeout(roomId);
-    if (result) {
-      this.io.to(roomId).emit('move-result', result);
-    }
+    // End the game - the player who ran out of time loses
+    this.timerService.clearTimer(roomId);
+    room.status = 'finished';
 
-    // Check if game is over
-    if (this.gameService.isGameOver(roomId)) {
-      this.endGame(roomId);
-    } else {
-      // Notify turn change
-      const newPosition = this.gameService.getCurrentPosition(roomId);
-      const updatedRoom = this.gameService.getRoom(roomId)!;
-      const expectedMove = this.gameService.getCurrentExpectedMove(roomId);
+    // Find winner (opponent of loser)
+    const winner = room.players.find(p => p.color !== loser);
 
-      this.io.to(roomId).emit('turn-change', {
-        turn: updatedRoom.currentTurn,
-        position: newPosition,
-        moveIndex: updatedRoom.currentMoveIndex,
-        expectedMove,
-      });
+    this.io.to(roomId).emit('game-end', {
+      winner: winner?.id || null,
+      players: room.players,
+      trivia: room.historicalGame?.trivia || [],
+      reason: 'timeout',
+    });
 
-      // Start timer for next move
-      this.timerService.startTimer(roomId, room.timeLimit);
-    }
+    console.log(`Game ended in room ${roomId}. Winner: ${winner?.name || 'NONE'} (opponent timed out)`);
   }
 
   private endGame(roomId: string): void {
@@ -308,44 +322,140 @@ export class GameHandler {
       data.playerName
     );
 
-    // Start the game
-    const startResult = this.gameService.startGame(room.id);
-    if (!startResult) {
-      socket.emit('error', { message: 'Could not start game' });
-      return;
-    }
-
     // Join both sockets to the room
+    console.log(`Joining sockets to room ${room.id}:`);
+    console.log(`  Creator socket: ${challenge.creatorSocketId}`);
+    console.log(`  Acceptor socket: ${socket.id}`);
+
     const creatorSocket = this.io.sockets.sockets.get(challenge.creatorSocketId);
     if (creatorSocket) {
       creatorSocket.leave('lobby');
       creatorSocket.join(room.id);
       this.socketToRoom.set(challenge.creatorSocketId, room.id);
+      console.log(`  Creator joined room. Socket rooms: ${Array.from(creatorSocket.rooms).join(', ')}`);
+    } else {
+      console.log(`  WARNING: Creator socket not found!`);
     }
     socket.leave('lobby');
     socket.join(room.id);
     this.socketToRoom.set(socket.id, room.id);
+    console.log(`  Acceptor joined room. Socket rooms: ${Array.from(socket.rooms).join(', ')}`);
 
-    // Get the first expected move
-    const expectedMove = this.gameService.getCurrentExpectedMove(room.id);
+    // Set room to ready status (waiting for players to click ready)
+    this.gameService.setReadyStatus(room.id);
 
-    // Notify both players
+    // Verify room status
+    const verifyRoom = this.gameService.getRoom(room.id);
+    console.log(`Room ${room.id} status after setReadyStatus: ${verifyRoom?.status}`);
+    console.log(`Room players: ${verifyRoom?.players.map(p => `${p.name}(${p.socketId})`).join(', ')}`);
+
+    // Notify both players to show ready screen
     const matchData = {
       roomId: room.id,
       game,
       players: room.players,
-      position: startResult.position,
-      turn: startResult.turn,
+      position: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
       timeLimit: room.timeLimit,
-      expectedMove,
     };
 
     this.io.to(room.id).emit('challenge-accepted', matchData);
 
-    // Start the timer
-    this.timerService.startTimer(room.id, room.timeLimit);
+    console.log(`Challenge accepted. Room ${room.id} created. Waiting for ready. Game: ${game.title}`);
+  }
 
-    console.log(`Challenge accepted. Room ${room.id} created. Game: ${game.title}`);
+  private handlePlayerReady(
+    socket: GameSocket,
+    data: { roomId: string }
+  ): void {
+    const { roomId } = data;
+
+    console.log(`Player ready request: roomId=${roomId}, socketId=${socket.id}`);
+    console.log(`All rooms: ${this.gameService.getAllRoomIds().join(', ') || '(none)'}`);
+    console.log(`socketToRoom: ${socket.id} -> ${this.socketToRoom.get(socket.id) || '(not mapped)'}`);
+    // Check if socket is in the expected socket.io room
+    console.log(`Socket rooms: ${Array.from(socket.rooms).join(', ')}`)
+
+    const room = this.gameService.getRoom(roomId);
+    if (!room) {
+      console.log(`Room not found: ${roomId}`);
+      socket.emit('error', { message: `Room not found: ${roomId}` });
+      return;
+    }
+
+    console.log(`Room found: ${room.id}, status: ${room.status}, players: ${room.players.map(p => p.name + '/' + p.socketId).join(', ')}`);
+
+    if (room.status !== 'ready') {
+      console.log(`Room status is '${room.status}', expected 'ready'. Room ID: ${roomId}`);
+      socket.emit('error', { message: `Room status is '${room.status}', expected 'ready'` });
+      return;
+    }
+
+    const player = this.gameService.getPlayerBySocketId(roomId, socket.id);
+    if (!player) {
+      socket.emit('error', { message: 'Player not found' });
+      return;
+    }
+
+    // Mark player as ready
+    const wasMarked = this.gameService.markPlayerReady(roomId, player.id);
+    if (!wasMarked) {
+      return;
+    }
+
+    // Notify all players that this player is ready
+    this.io.to(roomId).emit('player-ready', player.id);
+
+    console.log(`Player ${player.name} is ready in room ${roomId}`);
+
+    // Check if all players are ready
+    if (this.gameService.areAllPlayersReady(roomId)) {
+      this.startCountdown(roomId);
+    }
+  }
+
+  private startCountdown(roomId: string): void {
+    this.gameService.setCountdownStatus(roomId);
+
+    let countdown = 5;
+    this.io.to(roomId).emit('countdown-start', countdown);
+
+    const countdownInterval = setInterval(() => {
+      countdown--;
+
+      if (countdown > 0) {
+        this.io.to(roomId).emit('countdown-tick', countdown);
+      } else {
+        clearInterval(countdownInterval);
+        this.actuallyStartGame(roomId);
+      }
+    }, 1000);
+  }
+
+  private actuallyStartGame(roomId: string): void {
+    const room = this.gameService.getRoom(roomId);
+    if (!room) return;
+
+    const startResult = this.gameService.startGame(roomId);
+    if (!startResult) return;
+
+    // Get the first expected move
+    const expectedMove = this.gameService.getCurrentExpectedMove(roomId);
+
+    // Start the game timer (3 minutes per player)
+    const times = this.timerService.startGameTimer(roomId, startResult.turn);
+
+    // Notify all players that game is starting
+    this.io.to(roomId).emit('game-start', {
+      position: startResult.position,
+      turn: startResult.turn,
+      timeLimit: room.timeLimit,
+      whiteTime: times.whiteTime,
+      blackTime: times.blackTime,
+      players: room.players,
+      expectedMove,
+    });
+
+    console.log(`Game started in room ${roomId}`);
   }
 
   private handleRejoinRoom(
@@ -364,9 +474,10 @@ export class GameHandler {
 
     const { room, player, currentPosition, expectedMove } = rejoinData;
 
-    // Game must be in progress to rejoin
-    if (room.status !== 'playing') {
-      socket.emit('rejoin-failed', { message: 'Game is not in progress' });
+    // Room must be in an active state to rejoin (ready, countdown, or playing)
+    const rejoinableStatuses = ['ready', 'countdown', 'playing'];
+    if (!rejoinableStatuses.includes(room.status)) {
+      socket.emit('rejoin-failed', { message: 'Room is not active' });
       return;
     }
 
@@ -377,8 +488,8 @@ export class GameHandler {
     socket.join(roomId);
     this.socketToRoom.set(socket.id, roomId);
 
-    // Get remaining time from timer
-    const timeRemaining = this.timerService.getRemainingTime(roomId);
+    // Get current times from timer (only available if game is playing)
+    const times = this.timerService.getCurrentTimes(roomId);
 
     // Send rejoin data to the player
     socket.emit('room-rejoined', {
@@ -389,14 +500,16 @@ export class GameHandler {
       currentPosition,
       currentTurn: room.currentTurn,
       moveIndex: room.currentMoveIndex,
-      timeRemaining,
       timeLimit: room.timeLimit,
+      whiteTime: times?.whiteTime ?? room.timeLimit,
+      blackTime: times?.blackTime ?? room.timeLimit,
       expectedMove,
       myPlayerId: player.id,
       myColor: player.color,
+      readyPlayers: Array.from(room.readyPlayers),
     });
 
-    console.log(`Player ${player.name} rejoined room ${roomId}`);
+    console.log(`Player ${player.name} rejoined room ${roomId} (status: ${room.status})`);
   }
 
   private handleDisconnect(socket: GameSocket): void {

@@ -2,68 +2,89 @@ import { Server } from 'socket.io';
 
 interface ActiveTimer {
   roomId: string;
-  startTime: number;
-  timeLimit: number;
+  currentTurn: 'white' | 'black';
+  turnStartTime: number;
+  whiteTimeRemaining: number;
+  blackTimeRemaining: number;
   intervalId: NodeJS.Timeout;
-  timeoutId: NodeJS.Timeout;
 }
+
+const TOTAL_TIME_PER_PLAYER = 180000; // 3 minutes in milliseconds
 
 export class TimerService {
   private activeTimers: Map<string, ActiveTimer> = new Map();
   private readonly SYNC_INTERVAL = 1000; // Sync every second
-  private readonly LATENCY_GRACE = 200; // 200ms grace period for latency
 
   constructor(
     private io: Server,
-    private onTimeExpired: (roomId: string) => void
+    private onTimeExpired: (roomId: string, loser: 'white' | 'black') => void
   ) {}
 
   /**
-   * Start a new turn timer
+   * Start the game timer for a room
    */
-  startTimer(roomId: string, timeLimit: number = 10000): void {
+  startGameTimer(roomId: string, initialTurn: 'white' | 'black' = 'white'): { whiteTime: number; blackTime: number } {
     // Clear any existing timer
     this.clearTimer(roomId);
 
-    const startTime = Date.now();
-
-    // Set up periodic sync broadcasts
-    const intervalId = setInterval(() => {
-      this.broadcastTimeSync(roomId, startTime, timeLimit);
-    }, this.SYNC_INTERVAL);
-
-    // Set up expiration timeout
-    const timeoutId = setTimeout(() => {
-      this.handleTimerExpired(roomId);
-    }, timeLimit + this.LATENCY_GRACE);
-
-    this.activeTimers.set(roomId, {
+    const timer: ActiveTimer = {
       roomId,
-      startTime,
-      timeLimit,
-      intervalId,
-      timeoutId,
-    });
+      currentTurn: initialTurn,
+      turnStartTime: Date.now(),
+      whiteTimeRemaining: TOTAL_TIME_PER_PLAYER,
+      blackTimeRemaining: TOTAL_TIME_PER_PLAYER,
+      intervalId: setInterval(() => this.tick(roomId), this.SYNC_INTERVAL),
+    };
 
-    // Immediate first sync
-    this.broadcastTimeSync(roomId, startTime, timeLimit);
+    this.activeTimers.set(roomId, timer);
+
+    return { whiteTime: timer.whiteTimeRemaining, blackTime: timer.blackTimeRemaining };
   }
 
   /**
-   * Stop timer and return remaining time
+   * Switch turn - stops current player's clock and starts opponent's
    */
-  stopTimer(roomId: string): number {
+  switchTurn(roomId: string): { whiteTime: number; blackTime: number } | null {
     const timer = this.activeTimers.get(roomId);
-    if (!timer) {
-      return 0;
+    if (!timer) return null;
+
+    // Calculate elapsed time for current player
+    const elapsed = Date.now() - timer.turnStartTime;
+
+    // Deduct time from current player
+    if (timer.currentTurn === 'white') {
+      timer.whiteTimeRemaining = Math.max(0, timer.whiteTimeRemaining - elapsed);
+    } else {
+      timer.blackTimeRemaining = Math.max(0, timer.blackTimeRemaining - elapsed);
     }
 
-    const elapsed = Date.now() - timer.startTime;
-    const remaining = Math.max(0, timer.timeLimit - elapsed);
+    // Switch turn
+    timer.currentTurn = timer.currentTurn === 'white' ? 'black' : 'white';
+    timer.turnStartTime = Date.now();
 
-    this.clearTimer(roomId);
+    return { whiteTime: timer.whiteTimeRemaining, blackTime: timer.blackTimeRemaining };
+  }
 
-    return remaining;
+  /**
+   * Get current times for both players (accounting for elapsed time on current turn)
+   */
+  getCurrentTimes(roomId: string): { whiteTime: number; blackTime: number } | null {
+    const timer = this.activeTimers.get(roomId);
+    if (!timer) return null;
+
+    const elapsed = Date.now() - timer.turnStartTime;
+
+    let whiteTime = timer.whiteTimeRemaining;
+    let blackTime = timer.blackTimeRemaining;
+
+    // Deduct elapsed time from current player
+    if (timer.currentTurn === 'white') {
+      whiteTime = Math.max(0, whiteTime - elapsed);
+    } else {
+      blackTime = Math.max(0, blackTime - elapsed);
+    }
+
+    return { whiteTime, blackTime };
   }
 
   /**
@@ -73,45 +94,43 @@ export class TimerService {
     const timer = this.activeTimers.get(roomId);
     if (timer) {
       clearInterval(timer.intervalId);
-      clearTimeout(timer.timeoutId);
       this.activeTimers.delete(roomId);
     }
   }
 
   /**
-   * Get remaining time for a room
+   * Periodic tick - check for timeout and broadcast sync
    */
-  getRemainingTime(roomId: string): number {
+  private tick(roomId: string): void {
+    const times = this.getCurrentTimes(roomId);
+    if (!times) return;
+
     const timer = this.activeTimers.get(roomId);
-    if (!timer) {
-      return 0;
+    if (!timer) return;
+
+    // Check for timeout
+    if (timer.currentTurn === 'white' && times.whiteTime <= 0) {
+      this.clearTimer(roomId);
+      this.onTimeExpired(roomId, 'white');
+      return;
+    }
+    if (timer.currentTurn === 'black' && times.blackTime <= 0) {
+      this.clearTimer(roomId);
+      this.onTimeExpired(roomId, 'black');
+      return;
     }
 
-    const elapsed = Date.now() - timer.startTime;
-    return Math.max(0, timer.timeLimit - elapsed);
-  }
-
-  /**
-   * Broadcast time synchronization to all players in room
-   */
-  private broadcastTimeSync(
-    roomId: string,
-    startTime: number,
-    timeLimit: number
-  ): void {
-    const elapsed = Date.now() - startTime;
-    const remaining = Math.max(0, timeLimit - elapsed);
-
+    // Broadcast time sync to all players
     this.io.to(roomId).emit('timer-sync', {
-      remaining,
+      whiteTime: times.whiteTime,
+      blackTime: times.blackTime,
     });
   }
 
   /**
-   * Handle timer expiration
+   * Get the total time limit per player
    */
-  private handleTimerExpired(roomId: string): void {
-    this.clearTimer(roomId);
-    this.onTimeExpired(roomId);
+  getTimeLimit(): number {
+    return TOTAL_TIME_PER_PLAYER;
   }
 }

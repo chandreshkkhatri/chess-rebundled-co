@@ -25,12 +25,22 @@ export default function Home() {
     myChallenge,
     status,
     roomId,
+    playerName: storedPlayerName,
     setPlayerName: storeSetPlayerName,
   } = useGameStore();
 
+  // Load stored player name on mount
+  useEffect(() => {
+    if (storedPlayerName) {
+      setPlayerName(storedPlayerName);
+      setHasEnteredLobby(true);
+    }
+  }, [storedPlayerName]);
+
   // Navigate to game when match is found
   useEffect(() => {
-    if (status === 'playing' && roomId) {
+    const validGameStatuses = ['ready', 'countdown', 'playing'];
+    if (validGameStatuses.includes(status) && roomId) {
       router.push(`/game/${roomId}`);
     }
   }, [status, roomId, router]);
@@ -49,6 +59,13 @@ export default function Home() {
     }
     storeSetPlayerName(playerName);
     setHasEnteredLobby(true);
+  };
+
+  const handleLogout = () => {
+    storeSetPlayerName('');
+    setPlayerName('');
+    setHasEnteredLobby(false);
+    cancelChallenge();
   };
 
   const handleCreateChallenge = () => {
@@ -106,9 +123,19 @@ export default function Home() {
   return (
     <main className="min-h-screen p-4">
       <div className="max-w-2xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Game Lobby</h1>
-          <p className="text-slate-400">Welcome, {playerName}!</p>
+        {/* Header with logout */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="text-center flex-1">
+            <h1 className="text-3xl font-bold text-white mb-2">Game Lobby</h1>
+            <p className="text-slate-400">Welcome, {playerName}!</p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors text-sm"
+            title="Change name"
+          >
+            Logout
+          </button>
         </div>
 
         {/* My Challenge Section */}

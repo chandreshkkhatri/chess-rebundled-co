@@ -32,11 +32,14 @@ export interface GameRoom {
   id: string;
   players: Player[];
   historicalGame: HistoricalGame | null;
-  status: 'waiting' | 'selecting' | 'playing' | 'finished';
+  status: 'waiting' | 'selecting' | 'ready' | 'countdown' | 'playing' | 'finished';
   currentMoveIndex: number;
   currentTurn: 'white' | 'black';
   timerStartedAt: number | null;
-  timeLimit: number; // milliseconds
+  timeLimit: number; // milliseconds - total time per player (3 minutes = 180000)
+  whiteTimeRemaining: number; // milliseconds remaining for white
+  blackTimeRemaining: number; // milliseconds remaining for black
+  readyPlayers: Set<string>; // player IDs who are ready
 }
 
 export interface MoveResult {
@@ -64,15 +67,13 @@ export interface MoveDetails {
   to: string;
 }
 
-// Data sent when a challenge is accepted and game starts
+// Data sent when a challenge is accepted (goes to ready screen)
 export interface ChallengeAcceptedData {
   roomId: string;
   game: HistoricalGame;
   players: Player[];
   position: string;
-  turn: 'white' | 'black';
   timeLimit: number;
-  expectedMove: MoveDetails | null;
 }
 
 // Data sent when rejoining a room
@@ -80,15 +81,17 @@ export interface RejoinData {
   roomId: string;
   players: Player[];
   selectedGame: HistoricalGame;
-  status: 'waiting' | 'selecting' | 'playing' | 'finished';
+  status: 'waiting' | 'selecting' | 'ready' | 'countdown' | 'playing' | 'finished';
   currentPosition: string;
   currentTurn: 'white' | 'black';
   moveIndex: number;
-  timeRemaining: number;
   timeLimit: number;
+  whiteTime: number;
+  blackTime: number;
   expectedMove: MoveDetails | null;
   myPlayerId: string;
   myColor: 'white' | 'black';
+  readyPlayers: string[]; // IDs of ready players
 }
 
 // Socket Event Types
@@ -98,17 +101,21 @@ export interface ServerToClientEvents {
   'player-joined': (player: Player) => void;
   'player-left': (playerId: string) => void;
   'game-selected': (game: HistoricalGame) => void;
-  'game-start': (data: { position: string; turn: 'white' | 'black'; timeLimit: number; players: Player[]; expectedMove: MoveDetails | null }) => void;
-  'timer-sync': (data: { remaining: number }) => void;
+  'game-start': (data: { position: string; turn: 'white' | 'black'; timeLimit: number; whiteTime: number; blackTime: number; players: Player[]; expectedMove: MoveDetails | null }) => void;
+  'timer-sync': (data: { whiteTime: number; blackTime: number }) => void;
   'move-result': (result: MoveResult) => void;
-  'turn-change': (data: { turn: 'white' | 'black'; position: string; moveIndex: number; expectedMove: MoveDetails | null }) => void;
-  'game-end': (data: { winner: string | null; players: Player[]; trivia: string[] }) => void;
+  'turn-change': (data: { turn: 'white' | 'black'; position: string; moveIndex: number; whiteTime: number; blackTime: number; expectedMove: MoveDetails | null }) => void;
+  'game-end': (data: { winner: string | null; players: Player[]; trivia: string[]; reason?: 'completed' | 'timeout' }) => void;
   'error': (data: { message: string }) => void;
   // Lobby events
   'challenges-list': (challenges: Challenge[]) => void;
   'challenge-created': (challenge: Challenge) => void;
   'challenge-removed': (challengeId: string) => void;
   'challenge-accepted': (data: ChallengeAcceptedData) => void;
+  // Ready/countdown events
+  'player-ready': (playerId: string) => void;
+  'countdown-start': (seconds: number) => void;
+  'countdown-tick': (seconds: number) => void;
   // Rejoin events
   'room-rejoined': (data: RejoinData) => void;
   'rejoin-failed': (data: { message: string }) => void;
@@ -125,6 +132,8 @@ export interface ClientToServerEvents {
   'cancel-challenge': () => void;
   'get-challenges': () => void;
   'accept-challenge': (data: { challengeId: string; playerName: string }) => void;
+  // Ready event
+  'player-ready': (data: { roomId: string }) => void;
   // Rejoin events
   'rejoin-room': (data: { roomId: string; playerId: string }) => void;
 }

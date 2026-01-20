@@ -19,11 +19,14 @@ export function useSocket() {
     setMyPlayer,
     setSelectedGame,
     startGame,
-    updateTimer,
+    updateTimers,
     setMoveResult,
     changeTurn,
     endGame,
     handleRejoin,
+    markPlayerReady,
+    startCountdown,
+    countdownTick,
     reset,
     roomId: storedRoomId,
     myPlayerId: storedPlayerId,
@@ -37,10 +40,11 @@ export function useSocket() {
       console.log('Connected to server');
       setConnected(true);
 
-      // Check if we need to rejoin a room
+      // Check if we need to rejoin a room (for ready, countdown, or playing states)
       const state = useGameStore.getState();
-      if (state.roomId && state.myPlayerId && state.status === 'playing') {
-        console.log('Attempting to rejoin room:', state.roomId);
+      const rejoinableStatuses = ['ready', 'countdown', 'playing'];
+      if (state.roomId && state.myPlayerId && rejoinableStatuses.includes(state.status)) {
+        console.log('Attempting to rejoin room:', state.roomId, 'status:', state.status);
         socket.emit('rejoin-room', {
           roomId: state.roomId,
           playerId: state.myPlayerId,
@@ -78,13 +82,13 @@ export function useSocket() {
       setSelectedGame(game);
     });
 
-    socket.on('game-start', (data: { position: string; turn: 'white' | 'black'; timeLimit: number; players: Player[]; expectedMove: MoveDetails | null }) => {
+    socket.on('game-start', (data: { position: string; turn: 'white' | 'black'; timeLimit: number; whiteTime: number; blackTime: number; players: Player[]; expectedMove: MoveDetails | null }) => {
       console.log('Game started:', data);
-      startGame(data.position, data.turn, data.timeLimit, data.players, data.expectedMove);
+      startGame(data.position, data.turn, data.timeLimit, data.whiteTime, data.blackTime, data.players, data.expectedMove);
     });
 
-    socket.on('timer-sync', (data: { remaining: number }) => {
-      updateTimer(data.remaining);
+    socket.on('timer-sync', (data: { whiteTime: number; blackTime: number }) => {
+      updateTimers(data.whiteTime, data.blackTime);
     });
 
     socket.on('move-result', (result: MoveResult) => {
@@ -92,9 +96,9 @@ export function useSocket() {
       setMoveResult(result);
     });
 
-    socket.on('turn-change', (data: { turn: 'white' | 'black'; position: string; moveIndex: number; expectedMove: MoveDetails | null }) => {
+    socket.on('turn-change', (data: { turn: 'white' | 'black'; position: string; moveIndex: number; whiteTime: number; blackTime: number; expectedMove: MoveDetails | null }) => {
       console.log('Turn change:', data);
-      changeTurn(data.turn, data.position, data.moveIndex, data.expectedMove);
+      changeTurn(data.turn, data.position, data.moveIndex, data.whiteTime, data.blackTime, data.expectedMove);
     });
 
     socket.on('game-end', (data: { winner: string | null; players: Player[]; trivia: string[] }) => {
@@ -143,7 +147,29 @@ export function useSocket() {
       reset();
     });
 
+    // Ready/Countdown events
+    socket.on('player-ready', (playerId: string) => {
+      console.log('Player ready:', playerId);
+      markPlayerReady(playerId);
+    });
+
+    socket.on('countdown-start', (seconds: number) => {
+      console.log('Countdown starting:', seconds);
+      startCountdown(seconds);
+    });
+
+    socket.on('countdown-tick', (seconds: number) => {
+      console.log('Countdown tick:', seconds);
+      countdownTick(seconds);
+    });
+
     connectSocket();
+
+    // If socket is already connected, set connected state immediately
+    // (the 'connect' event won't fire again for an already-connected socket)
+    if (socket.connected) {
+      setConnected(true);
+    }
 
     return () => {
       socket.off('connect');
@@ -164,6 +190,9 @@ export function useSocket() {
       socket.off('challenge-accepted');
       socket.off('room-rejoined');
       socket.off('rejoin-failed');
+      socket.off('player-ready');
+      socket.off('countdown-start');
+      socket.off('countdown-tick');
       // Don't disconnect on unmount - keep socket alive for page navigation
     };
   }, []);
@@ -210,6 +239,11 @@ export function useSocket() {
     socket.emit('accept-challenge', { challengeId, playerName });
   }, []);
 
+  const markReady = useCallback((roomId: string) => {
+    const socket = getSocket();
+    socket.emit('player-ready', { roomId });
+  }, []);
+
   return {
     joinRoom,
     selectGame,
@@ -219,5 +253,6 @@ export function useSocket() {
     cancelChallenge,
     getChallenges,
     acceptChallenge,
+    markReady,
   };
 }

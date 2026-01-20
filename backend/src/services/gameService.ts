@@ -16,7 +16,7 @@ export class GameService {
   /**
    * Create a new game room
    */
-  createRoom(roomId: string): GameRoom {
+  createRoom(roomId: string, timeLimit: number = 180000): GameRoom {
     const room: GameRoom = {
       id: roomId,
       players: [],
@@ -25,10 +25,57 @@ export class GameService {
       currentMoveIndex: 0,
       currentTurn: 'white',
       timerStartedAt: null,
-      timeLimit: 10000, // 10 seconds
+      timeLimit, // 3 minutes per player
+      whiteTimeRemaining: timeLimit,
+      blackTimeRemaining: timeLimit,
+      readyPlayers: new Set(),
     };
     this.rooms.set(roomId, room);
     return room;
+  }
+
+  /**
+   * Mark a player as ready
+   */
+  markPlayerReady(roomId: string, playerId: string): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room || room.status !== 'ready') return false;
+
+    const player = room.players.find(p => p.id === playerId);
+    if (!player) return false;
+
+    room.readyPlayers.add(playerId);
+    return true;
+  }
+
+  /**
+   * Check if all players are ready
+   */
+  areAllPlayersReady(roomId: string): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) return false;
+    return room.readyPlayers.size === room.players.length && room.players.length === 2;
+  }
+
+  /**
+   * Set room to ready status (waiting for players to click ready)
+   */
+  setReadyStatus(roomId: string): void {
+    const room = this.rooms.get(roomId);
+    if (room) {
+      room.status = 'ready';
+      room.readyPlayers.clear();
+    }
+  }
+
+  /**
+   * Set room to countdown status
+   */
+  setCountdownStatus(roomId: string): void {
+    const room = this.rooms.get(roomId);
+    if (room) {
+      room.status = 'countdown';
+    }
   }
 
   /**
@@ -36,6 +83,13 @@ export class GameService {
    */
   getRoom(roomId: string): GameRoom | undefined {
     return this.rooms.get(roomId);
+  }
+
+  /**
+   * Get all room IDs (for debugging)
+   */
+  getAllRoomIds(): string[] {
+    return Array.from(this.rooms.keys());
   }
 
   /**

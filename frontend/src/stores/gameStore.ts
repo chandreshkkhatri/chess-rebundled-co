@@ -26,7 +26,8 @@ interface GameState {
   currentPosition: string;
   currentTurn: 'white' | 'black';
   moveIndex: number;
-  timeRemaining: number;
+  whiteTime: number;
+  blackTime: number;
   timeLimit: number;
 
   // Results
@@ -36,6 +37,10 @@ interface GameState {
 
   // Current move to identify (displayed on board)
   currentExpectedMove: MoveDetails | null;
+
+  // Ready/Countdown
+  readyPlayers: string[];
+  countdownValue: number | null;
 
   // Voice
   isListening: boolean;
@@ -55,13 +60,16 @@ interface GameState {
   removePlayer: (playerId: string) => void;
   setMyPlayer: (playerId: string, color: 'white' | 'black') => void;
   setSelectedGame: (game: HistoricalGame) => void;
-  startGame: (position: string, turn: 'white' | 'black', timeLimit: number, players: Player[], expectedMove: MoveDetails | null) => void;
-  updateTimer: (remaining: number) => void;
+  startGame: (position: string, turn: 'white' | 'black', timeLimit: number, whiteTime: number, blackTime: number, players: Player[], expectedMove: MoveDetails | null) => void;
+  updateTimers: (whiteTime: number, blackTime: number) => void;
   setMoveResult: (result: MoveResult) => void;
-  changeTurn: (turn: 'white' | 'black', position: string, moveIndex: number, expectedMove: MoveDetails | null) => void;
+  changeTurn: (turn: 'white' | 'black', position: string, moveIndex: number, whiteTime: number, blackTime: number, expectedMove: MoveDetails | null) => void;
   endGame: (winnerId: string | null, players: Player[], trivia: string[]) => void;
   setVoiceState: (isListening: boolean, transcript: string, confidence: number) => void;
   handleRejoin: (data: RejoinData) => void;
+  markPlayerReady: (playerId: string) => void;
+  startCountdown: (seconds: number) => void;
+  countdownTick: (seconds: number) => void;
   reset: () => void;
 }
 
@@ -80,12 +88,15 @@ const initialState = {
   currentPosition: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
   currentTurn: 'white' as const,
   moveIndex: 0,
-  timeRemaining: 10000,
-  timeLimit: 10000,
+  whiteTime: 180000,
+  blackTime: 180000,
+  timeLimit: 180000,
   lastMoveResult: null,
   trivia: [],
   winnerId: null,
   currentExpectedMove: null,
+  readyPlayers: [] as string[],
+  countdownValue: null as number | null,
   isListening: false,
   transcript: '',
   voiceConfidence: 0,
@@ -120,23 +131,27 @@ export const useGameStore = create<GameState>()(
     }),
 
   handleMatchFound: (data, mySocketId) => {
+    console.log('handleMatchFound called:');
+    console.log('  data.roomId:', data.roomId);
+    console.log('  mySocketId:', mySocketId);
+    console.log('  players:', data.players.map(p => `${p.name}(${p.socketId})`).join(', '));
     const myPlayer = data.players.find((p) => p.socketId === mySocketId);
+    console.log('  myPlayer:', myPlayer ? `${myPlayer.name}(${myPlayer.id})` : 'NOT FOUND');
     set({
       roomId: data.roomId,
       selectedGame: data.game,
       players: data.players,
       currentPosition: data.position,
-      currentTurn: data.turn,
       timeLimit: data.timeLimit,
-      timeRemaining: data.timeLimit,
-      status: 'playing',
+      status: 'ready',
       myPlayerId: myPlayer?.id || null,
       myColor: myPlayer?.color || null,
       myChallenge: null,
       challenges: [],
       moveIndex: 0,
       lastMoveResult: null,
-      currentExpectedMove: data.expectedMove,
+      readyPlayers: [],
+      countdownValue: null,
     });
   },
 
@@ -170,20 +185,21 @@ export const useGameStore = create<GameState>()(
 
   setSelectedGame: (game) => set({ selectedGame: game }),
 
-  startGame: (position, turn, timeLimit, players, expectedMove) =>
+  startGame: (position, turn, timeLimit, whiteTime, blackTime, players, expectedMove) =>
     set({
       status: 'playing',
       currentPosition: position,
       currentTurn: turn,
       timeLimit,
-      timeRemaining: timeLimit,
+      whiteTime,
+      blackTime,
       moveIndex: 0,
       players,
       lastMoveResult: null,
       currentExpectedMove: expectedMove,
     }),
 
-  updateTimer: (remaining) => set({ timeRemaining: remaining }),
+  updateTimers: (whiteTime, blackTime) => set({ whiteTime, blackTime }),
 
   setMoveResult: (result) =>
     set((state) => ({
@@ -195,15 +211,16 @@ export const useGameStore = create<GameState>()(
       ),
     })),
 
-  changeTurn: (turn, position, moveIndex, expectedMove) =>
-    set((state) => ({
+  changeTurn: (turn, position, moveIndex, whiteTime, blackTime, expectedMove) =>
+    set({
       currentTurn: turn,
       currentPosition: position,
       moveIndex,
-      timeRemaining: state.timeLimit,
+      whiteTime,
+      blackTime,
       lastMoveResult: null,
       currentExpectedMove: expectedMove,
-    })),
+    }),
 
   endGame: (winnerId, players, trivia) =>
     set({
@@ -226,13 +243,31 @@ export const useGameStore = create<GameState>()(
       currentPosition: data.currentPosition,
       currentTurn: data.currentTurn,
       moveIndex: data.moveIndex,
-      timeRemaining: data.timeRemaining,
+      whiteTime: data.whiteTime,
+      blackTime: data.blackTime,
       timeLimit: data.timeLimit,
       currentExpectedMove: data.expectedMove,
       myPlayerId: data.myPlayerId,
       myColor: data.myColor,
+      readyPlayers: data.readyPlayers,
       challenges: [],
       myChallenge: null,
+    }),
+
+  markPlayerReady: (playerId) =>
+    set((state) => ({
+      readyPlayers: [...state.readyPlayers, playerId],
+    })),
+
+  startCountdown: (seconds) =>
+    set({
+      status: 'countdown',
+      countdownValue: seconds,
+    }),
+
+  countdownTick: (seconds) =>
+    set({
+      countdownValue: seconds,
     }),
 
       reset: () => set(initialState),
