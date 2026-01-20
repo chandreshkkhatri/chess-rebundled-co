@@ -111,15 +111,9 @@ export default function GamePage() {
         </div>
 
         {/* Game area */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left sidebar */}
-          <div className="space-y-4 order-2 lg:order-1">
-            <TimerDisplay />
-            <ScoreDisplay />
-          </div>
-
-          {/* Chess board (center) */}
-          <div className="flex justify-center order-1 lg:order-2">
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+          {/* Chess board (center on mobile, left-center on desktop) */}
+          <div className="flex justify-center lg:flex-1 lg:max-w-lg xl:max-w-xl px-6 lg:px-0">
             <ChessBoard
               fen={currentPosition}
               orientation={myColor || 'white'}
@@ -127,10 +121,23 @@ export default function GamePage() {
             />
           </div>
 
-          {/* Right sidebar */}
-          <div className="space-y-4 order-3">
-            <VoiceInput onMoveSubmit={handleMoveSubmit} />
-            <MoveHistory />
+          {/* Sidebar content */}
+          <div className="flex flex-col sm:flex-row lg:flex-col gap-4 lg:w-72 xl:w-80">
+            {/* Timer and Score - side by side on mobile, stacked on desktop */}
+            <div className="flex flex-row sm:flex-col gap-4 flex-1">
+              <div className="flex-1">
+                <TimerDisplay />
+              </div>
+              <div className="flex-1">
+                <ScoreDisplay />
+              </div>
+            </div>
+
+            {/* Voice input and move history */}
+            <div className="flex flex-col gap-4 flex-1">
+              <VoiceInput onMoveSubmit={handleMoveSubmit} />
+              <MoveHistory />
+            </div>
           </div>
         </div>
 

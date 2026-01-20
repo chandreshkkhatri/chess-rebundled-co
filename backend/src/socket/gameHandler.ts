@@ -411,7 +411,11 @@ export class GameHandler {
     // Clean up room mapping
     const roomId = this.socketToRoom.get(socket.id);
     if (roomId) {
-      this.gameService.removePlayer(roomId, socket.id);
+      const room = this.gameService.getRoom(roomId);
+      // Don't remove players during an active game - allow rejoin
+      if (!room || room.status !== 'playing') {
+        this.gameService.removePlayer(roomId, socket.id);
+      }
       this.socketToRoom.delete(socket.id);
     }
   }

@@ -56,56 +56,57 @@ export function ChessBoard({ fen, orientation = 'white', lastMove }: ChessBoardP
   };
 
   return (
-    <div className="relative inline-block">
-      {/* Board */}
-      <div className="grid grid-cols-8 border-4 border-amber-900 rounded shadow-lg">
-        {ranks.map((rank, rankIndex) =>
-          files.map((file, fileIndex) => {
-            const isLight = isLightSquare(fileIndex, rankIndex);
-            const highlighted = isHighlighted(file, rank);
-            const piece = getPiece(file, rank);
+    <div className="relative w-full max-w-[min(100%,512px)]">
+      {/* Board container - maintains square aspect ratio */}
+      <div className="relative w-full aspect-square">
+        {/* Board grid */}
+        <div className="absolute inset-0 grid grid-cols-8 grid-rows-8 border-4 border-amber-900 rounded shadow-lg">
+          {ranks.map((rank, rankIndex) =>
+            files.map((file, fileIndex) => {
+              const isLight = isLightSquare(fileIndex, rankIndex);
+              const highlighted = isHighlighted(file, rank);
+              const piece = getPiece(file, rank);
 
-            return (
-              <div
-                key={`${file}${rank}`}
-                className={`
-                  w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16
-                  flex items-center justify-center
-                  text-3xl sm:text-4xl md:text-5xl
-                  select-none
-                  transition-colors duration-200
-                  ${isLight ? 'bg-board-light' : 'bg-board-dark'}
-                  ${highlighted ? 'bg-board-highlight' : ''}
-                `}
-              >
-                {piece && (
-                  <span
-                    className={`
-                      ${piece.startsWith('♔') || piece.startsWith('♕') || piece.startsWith('♖') || piece.startsWith('♗') || piece.startsWith('♘') || piece.startsWith('♙') ? 'text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]' : 'text-gray-900'}
-                    `}
-                  >
-                    {piece}
-                  </span>
-                )}
-              </div>
-            );
-          })
-        )}
+              return (
+                <div
+                  key={`${file}${rank}`}
+                  className={`
+                    flex items-center justify-center
+                    select-none
+                    transition-colors duration-200
+                    ${highlighted ? 'bg-board-highlight' : (isLight ? 'bg-board-light' : 'bg-board-dark')}
+                  `}
+                >
+                  {piece && (
+                    <span
+                      className={`
+                        text-[clamp(1.5rem,8vw,3rem)]
+                        ${piece.startsWith('♔') || piece.startsWith('♕') || piece.startsWith('♖') || piece.startsWith('♗') || piece.startsWith('♘') || piece.startsWith('♙') ? 'text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]' : 'text-gray-900'}
+                      `}
+                    >
+                      {piece}
+                    </span>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* File labels (bottom) */}
       <div className="flex justify-around mt-1 px-1">
         {files.map((file) => (
-          <span key={file} className="text-xs text-gray-600 font-medium">
+          <span key={file} className="text-xs text-slate-400 font-medium">
             {file}
           </span>
         ))}
       </div>
 
       {/* Rank labels (left side) */}
-      <div className="absolute left-0 top-0 h-full flex flex-col justify-around -ml-4 py-1">
+      <div className="absolute left-0 top-0 h-[calc(100%-1.5rem)] flex flex-col justify-around -ml-4 py-1">
         {ranks.map((rank) => (
-          <span key={rank} className="text-xs text-gray-600 font-medium">
+          <span key={rank} className="text-xs text-slate-400 font-medium">
             {rank}
           </span>
         ))}

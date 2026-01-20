@@ -164,7 +164,7 @@ export function useSocket() {
       socket.off('challenge-accepted');
       socket.off('room-rejoined');
       socket.off('rejoin-failed');
-      disconnectSocket();
+      // Don't disconnect on unmount - keep socket alive for page navigation
     };
   }, []);
 
