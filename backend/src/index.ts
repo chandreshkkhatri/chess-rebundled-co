@@ -1,6 +1,6 @@
+import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import { createServer } from 'http';
 import { initializeSocket } from './socket/index.js';
 import { getAllGames } from './data/historicalGames.js';
 
@@ -29,8 +29,11 @@ async function main() {
     return getAllGames();
   });
 
-  // Create HTTP server from Fastify
-  const httpServer = createServer(fastify.server);
+  // Initialize Fastify (required for routes to work)
+  await fastify.ready();
+
+  // Get HTTP server from Fastify
+  const httpServer = fastify.server;
 
   // Initialize Socket.io
   initializeSocket(httpServer);
