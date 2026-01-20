@@ -250,6 +250,24 @@ export class GameService {
   }
 
   /**
+   * Get the current expected move with details (for display on board)
+   */
+  getCurrentExpectedMove(roomId: string): { san: string; from: string; to: string } | null {
+    const room = this.rooms.get(roomId);
+    if (!room || !room.historicalGame || room.currentMoveIndex >= room.historicalGame.moves.length) {
+      return null;
+    }
+
+    const currentFen = this.pgnService.getFenAtMove(
+      room.historicalGame.moves,
+      room.currentMoveIndex
+    );
+    const expectedMoveSan = room.historicalGame.moves[room.currentMoveIndex];
+
+    return this.pgnService.getMoveDetails(currentFen, expectedMoveSan);
+  }
+
+  /**
    * End the game and determine winner
    */
   endGame(roomId: string): {

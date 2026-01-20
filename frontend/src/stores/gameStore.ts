@@ -1,5 +1,22 @@
 import { create } from 'zustand';
-import { Player, HistoricalGame, MoveResult, GameStatus, Challenge, ChallengeAcceptedData } from '@/types';
+import { persist } from 'zustand/middleware';
+import { Player, HistoricalGame, MoveResult, GameStatus, Challenge, ChallengeAcceptedData, MoveDetails } from '@/types';
+
+// Data sent when rejoining a room
+export interface RejoinData {
+  roomId: string;
+  players: Player[];
+  selectedGame: HistoricalGame;
+  status: GameStatus;
+  currentPosition: string;
+  currentTurn: 'white' | 'black';
+  moveIndex: number;
+  timeRemaining: number;
+  timeLimit: number;
+  expectedMove: MoveDetails | null;
+  myPlayerId: string;
+  myColor: 'white' | 'black';
+}
 
 interface GameState {
   // Connection
@@ -33,6 +50,9 @@ interface GameState {
   trivia: string[];
   winnerId: string | null;
 
+  // Current move to identify (displayed on board)
+  currentExpectedMove: MoveDetails | null;
+
   // Voice
   isListening: boolean;
   transcript: string;
@@ -51,10 +71,10 @@ interface GameState {
   removePlayer: (playerId: string) => void;
   setMyPlayer: (playerId: string, color: 'white' | 'black') => void;
   setSelectedGame: (game: HistoricalGame) => void;
-  startGame: (position: string, turn: 'white' | 'black', timeLimit: number, players: Player[]) => void;
+  startGame: (position: string, turn: 'white' | 'black', timeLimit: number, players: Player[], expectedMove: MoveDetails | null) => void;
   updateTimer: (remaining: number) => void;
   setMoveResult: (result: MoveResult) => void;
-  changeTurn: (turn: 'white' | 'black', position: string, moveIndex: number) => void;
+  changeTurn: (turn: 'white' | 'black', position: string, moveIndex: number, expectedMove: MoveDetails | null) => void;
   endGame: (winnerId: string | null, players: Player[], trivia: string[]) => void;
   setVoiceState: (isListening: boolean, transcript: string, confidence: number) => void;
   reset: () => void;
@@ -80,6 +100,7 @@ const initialState = {
   lastMoveResult: null,
   trivia: [],
   winnerId: null,
+  currentExpectedMove: null,
   isListening: false,
   transcript: '',
   voiceConfidence: 0,
@@ -128,6 +149,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       challenges: [],
       moveIndex: 0,
       lastMoveResult: null,
+      currentExpectedMove: data.expectedMove,
     });
   },
 
@@ -161,7 +183,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setSelectedGame: (game) => set({ selectedGame: game }),
 
-  startGame: (position, turn, timeLimit, players) =>
+  startGame: (position, turn, timeLimit, players, expectedMove) =>
     set({
       status: 'playing',
       currentPosition: position,
@@ -171,6 +193,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       moveIndex: 0,
       players,
       lastMoveResult: null,
+      currentExpectedMove: expectedMove,
     }),
 
   updateTimer: (remaining) => set({ timeRemaining: remaining }),
@@ -185,13 +208,14 @@ export const useGameStore = create<GameState>((set, get) => ({
       ),
     })),
 
-  changeTurn: (turn, position, moveIndex) =>
+  changeTurn: (turn, position, moveIndex, expectedMove) =>
     set((state) => ({
       currentTurn: turn,
       currentPosition: position,
       moveIndex,
       timeRemaining: state.timeLimit,
       lastMoveResult: null,
+      currentExpectedMove: expectedMove,
     })),
 
   endGame: (winnerId, players, trivia) =>
@@ -200,6 +224,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       winnerId,
       players,
       trivia,
+      currentExpectedMove: null,
     }),
 
   setVoiceState: (isListening, transcript, confidence) =>

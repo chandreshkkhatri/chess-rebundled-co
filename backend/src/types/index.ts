@@ -57,6 +57,13 @@ export interface Challenge {
   createdAt: number;
 }
 
+// Move details for board display
+export interface MoveDetails {
+  san: string;
+  from: string;
+  to: string;
+}
+
 // Data sent when a challenge is accepted and game starts
 export interface ChallengeAcceptedData {
   roomId: string;
@@ -65,6 +72,7 @@ export interface ChallengeAcceptedData {
   position: string;
   turn: 'white' | 'black';
   timeLimit: number;
+  expectedMove: MoveDetails | null;
 }
 
 // Socket Event Types
@@ -74,10 +82,10 @@ export interface ServerToClientEvents {
   'player-joined': (player: Player) => void;
   'player-left': (playerId: string) => void;
   'game-selected': (game: HistoricalGame) => void;
-  'game-start': (data: { position: string; turn: 'white' | 'black'; timeLimit: number; players: Player[] }) => void;
+  'game-start': (data: { position: string; turn: 'white' | 'black'; timeLimit: number; players: Player[]; expectedMove: MoveDetails | null }) => void;
   'timer-sync': (data: { remaining: number }) => void;
   'move-result': (result: MoveResult) => void;
-  'turn-change': (data: { turn: 'white' | 'black'; position: string; moveIndex: number }) => void;
+  'turn-change': (data: { turn: 'white' | 'black'; position: string; moveIndex: number; expectedMove: MoveDetails | null }) => void;
   'game-end': (data: { winner: string | null; players: Player[]; trivia: string[] }) => void;
   'error': (data: { message: string }) => void;
   // Lobby events

@@ -3,7 +3,7 @@
 import { useEffect, useCallback } from 'react';
 import { getSocket, connectSocket, disconnectSocket } from '@/lib/socket';
 import { useGameStore } from '@/stores/gameStore';
-import { Player, HistoricalGame, MoveResult, Challenge, ChallengeAcceptedData } from '@/types';
+import { Player, HistoricalGame, MoveResult, Challenge, ChallengeAcceptedData, MoveDetails } from '@/types';
 
 export function useSocket() {
   const {
@@ -63,9 +63,9 @@ export function useSocket() {
       setSelectedGame(game);
     });
 
-    socket.on('game-start', (data: { position: string; turn: 'white' | 'black'; timeLimit: number; players: Player[] }) => {
+    socket.on('game-start', (data: { position: string; turn: 'white' | 'black'; timeLimit: number; players: Player[]; expectedMove: MoveDetails | null }) => {
       console.log('Game started:', data);
-      startGame(data.position, data.turn, data.timeLimit, data.players);
+      startGame(data.position, data.turn, data.timeLimit, data.players, data.expectedMove);
     });
 
     socket.on('timer-sync', (data: { remaining: number }) => {
@@ -77,9 +77,9 @@ export function useSocket() {
       setMoveResult(result);
     });
 
-    socket.on('turn-change', (data: { turn: 'white' | 'black'; position: string; moveIndex: number }) => {
+    socket.on('turn-change', (data: { turn: 'white' | 'black'; position: string; moveIndex: number; expectedMove: MoveDetails | null }) => {
       console.log('Turn change:', data);
-      changeTurn(data.turn, data.position, data.moveIndex);
+      changeTurn(data.turn, data.position, data.moveIndex, data.expectedMove);
     });
 
     socket.on('game-end', (data: { winner: string | null; players: Player[]; trivia: string[] }) => {

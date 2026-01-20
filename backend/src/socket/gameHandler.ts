@@ -118,12 +118,16 @@ export class GameHandler {
       return;
     }
 
+    // Get the first expected move
+    const expectedMove = this.gameService.getCurrentExpectedMove(roomId);
+
     // Notify all players that game is starting
     this.io.to(roomId).emit('game-start', {
       position: startResult.position,
       turn: startResult.turn,
       timeLimit: room.timeLimit,
       players: room.players,
+      expectedMove,
     });
 
     // Start the timer for the first move
@@ -175,11 +179,13 @@ export class GameHandler {
       // Notify turn change
       const newPosition = this.gameService.getCurrentPosition(roomId);
       const updatedRoom = this.gameService.getRoom(roomId)!;
+      const expectedMove = this.gameService.getCurrentExpectedMove(roomId);
 
       this.io.to(roomId).emit('turn-change', {
         turn: updatedRoom.currentTurn,
         position: newPosition,
         moveIndex: updatedRoom.currentMoveIndex,
+        expectedMove,
       });
 
       // Start timer for next move
@@ -206,11 +212,13 @@ export class GameHandler {
       // Notify turn change
       const newPosition = this.gameService.getCurrentPosition(roomId);
       const updatedRoom = this.gameService.getRoom(roomId)!;
+      const expectedMove = this.gameService.getCurrentExpectedMove(roomId);
 
       this.io.to(roomId).emit('turn-change', {
         turn: updatedRoom.currentTurn,
         position: newPosition,
         moveIndex: updatedRoom.currentMoveIndex,
+        expectedMove,
       });
 
       // Start timer for next move
@@ -315,6 +323,9 @@ export class GameHandler {
     socket.join(room.id);
     this.socketToRoom.set(socket.id, room.id);
 
+    // Get the first expected move
+    const expectedMove = this.gameService.getCurrentExpectedMove(room.id);
+
     // Notify both players
     const matchData = {
       roomId: room.id,
@@ -323,6 +334,7 @@ export class GameHandler {
       position: startResult.position,
       turn: startResult.turn,
       timeLimit: room.timeLimit,
+      expectedMove,
     };
 
     this.io.to(room.id).emit('challenge-accepted', matchData);

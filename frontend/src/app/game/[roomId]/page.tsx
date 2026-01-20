@@ -26,6 +26,7 @@ export default function GamePage() {
     selectedGame,
     reset,
     roomId: storeRoomId,
+    currentExpectedMove,
   } = useGameStore();
 
   // Redirect to lobby if no game is in progress
@@ -119,7 +120,11 @@ export default function GamePage() {
 
           {/* Chess board (center) */}
           <div className="flex justify-center order-1 lg:order-2">
-            <ChessBoard fen={currentPosition} orientation={myColor || 'white'} />
+            <ChessBoard
+              fen={currentPosition}
+              orientation={myColor || 'white'}
+              lastMove={currentExpectedMove ? { from: currentExpectedMove.from, to: currentExpectedMove.to } : undefined}
+            />
           </div>
 
           {/* Right sidebar */}

@@ -46,6 +46,13 @@ export interface Challenge {
   createdAt: number;
 }
 
+// Move details for board display
+export interface MoveDetails {
+  san: string;
+  from: string;
+  to: string;
+}
+
 // Data sent when a challenge is accepted and game starts
 export interface ChallengeAcceptedData {
   roomId: string;
@@ -54,6 +61,7 @@ export interface ChallengeAcceptedData {
   position: string;
   turn: 'white' | 'black';
   timeLimit: number;
+  expectedMove: MoveDetails | null;
 }
 
 export type GameStatus = 'idle' | 'in-lobby' | 'waiting-for-match' | 'joining' | 'waiting' | 'selecting' | 'playing' | 'finished';

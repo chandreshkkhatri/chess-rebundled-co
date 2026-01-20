@@ -128,4 +128,27 @@ export class PgnService {
     const chess = new Chess(fen);
     return chess.moves();
   }
+
+  /**
+   * Get move details including from/to squares
+   */
+  getMoveDetails(
+    fen: string,
+    moveSan: string
+  ): { san: string; from: string; to: string } | null {
+    const chess = new Chess(fen);
+    try {
+      const move = chess.move(moveSan);
+      if (move) {
+        return {
+          san: move.san,
+          from: move.from,
+          to: move.to,
+        };
+      }
+    } catch {
+      // Move failed
+    }
+    return null;
+  }
 }
