@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
 import { useGameStore } from '@/stores/gameStore';
 
+// Feature flag for multiplayer mode
+const MULTIPLAYER_ENABLED = process.env.NEXT_PUBLIC_MULTIPLAYER_ENABLED === 'true';
+
 function formatTimeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
   if (seconds < 60) return 'just now';
@@ -33,7 +36,10 @@ export default function Home() {
   useEffect(() => {
     if (storedPlayerName) {
       setPlayerName(storedPlayerName);
-      setHasEnteredLobby(true);
+      // Only auto-enter lobby if multiplayer is enabled
+      if (MULTIPLAYER_ENABLED) {
+        setHasEnteredLobby(true);
+      }
     }
   }, [storedPlayerName]);
 
@@ -45,12 +51,19 @@ export default function Home() {
     }
   }, [status, roomId, router]);
 
-  // Fetch challenges when entering lobby
+  // Fetch challenges when entering lobby (only if multiplayer enabled)
   useEffect(() => {
-    if (hasEnteredLobby && isConnected) {
+    if (hasEnteredLobby && isConnected && MULTIPLAYER_ENABLED) {
       getChallenges();
     }
   }, [hasEnteredLobby, isConnected, getChallenges]);
+
+  // If multiplayer is disabled and somehow we're in lobby state, redirect to practice
+  useEffect(() => {
+    if (!MULTIPLAYER_ENABLED && hasEnteredLobby) {
+      router.push('/practice');
+    }
+  }, [hasEnteredLobby, router]);
 
   const handleEnterLobby = () => {
     if (!playerName.trim()) {
@@ -99,27 +112,66 @@ export default function Home() {
                 type="text"
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleEnterLobby()}
+                onKeyDown={(e) => e.key === 'Enter' && (MULTIPLAYER_ENABLED ? handleEnterLobby() : router.push('/practice'))}
                 placeholder="Enter your name"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 maxLength={20}
               />
             </div>
 
-            <button
-              onClick={handleEnterLobby}
-              disabled={!isConnected}
-              className="w-full py-3 px-6 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg transition-all disabled:bg-gray-300"
-            >
-              {isConnected ? 'Enter Lobby' : 'Connecting...'}
-            </button>
+            {MULTIPLAYER_ENABLED ? (
+              <>
+                <button
+                  onClick={handleEnterLobby}
+                  disabled={!isConnected}
+                  className="w-full py-3 px-6 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg transition-all disabled:bg-gray-300"
+                >
+                  {isConnected ? 'Enter Lobby' : 'Connecting...'}
+                </button>
+
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300"></div>
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-white px-3 text-sm text-gray-500">or</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => router.push('/practice')}
+                  disabled={!isConnected}
+                  className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-gray-300"
+                >
+                  Solo Practice
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => {
+                  if (playerName.trim()) {
+                    storeSetPlayerName(playerName);
+                  }
+                  router.push('/practice');
+                }}
+                disabled={!isConnected}
+                className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-gray-300"
+              >
+                {isConnected ? 'Start Practice' : 'Connecting...'}
+              </button>
+            )}
           </div>
         </div>
       </main>
     );
   }
 
-  // Lobby screen
+  // If multiplayer is disabled, don't show lobby
+  if (!MULTIPLAYER_ENABLED) {
+    return null; // Will redirect via useEffect
+  }
+
+  // Lobby screen (only shown when multiplayer is enabled)
   return (
     <main className="min-h-screen p-4">
       <div className="max-w-2xl mx-auto">
@@ -202,6 +254,14 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* Solo Practice Button */}
+        <button
+          onClick={() => router.push('/practice')}
+          className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg mt-6 transition-colors"
+        >
+          Solo Practice
+        </button>
 
         {/* How to play */}
         <div className="mt-8 text-center text-slate-400 text-sm">

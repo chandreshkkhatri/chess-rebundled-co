@@ -12,6 +12,7 @@ interface UseVoiceRecognitionOptions {
 export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
   const { onResult, continuous = false } = options;
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const onResultRef = useRef(onResult);
   const [isSupported, setIsSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -19,6 +20,11 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
   const [error, setError] = useState<string | null>(null);
 
   const { setVoiceState } = useGameStore();
+
+  // Keep onResult ref up to date
+  useEffect(() => {
+    onResultRef.current = onResult;
+  }, [onResult]);
 
   useEffect(() => {
     // Check for browser support
@@ -89,9 +95,9 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
         setConfidence(parsed.confidence);
         setVoiceState(false, rawTranscript, parsed.confidence);
 
-        // Call the result callback with parsed move
-        if (onResult && parsed.notation) {
-          onResult(parsed.notation, parsed.confidence);
+        // Call the result callback with parsed move (using ref)
+        if (onResultRef.current && parsed.notation) {
+          onResultRef.current(parsed.notation, parsed.confidence);
         }
       } else {
         // Interim result
@@ -107,7 +113,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
         recognitionRef.current.abort();
       }
     };
-  }, [continuous, onResult, setVoiceState]);
+  }, [continuous, setVoiceState]);
 
   const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening) {

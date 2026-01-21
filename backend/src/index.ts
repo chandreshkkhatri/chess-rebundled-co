@@ -2,12 +2,19 @@ import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { initializeSocket } from './socket/index.js';
-import { getAllGames } from './data/historicalGames.js';
+import { connectToDatabase } from './services/database.js';
+import { seedGamesIfEmpty, getAllGames } from './services/gameRepository.js';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 
 async function main() {
+  // Connect to MongoDB
+  await connectToDatabase();
+
+  // Seed games if database is empty
+  await seedGamesIfEmpty();
+
   // Create Fastify instance
   const fastify = Fastify({
     logger: true,
@@ -26,7 +33,7 @@ async function main() {
 
   // Get available games endpoint
   fastify.get('/api/games', async () => {
-    return getAllGames();
+    return await getAllGames();
   });
 
   // Initialize Fastify (required for routes to work)
