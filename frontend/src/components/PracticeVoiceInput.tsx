@@ -33,6 +33,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
   const [selectedMove, setSelectedMove] = useState<string | null>(null);
 
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoListenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Handle raw voice result - show transcript and request AI parsing
   const handleVoiceResult = useCallback((transcript: string) => {
@@ -44,12 +45,12 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
     }
   }, [parseMoveWithAI, isSubmitting, isActive, sessionId]);
 
-  // Auto-select parsed move when AI result comes in
+  // Auto-select parsed move when AI result comes in (but not during submission)
   useEffect(() => {
-    if (aiParseResult?.parsedMove) {
+    if (aiParseResult?.parsedMove && !isSubmitting) {
       setSelectedMove(aiParseResult.parsedMove);
     }
-  }, [aiParseResult]);
+  }, [aiParseResult, isSubmitting]);
 
   const { isSupported, isListening, transcript, error, startListening, stopListening } =
     useVoiceRecognition({
@@ -60,10 +61,16 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
   // Auto-start listening when active and not submitting
   useEffect(() => {
     if (isActive && !isListening && !rawTranscript && !isSubmitting && !isAIParsing) {
-      const timeout = setTimeout(() => {
+      autoListenTimeoutRef.current = setTimeout(() => {
+        autoListenTimeoutRef.current = null;
         startListening();
       }, 300);
-      return () => clearTimeout(timeout);
+      return () => {
+        if (autoListenTimeoutRef.current) {
+          clearTimeout(autoListenTimeoutRef.current);
+          autoListenTimeoutRef.current = null;
+        }
+      };
     }
   }, [isActive, isListening, rawTranscript, isSubmitting, isAIParsing, startListening]);
 
@@ -98,13 +105,18 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
 
   const handleSubmit = useCallback(() => {
     if (selectedMove && isActive && !isSubmitting) {
+      // Track move index at submission time to avoid clearing wrong state
+      const moveIndexAtSubmit = usePracticeStore.getState().currentMoveIndex;
       onMoveSubmit(selectedMove, aiParseResult?.confidence || 0.5);
 
-      // Fallback: reset after 3 seconds if no response
+      // Fallback: reset after 3 seconds if no response (only if still on same move)
       submitTimeoutRef.current = setTimeout(() => {
-        setRawTranscript('');
-        setSelectedMove(null);
-        clearAIParseState();
+        const currentIndex = usePracticeStore.getState().currentMoveIndex;
+        if (currentIndex === moveIndexAtSubmit) {
+          setRawTranscript('');
+          setSelectedMove(null);
+          clearAIParseState();
+        }
       }, 3000);
     }
   }, [selectedMove, isActive, isSubmitting, onMoveSubmit, aiParseResult?.confidence, clearAIParseState]);
@@ -116,6 +128,10 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
     if (submitTimeoutRef.current) {
       clearTimeout(submitTimeoutRef.current);
       submitTimeoutRef.current = null;
+    }
+    if (autoListenTimeoutRef.current) {
+      clearTimeout(autoListenTimeoutRef.current);
+      autoListenTimeoutRef.current = null;
     }
     if (!isListening && isActive) {
       startListening();

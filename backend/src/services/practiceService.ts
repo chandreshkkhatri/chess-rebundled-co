@@ -17,6 +17,7 @@ export class PracticeService {
   // Performance optimizations
   private positionCache: Map<string, string> = new Map(); // sessionId:moveIndex -> FEN
   private socketToSession: Map<string, string> = new Map(); // socketId -> sessionId
+  private static readonly MAX_CACHE_SIZE = 1000;
 
   constructor() {
     this.pgnService = new PgnService();
@@ -85,8 +86,10 @@ export class PracticeService {
 
     // Calculate total moves for this player
     // In one-side mode, only count moves for player's color
+    // White plays even indices (0, 2, 4...) = ceil(n/2) moves
+    // Black plays odd indices (1, 3, 5...) = floor(n/2) moves
     const totalMoves = mode === 'one-side' && playerColor
-      ? Math.ceil(game.moves.length / 2)
+      ? (playerColor === 'white' ? Math.ceil(game.moves.length / 2) : Math.floor(game.moves.length / 2))
       : game.moves.length;
 
     return {
@@ -125,6 +128,13 @@ export class PracticeService {
       session.currentMoveIndex
     );
     this.positionCache.set(cacheKey, fen);
+
+    // Evict oldest entries if cache exceeds max size
+    if (this.positionCache.size > PracticeService.MAX_CACHE_SIZE) {
+      const keysToDelete = Array.from(this.positionCache.keys()).slice(0, 100);
+      keysToDelete.forEach(key => this.positionCache.delete(key));
+    }
+
     return fen;
   }
 

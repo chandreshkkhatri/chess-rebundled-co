@@ -31,6 +31,8 @@ export default function PracticeGamePage() {
     playerColor,
     pendingOpponentMove,
     setPendingOpponentMove,
+    error,
+    setError,
   } = usePracticeStore();
 
   // Calculate correct moves so far (memoized to avoid recalculating on every render)
@@ -82,6 +84,28 @@ export default function PracticeGamePage() {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
         <PracticeResults data={completedData} onPlayAgain={handlePlayAgain} />
+      </main>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <div className="text-red-400 text-5xl mb-4">!</div>
+          <p className="text-white text-lg font-medium mb-2">Something went wrong</p>
+          <p className="text-red-400 text-sm mb-6">{error}</p>
+          <button
+            onClick={() => {
+              setError(null);
+              router.push('/practice');
+            }}
+            className="px-6 py-3 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all"
+          >
+            Back to Practice
+          </button>
+        </div>
       </main>
     );
   }
@@ -199,8 +223,8 @@ export default function PracticeGamePage() {
                         }`}
                       >
                         <span className="text-slate-500 mr-2">
-                          {Math.floor(idx / 2) + 1}
-                          {idx % 2 === 0 ? '.' : '...'}
+                          {Math.floor(result.moveIndex / 2) + 1}
+                          {result.moveIndex % 2 === 0 ? '.' : '...'}
                         </span>
                         {result.isCorrect ? (
                           <span>{result.expectedMove} ✓</span>
