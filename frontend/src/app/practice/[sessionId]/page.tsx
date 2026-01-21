@@ -174,10 +174,10 @@ export default function PracticeGamePage() {
         />
 
         {/* Game area */}
-        <div className="flex flex-col lg:flex-row gap-3">
+        <div className="flex flex-col lg:flex-row gap-2 lg:gap-3">
           {/* Board */}
           <div className="flex justify-center lg:flex-1">
-            <div className="w-full max-w-md lg:max-w-lg pl-4">
+            <div className="w-full max-w-md lg:max-w-lg">
               <ChessBoard
                 fen={currentPosition}
                 orientation={boardOrientation}
@@ -195,7 +195,7 @@ export default function PracticeGamePage() {
           {/* Sidebar */}
           <div className="flex flex-col gap-2 lg:w-72">
             {showingOpponentMove && pendingOpponentMove && (
-              <div className="bg-amber-900/50 border border-amber-600 rounded-lg p-3 text-center">
+              <div className="bg-amber-900/50 border border-amber-600 rounded-lg p-2 text-center">
                 <p className="text-amber-200 text-sm font-medium">
                   Opponent played: <span className="font-mono">{pendingOpponentMove.san}</span>
                 </p>
@@ -208,7 +208,7 @@ export default function PracticeGamePage() {
               <h3 className="text-slate-400 text-xs font-semibold mb-2 uppercase tracking-wider">
                 Move History
               </h3>
-              <div className="max-h-32 overflow-y-auto">
+              <div className="max-h-24 lg:max-h-32 overflow-y-auto">
                 {moveResults.length === 0 ? (
                   <p className="text-slate-500 text-sm">No moves yet</p>
                 ) : (

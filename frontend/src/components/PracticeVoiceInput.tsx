@@ -153,7 +153,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
   }
 
   return (
-    <div className="bg-slate-800 rounded-lg shadow-lg p-3">
+    <div className="bg-slate-800 rounded-lg shadow-lg p-2 md:p-3">
       {/* Side indicator */}
       <div
         className={`text-center py-2 px-3 rounded-lg mb-2 font-bold ${
@@ -196,7 +196,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
       )}
 
       {/* AI Parsing result */}
-      <div className="min-h-[60px] flex flex-col items-center justify-center mb-2">
+      <div className="min-h-[48px] flex flex-col items-center justify-center mb-2">
         {isAIParsing ? (
           <div className="flex items-center gap-2">
             <div className="animate-spin h-5 w-5 border-2 border-yellow-500 border-t-transparent rounded-full"></div>
@@ -207,7 +207,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
         ) : aiParseResult ? (
           <div className="text-center w-full">
             <div
-              className={`font-mono text-3xl font-bold cursor-pointer py-2 px-4 rounded-lg transition-colors ${
+              className={`font-mono text-2xl md:text-3xl font-bold cursor-pointer py-2 px-4 rounded-lg transition-colors ${
                 selectedMove === aiParseResult.parsedMove
                   ? 'bg-green-600 text-white'
                   : 'bg-slate-700 text-green-400 hover:bg-slate-600'
@@ -288,7 +288,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
         <button
           onClick={handleSubmit}
           disabled={!selectedMove || isSubmitting || !isActive}
-          className={`flex-[2] py-3 px-4 rounded-lg font-bold text-lg transition-colors ${
+          className={`flex-[2] py-2 px-3 md:py-3 md:px-4 rounded-lg font-bold text-lg transition-colors ${
             isSubmitting
               ? 'bg-yellow-500 text-white cursor-wait animate-pulse'
               : selectedMove && isActive

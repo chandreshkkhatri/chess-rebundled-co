@@ -18,12 +18,12 @@ export function PracticeProgressBar({
       : null;
 
   return (
-    <div className="bg-slate-800 rounded-lg p-3 mb-2">
+    <div className="bg-slate-800 rounded-lg p-2 md:p-3 mb-2">
       <div className="flex justify-between text-xs text-slate-400 mb-2">
         <span>
           Move {currentMove} of {totalMoves}
         </span>
-        <span className="flex items-center gap-3">
+        <span className="flex items-center gap-2 md:gap-3">
           {accuracy !== null && (
             <span className="text-green-400">{accuracy}% correct</span>
           )}

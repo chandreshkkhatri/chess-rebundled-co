@@ -16,7 +16,7 @@ export function ChessBoard({ fen, orientation = 'white', lastMove }: ChessBoardP
     : [];
 
   return (
-    <div className="w-full max-w-[min(100%,512px)]">
+    <div className="w-full max-w-[min(100%,480px)] md:max-w-[min(100%,512px)]">
       <Chessboard
         options={{
           position: fen,
