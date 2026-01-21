@@ -94,6 +94,55 @@ export interface RejoinData {
   readyPlayers: string[]; // IDs of ready players
 }
 
+// Practice Mode Types
+export type PracticeMode = 'both-sides' | 'one-side';
+
+export interface PracticeSession {
+  id: string;
+  socketId: string;
+  playerName: string;
+  historicalGame: HistoricalGame;
+  currentMoveIndex: number;
+  moveResults: PracticeMoveResult[];
+  startedAt: number;
+  status: 'playing' | 'completed' | 'abandoned';
+  mode: PracticeMode;
+  playerColor: 'white' | 'black' | null; // null for both-sides mode
+}
+
+export interface PracticeMoveResult {
+  moveIndex: number;
+  expectedMove: string;
+  submittedMove: string;
+  isCorrect: boolean;
+  timeSpent: number;
+  side: 'white' | 'black';
+}
+
+export interface PracticeStartedData {
+  sessionId: string;
+  game: HistoricalGame;
+  position: string;
+  currentMoveIndex: number;
+  currentSide: 'white' | 'black';
+  expectedMove: MoveDetails;
+  totalMoves: number;
+  mode: PracticeMode;
+  playerColor: 'white' | 'black' | null;
+}
+
+export interface PracticeCompletedData {
+  sessionId: string;
+  game: HistoricalGame;
+  totalMoves: number;
+  correctMoves: number;
+  accuracy: number;
+  totalTimeMs: number;
+  averageTimePerMove: number;
+  moveResults: PracticeMoveResult[];
+  trivia: string[];
+}
+
 // Socket Event Types
 export interface ServerToClientEvents {
   // Room events (legacy)
@@ -119,6 +168,13 @@ export interface ServerToClientEvents {
   // Rejoin events
   'room-rejoined': (data: RejoinData) => void;
   'rejoin-failed': (data: { message: string }) => void;
+  // Practice mode events
+  'practice-games-list': (games: HistoricalGame[]) => void;
+  'practice-started': (data: PracticeStartedData) => void;
+  'practice-move-result': (result: PracticeMoveResult) => void;
+  'practice-next-move': (data: { position: string; currentMoveIndex: number; currentSide: 'white' | 'black'; expectedMove: MoveDetails; opponentMove?: MoveDetails }) => void;
+  'practice-completed': (data: PracticeCompletedData) => void;
+  'practice-error': (data: { message: string }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -136,4 +192,10 @@ export interface ClientToServerEvents {
   'player-ready': (data: { roomId: string }) => void;
   // Rejoin events
   'rejoin-room': (data: { roomId: string; playerId: string }) => void;
+  // Practice mode events
+  'get-practice-games': () => void;
+  'start-practice': (data: { gameId?: string; playerName: string; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
+  'start-practice-random': (data: { playerName: string; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
+  'submit-practice-move': (data: { sessionId: string; move: string }) => void;
+  'abandon-practice': (data: { sessionId: string }) => void;
 }

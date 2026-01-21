@@ -81,3 +81,48 @@ export interface RejoinData {
   myColor: 'white' | 'black';
   readyPlayers: string[];
 }
+
+// Practice mode types
+export interface PracticeMoveResult {
+  moveIndex: number;
+  expectedMove: string;
+  submittedMove: string;
+  isCorrect: boolean;
+  timeSpent: number;
+  side: 'white' | 'black';
+}
+
+export interface PracticeStartedData {
+  sessionId: string;
+  game: HistoricalGame;
+  position: string;
+  currentMoveIndex: number;
+  currentSide: 'white' | 'black';
+  expectedMove: MoveDetails;
+  totalMoves: number;
+  mode: PracticeMode;
+  playerColor: 'white' | 'black' | null;
+}
+
+export interface PracticeNextMoveData {
+  position: string;
+  currentMoveIndex: number;
+  currentSide: 'white' | 'black';
+  expectedMove: MoveDetails;
+  opponentMove?: MoveDetails;
+}
+
+export interface PracticeCompletedData {
+  sessionId: string;
+  game: HistoricalGame;
+  totalMoves: number;
+  correctMoves: number;
+  accuracy: number;
+  totalTimeMs: number;
+  averageTimePerMove: number;
+  moveResults: PracticeMoveResult[];
+  trivia: string[];
+}
+
+export type PracticeStatus = 'idle' | 'selecting' | 'playing' | 'completed';
+export type PracticeMode = 'both-sides' | 'one-side';
