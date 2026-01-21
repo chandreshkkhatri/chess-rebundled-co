@@ -14,6 +14,7 @@ export default function PracticeSelectPage() {
   const [selectedColor, setSelectedColor] = useState<'white' | 'black' | null>(null);
   const [showModeSelection, setShowModeSelection] = useState(false);
   const hasStartedRef = useRef(false);
+  const startTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { startPracticeRandom } = usePracticeSocket();
   const {
@@ -21,9 +22,11 @@ export default function PracticeSelectPage() {
     sessionId,
     status,
     error,
+    isStarting,
     playerName: storedPlayerName,
     setPlayerName: storeSetPlayerName,
     setError,
+    setStarting,
     reset,
   } = usePracticeStore();
 
@@ -57,6 +60,7 @@ export default function PracticeSelectPage() {
                      isConnected &&
                      !hasStartedRef.current &&
                      status === 'idle' &&
+                     !isStarting &&
                      showModeSelection &&
                      selectedMode !== null &&
                      (selectedMode === 'both-sides' || (selectedMode === 'one-side' && selectedColor !== null));
@@ -66,12 +70,55 @@ export default function PracticeSelectPage() {
       const timeout = setTimeout(() => {
         if (!hasStartedRef.current) {
           hasStartedRef.current = true;
-          startPracticeRandom(playerName, selectedMode, selectedColor);
+          const success = startPracticeRandom(playerName, selectedMode, selectedColor);
+
+          if (success) {
+            // Set timeout for server response - if no response in 8s, show error
+            startTimeoutRef.current = setTimeout(() => {
+              const currentStatus = usePracticeStore.getState().status;
+              const currentIsStarting = usePracticeStore.getState().isStarting;
+
+              if (currentStatus === 'idle' && currentIsStarting) {
+                usePracticeStore.getState().setError('Server did not respond. Please try again.');
+                usePracticeStore.getState().setStarting(false);
+                hasStartedRef.current = false;
+              }
+            }, 8000);
+          } else {
+            // Emit failed (e.g., not connected), allow retry
+            hasStartedRef.current = false;
+          }
         }
       }, 100);
       return () => clearTimeout(timeout);
     }
-  }, [hasEnteredName, isConnected, status, playerName, selectedMode, selectedColor, showModeSelection, startPracticeRandom]);
+  }, [hasEnteredName, isConnected, status, isStarting, playerName, selectedMode, selectedColor, showModeSelection, startPracticeRandom]);
+
+  // Clear timeout when navigating to game or on error
+  useEffect(() => {
+    if (status === 'playing' || error) {
+      if (startTimeoutRef.current) {
+        clearTimeout(startTimeoutRef.current);
+        startTimeoutRef.current = null;
+      }
+    }
+  }, [status, error]);
+
+  // Reset hasStartedRef when error is set (allows retry)
+  useEffect(() => {
+    if (error) {
+      hasStartedRef.current = false;
+    }
+  }, [error]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (startTimeoutRef.current) {
+        clearTimeout(startTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleEnterName = () => {
     if (!playerName.trim()) {
@@ -253,6 +300,7 @@ export default function PracticeSelectPage() {
 
   const handleRetry = () => {
     setError(null);
+    setStarting(false);
     hasStartedRef.current = false;
     // Go back to mode selection
     setShowModeSelection(true);

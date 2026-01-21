@@ -41,6 +41,9 @@ interface PracticeState {
   // Submission lock
   isSubmitting: boolean;
 
+  // Starting session state (pending server response)
+  isStarting: boolean;
+
   // Error state
   error: string | null;
 
@@ -75,6 +78,7 @@ interface PracticeState {
   setMoveResult: (result: PracticeMoveResult) => void;
   setCompleted: (data: PracticeCompletedData) => void;
   setSubmitting: (isSubmitting: boolean) => void;
+  setStarting: (isStarting: boolean) => void;
   setError: (error: string | null) => void;
   setAIParseResult: (result: AIParsedMoveResult | null) => void;
   setAIParseError: (error: string | null) => void;
@@ -99,6 +103,7 @@ const initialState = {
   lastMoveResult: null as PracticeMoveResult | null,
   completedData: null as PracticeCompletedData | null,
   isSubmitting: false,
+  isStarting: false,
   error: null as string | null,
   mode: 'both-sides' as PracticeMode,
   playerColor: null as 'white' | 'black' | null,
@@ -134,6 +139,7 @@ export const usePracticeStore = create<PracticeState>()(
           lastMoveResult: null,
           completedData: null,
           isSubmitting: false,
+          isStarting: false,
           error: null,
           mode: data.mode,
           playerColor: data.playerColor,
@@ -168,7 +174,9 @@ export const usePracticeStore = create<PracticeState>()(
 
       setSubmitting: (isSubmitting) => set({ isSubmitting }),
 
-      setError: (error) => set({ error }),
+      setStarting: (isStarting) => set({ isStarting }),
+
+      setError: (error) => set({ error, isStarting: false }),
 
       setAIParseResult: (result) => set({ aiParseResult: result, aiParseError: null, isAIParsing: false }),
 

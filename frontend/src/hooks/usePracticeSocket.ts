@@ -117,9 +117,18 @@ export function usePracticeSocket() {
     playerName: string,
     mode: PracticeMode = 'both-sides',
     playerColor: 'white' | 'black' | null = null
-  ) => {
+  ): boolean => {
     const socket = getSocket();
+
+    // Validate connection before emit
+    if (!socket.connected) {
+      usePracticeStore.getState().setError('Not connected to server. Please refresh the page.');
+      return false;
+    }
+
+    usePracticeStore.getState().setStarting(true);
     socket.emit('start-practice-random', { playerName, mode, playerColor });
+    return true;
   }, []);
 
   const submitPracticeMove = useCallback((sessionId: string, move: string) => {
