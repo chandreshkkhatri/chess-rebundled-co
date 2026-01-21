@@ -27,6 +27,10 @@ const PIECE_UNICODE: Record<string, string> = {
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
 
+// O(1) lookup maps instead of indexOf()
+const FILE_INDEX: Record<string, number> = { a: 0, b: 1, c: 2, d: 3, e: 4, f: 5, g: 6, h: 7 };
+const RANK_INDEX: Record<string, number> = { '8': 0, '7': 1, '6': 2, '5': 3, '4': 4, '3': 5, '2': 6, '1': 7 };
+
 export function ChessBoard({ fen, orientation = 'white', lastMove }: ChessBoardProps) {
   const board = useMemo(() => {
     const chess = new Chess(fen);
@@ -43,8 +47,8 @@ export function ChessBoard({ fen, orientation = 'white', lastMove }: ChessBoardP
   };
 
   const getPiece = (file: string, rank: string) => {
-    const fileIndex = FILES.indexOf(file);
-    const rankIndex = RANKS.indexOf(rank);
+    const fileIndex = FILE_INDEX[file];
+    const rankIndex = RANK_INDEX[rank];
     const piece = board[rankIndex][fileIndex];
     if (!piece) return null;
     const key = piece.color + piece.type.toUpperCase();

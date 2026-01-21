@@ -7,6 +7,7 @@ import {
   PracticeMoveResult,
   PracticeStatus,
   PracticeMode,
+  AIParsedMoveResult,
 } from '@/types';
 
 interface PracticeState {
@@ -43,6 +44,11 @@ interface PracticeState {
   // Error state
   error: string | null;
 
+  // AI parsing state
+  aiParseResult: AIParsedMoveResult | null;
+  aiParseError: string | null;
+  isAIParsing: boolean;
+
   // Actions
   setConnected: (connected: boolean) => void;
   setPlayerName: (name: string) => void;
@@ -70,6 +76,10 @@ interface PracticeState {
   setCompleted: (data: PracticeCompletedData) => void;
   setSubmitting: (isSubmitting: boolean) => void;
   setError: (error: string | null) => void;
+  setAIParseResult: (result: AIParsedMoveResult | null) => void;
+  setAIParseError: (error: string | null) => void;
+  setAIParsing: (isParsing: boolean) => void;
+  clearAIParseState: () => void;
   reset: () => void;
 }
 
@@ -93,6 +103,9 @@ const initialState = {
   mode: 'both-sides' as PracticeMode,
   playerColor: null as 'white' | 'black' | null,
   pendingOpponentMove: null as MoveDetails | null,
+  aiParseResult: null as AIParsedMoveResult | null,
+  aiParseError: null as string | null,
+  isAIParsing: false,
 };
 
 export const usePracticeStore = create<PracticeState>()(
@@ -157,6 +170,14 @@ export const usePracticeStore = create<PracticeState>()(
 
       setError: (error) => set({ error }),
 
+      setAIParseResult: (result) => set({ aiParseResult: result, aiParseError: null, isAIParsing: false }),
+
+      setAIParseError: (error) => set({ aiParseError: error, aiParseResult: null, isAIParsing: false }),
+
+      setAIParsing: (isParsing) => set({ isAIParsing: isParsing }),
+
+      clearAIParseState: () => set({ aiParseResult: null, aiParseError: null, isAIParsing: false }),
+
       reset: () => set(initialState),
     }),
     {
@@ -176,20 +197,11 @@ export const usePracticeStore = create<PracticeState>()(
           sessionStorage.removeItem(name);
         },
       },
+      // Only persist player name - session state should not survive page refreshes
       partialize: (state) =>
         ({
-          sessionId: state.sessionId,
           playerName: state.playerName,
-          status: state.status,
-          selectedGame: state.selectedGame,
-          mode: state.mode,
-          playerColor: state.playerColor,
-          currentPosition: state.currentPosition,
-          currentMoveIndex: state.currentMoveIndex,
-          currentSide: state.currentSide,
-          currentExpectedMove: state.currentExpectedMove,
-          totalMoves: state.totalMoves,
-        }) as PracticeState,
+        }) as unknown as PracticeState,
     }
   )
 );

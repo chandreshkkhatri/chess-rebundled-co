@@ -14,6 +14,9 @@ export class PracticeService {
   private sessions: Map<string, PracticeSession> = new Map();
   private pgnService: PgnService;
   private moveStartTimes: Map<string, number> = new Map();
+  // Performance optimizations
+  private positionCache: Map<string, string> = new Map(); // sessionId:moveIndex -> FEN
+  private socketToSession: Map<string, string> = new Map(); // socketId -> sessionId
 
   constructor() {
     this.pgnService = new PgnService();
@@ -72,6 +75,7 @@ export class PracticeService {
     };
 
     this.sessions.set(sessionId, session);
+    this.socketToSession.set(socketId, sessionId);
     this.moveStartTimes.set(sessionId, Date.now());
 
     const position = this.getCurrentPosition(sessionId);
@@ -107,10 +111,21 @@ export class PracticeService {
     if (!session) {
       return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
     }
-    return this.pgnService.getFenAtMove(
+
+    // Check cache first
+    const cacheKey = `${sessionId}:${session.currentMoveIndex}`;
+    const cached = this.positionCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Calculate and cache
+    const fen = this.pgnService.getFenAtMove(
       session.historicalGame.moves,
       session.currentMoveIndex
     );
+    this.positionCache.set(cacheKey, fen);
+    return fen;
   }
 
   getCurrentExpectedMove(sessionId: string): MoveDetails | null {
@@ -220,16 +235,24 @@ export class PracticeService {
   }
 
   removeSession(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      this.socketToSession.delete(session.socketId);
+    }
     this.sessions.delete(sessionId);
     this.moveStartTimes.delete(sessionId);
+    // Clear position cache for this session
+    for (const key of this.positionCache.keys()) {
+      if (key.startsWith(`${sessionId}:`)) {
+        this.positionCache.delete(key);
+      }
+    }
   }
 
   removeSessionBySocketId(socketId: string): void {
-    for (const [id, session] of this.sessions) {
-      if (session.socketId === socketId) {
-        this.sessions.delete(id);
-        this.moveStartTimes.delete(id);
-      }
+    const sessionId = this.socketToSession.get(socketId);
+    if (sessionId) {
+      this.removeSession(sessionId);
     }
   }
 
@@ -238,10 +261,11 @@ export class PracticeService {
    * Keeps active 'playing' sessions alive for potential reconnection.
    */
   removeInactiveSessionsBySocketId(socketId: string): void {
-    for (const [id, session] of this.sessions) {
-      if (session.socketId === socketId && session.status !== 'playing') {
-        this.sessions.delete(id);
-        this.moveStartTimes.delete(id);
+    const sessionId = this.socketToSession.get(socketId);
+    if (sessionId) {
+      const session = this.sessions.get(sessionId);
+      if (session && session.status !== 'playing') {
+        this.removeSession(sessionId);
       }
     }
   }
@@ -252,6 +276,9 @@ export class PracticeService {
   updateSessionSocketId(sessionId: string, newSocketId: string): boolean {
     const session = this.sessions.get(sessionId);
     if (session) {
+      // Update socket index
+      this.socketToSession.delete(session.socketId);
+      this.socketToSession.set(newSocketId, sessionId);
       session.socketId = newSocketId;
       return true;
     }

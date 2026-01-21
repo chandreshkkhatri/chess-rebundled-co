@@ -2,32 +2,31 @@
 
 import { PracticeCompletedData } from '@/types';
 
+// Utility functions extracted outside component to prevent recreation
+function formatTime(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+function getPerformanceMessage(accuracy: number): { emoji: string; text: string } {
+  const percent = accuracy * 100;
+  if (percent >= 90) return { emoji: '🏆', text: 'Excellent!' };
+  if (percent >= 70) return { emoji: '👏', text: 'Great job!' };
+  if (percent >= 50) return { emoji: '👍', text: 'Good effort!' };
+  return { emoji: '💪', text: 'Keep practicing!' };
+}
+
 interface PracticeResultsProps {
   data: PracticeCompletedData;
   onPlayAgain: () => void;
 }
 
 export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
-  const formatTime = (ms: number) => {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-
   const accuracyPercent = (data.accuracy * 100).toFixed(1);
   const avgTimePerMove = (data.averageTimePerMove / 1000).toFixed(1);
-
-  // Determine performance message
-  const getPerformanceMessage = () => {
-    const accuracy = data.accuracy * 100;
-    if (accuracy >= 90) return { emoji: '🏆', text: 'Excellent!' };
-    if (accuracy >= 70) return { emoji: '👏', text: 'Great job!' };
-    if (accuracy >= 50) return { emoji: '👍', text: 'Good effort!' };
-    return { emoji: '💪', text: 'Keep practicing!' };
-  };
-
-  const performance = getPerformanceMessage();
+  const performance = getPerformanceMessage(data.accuracy);
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-auto">

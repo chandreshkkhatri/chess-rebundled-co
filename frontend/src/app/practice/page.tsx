@@ -40,7 +40,6 @@ export default function PracticeSelectPage() {
     const currentStatus = usePracticeStore.getState().status;
     // If status is not 'idle' and not 'playing' (with valid session), reset to start fresh
     if (currentStatus !== 'idle' && currentStatus !== 'playing') {
-      console.log('[PRACTICE PAGE] Resetting stale status:', currentStatus, '-> idle');
       reset();
       hasStartedRef.current = false;
     }
@@ -68,7 +67,6 @@ export default function PracticeSelectPage() {
       const timeout = setTimeout(() => {
         if (!hasStartedRef.current) {
           hasStartedRef.current = true;
-          console.log('[PRACTICE PAGE] Starting practice with random game for:', playerName, 'mode:', selectedMode, 'color:', selectedColor);
           startPracticeRandom(playerName, selectedMode, selectedColor);
         }
       }, 100);
@@ -158,11 +156,6 @@ export default function PracticeSelectPage() {
         </div>
       </main>
     );
-  }
-
-  // Mode selection screen (after name entry, before starting)
-  if (showModeSelection && selectedMode === 'both-sides' && status === 'idle' && !hasStartedRef.current) {
-    // This state is brief - auto-start will happen via useEffect
   }
 
   // Color selection for one-side mode

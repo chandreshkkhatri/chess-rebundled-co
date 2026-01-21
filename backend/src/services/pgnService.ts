@@ -7,12 +7,6 @@ export interface MoveValidationResult {
 }
 
 export class PgnService {
-  private chess: Chess;
-
-  constructor() {
-    this.chess = new Chess();
-  }
-
   /**
    * Parse PGN and extract moves array
    */

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { usePracticeStore } from '@/stores/practiceStore';
@@ -33,8 +33,8 @@ export default function PracticeGamePage() {
     setPendingOpponentMove,
   } = usePracticeStore();
 
-  // Calculate correct moves so far
-  const correctMoves = moveResults.filter((r) => r.isCorrect).length;
+  // Calculate correct moves so far (memoized to avoid recalculating on every render)
+  const correctMoves = useMemo(() => moveResults.filter((r) => r.isCorrect).length, [moveResults]);
 
   // Board orientation: in one-side mode, use player's color; otherwise follow current side
   const boardOrientation = mode === 'one-side' && playerColor ? playerColor : currentSide;
