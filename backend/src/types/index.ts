@@ -102,7 +102,7 @@ export interface ServerToClientEvents {
   'player-left': (playerId: string) => void;
   'game-selected': (game: HistoricalGame) => void;
   'game-start': (data: { position: string; turn: 'white' | 'black'; timeLimit: number; whiteTime: number; blackTime: number; players: Player[]; expectedMove: MoveDetails | null }) => void;
-  'timer-sync': (data: { whiteTime: number; blackTime: number }) => void;
+  'timer-sync': (data: { whiteTime: number; blackTime: number; turn: 'white' | 'black'; position: string; moveIndex: number; players: Player[] }) => void;
   'move-result': (result: MoveResult) => void;
   'turn-change': (data: { turn: 'white' | 'black'; position: string; moveIndex: number; whiteTime: number; blackTime: number; expectedMove: MoveDetails | null }) => void;
   'game-end': (data: { winner: string | null; players: Player[]; trivia: string[]; reason?: 'completed' | 'timeout' }) => void;

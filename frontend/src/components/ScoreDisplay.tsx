@@ -11,58 +11,30 @@ export function ScoreDisplay() {
   if (!myPlayer || !opponent) return null;
 
   const formatScore = (score: number) => {
-    return (score * 100).toFixed(1);
+    return (score * 100).toFixed(0);
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4">
-      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-        Score
-      </h3>
+    <div className="bg-slate-800 rounded-lg p-2 h-full">
+      <div className="text-xs text-slate-500 text-center mb-1 font-medium">SCORE</div>
 
-      <div className="space-y-3">
-        {/* My score */}
+      {/* My score */}
+      <div className="bg-slate-700 rounded px-2 py-1.5 mb-1">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <div
-              className={`w-3 h-3 rounded-full ${
-                myPlayer.color === 'white' ? 'bg-white border border-gray-400' : 'bg-gray-800'
+              className={`w-2 h-2 rounded-full ${
+                myPlayer.color === 'white' ? 'bg-white' : 'bg-slate-400'
               }`}
             />
-            <span className="font-medium">{myPlayer.name}</span>
-            <span className="text-xs text-gray-500">(You)</span>
+            <span className="text-xs text-slate-300 truncate max-w-[60px]">{myPlayer.name}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-bold text-blue-600">
-              {formatScore(myPlayer.score)}%
+          <div className="flex items-center gap-1">
+            <span className="text-lg font-bold text-green-400 font-mono">
+              {formatScore(myPlayer.score)}
             </span>
             {lastMoveResult?.playerId === myPlayer.id && lastMoveResult.score > 0 && (
-              <span className="text-green-500 text-sm font-medium animate-bounce">
-                +{(lastMoveResult.score * 100).toFixed(0)}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="border-t border-gray-200" />
-
-        {/* Opponent score */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-3 h-3 rounded-full ${
-                opponent.color === 'white' ? 'bg-white border border-gray-400' : 'bg-gray-800'
-              }`}
-            />
-            <span className="font-medium">{opponent.name}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-bold text-gray-600">
-              {formatScore(opponent.score)}%
-            </span>
-            {lastMoveResult?.playerId === opponent.id && lastMoveResult.score > 0 && (
-              <span className="text-green-500 text-sm font-medium animate-bounce">
+              <span className="text-green-400 text-xs animate-bounce">
                 +{(lastMoveResult.score * 100).toFixed(0)}
               </span>
             )}
@@ -70,10 +42,27 @@ export function ScoreDisplay() {
         </div>
       </div>
 
-      {/* Move count */}
-      <div className="mt-4 pt-3 border-t border-gray-200">
-        <div className="text-xs text-gray-500">
-          Moves completed: {myPlayer.moveScores.length + opponent.moveScores.length}
+      {/* Opponent score */}
+      <div className="bg-slate-700 rounded px-2 py-1.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <div
+              className={`w-2 h-2 rounded-full ${
+                opponent.color === 'white' ? 'bg-white' : 'bg-slate-400'
+              }`}
+            />
+            <span className="text-xs text-slate-400 truncate max-w-[60px]">{opponent.name}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-lg font-bold text-slate-300 font-mono">
+              {formatScore(opponent.score)}
+            </span>
+            {lastMoveResult?.playerId === opponent.id && lastMoveResult.score > 0 && (
+              <span className="text-green-400 text-xs animate-bounce">
+                +{(lastMoveResult.score * 100).toFixed(0)}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>

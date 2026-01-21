@@ -19,96 +19,55 @@ export function TimerDisplay({ onTimeUp }: TimerDisplayProps) {
     isCritical,
   } = useTimer({
     onTimeUp,
-    warningThreshold: 30000, // 30 seconds warning for 3-min timer
+    warningThreshold: 30000,
   });
 
   const getMyColorClasses = () => {
-    if (!isMyTurn) return 'bg-slate-600 text-slate-300';
+    if (!isMyTurn) return 'bg-slate-700 text-slate-400';
     if (isCritical) return 'bg-red-500 text-white';
     if (isWarning) return 'bg-yellow-500 text-black';
-    return 'bg-green-500 text-white';
+    return 'bg-green-600 text-white';
   };
 
   const getOpponentColorClasses = () => {
-    if (isMyTurn) return 'bg-slate-600 text-slate-300';
-    return 'bg-blue-500 text-white';
-  };
-
-  const getMyBarColorClasses = () => {
-    if (!isMyTurn) return 'bg-slate-500';
-    if (isCritical) return 'bg-red-600';
-    if (isWarning) return 'bg-yellow-600';
-    return 'bg-green-600';
-  };
-
-  const getOpponentBarColorClasses = () => {
-    if (isMyTurn) return 'bg-slate-500';
-    return 'bg-blue-600';
+    if (isMyTurn) return 'bg-slate-700 text-slate-400';
+    return 'bg-blue-600 text-white';
   };
 
   return (
-    <div className="bg-slate-800 rounded-lg p-4">
-      <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3 text-center">
-        Time
-      </h3>
+    <div className="bg-slate-800 rounded-lg p-2 h-full">
+      <div className="text-xs text-slate-500 text-center mb-1 font-medium">TIME</div>
 
-      {/* Opponent timer (top) */}
-      <div className={`rounded-lg p-3 mb-2 ${getOpponentColorClasses()}`}>
+      {/* Opponent timer */}
+      <div className={`rounded px-2 py-1.5 mb-1 ${getOpponentColorClasses()}`}>
         <div className="flex items-center justify-between">
-          <div className="text-xs uppercase tracking-wide">
-            Opponent {myColor === 'white' ? '(Black)' : '(White)'}
-          </div>
-          <div
-            className={`text-2xl font-bold font-mono ${
-              !isMyTurn ? 'animate-pulse' : ''
-            }`}
-          >
+          <span className="text-xs">{myColor === 'white' ? 'B' : 'W'}</span>
+          <span className={`text-lg font-mono font-bold ${!isMyTurn ? 'animate-pulse' : ''}`}>
             {opponentTimeFormatted}
-          </div>
+          </span>
         </div>
-        {/* Progress bar */}
-        <div className="mt-2 h-1.5 bg-black/20 rounded-full overflow-hidden">
+        <div className="h-1 bg-black/20 rounded-full mt-1">
           <div
-            className={`h-full transition-all duration-200 ${getOpponentBarColorClasses()}`}
+            className="h-full bg-white/30 rounded-full transition-all"
             style={{ width: `${opponentPercentage}%` }}
           />
         </div>
       </div>
 
-      {/* My timer (bottom) */}
-      <div className={`rounded-lg p-3 ${getMyColorClasses()}`}>
+      {/* My timer */}
+      <div className={`rounded px-2 py-1.5 ${getMyColorClasses()}`}>
         <div className="flex items-center justify-between">
-          <div className="text-xs uppercase tracking-wide">
-            You {myColor === 'white' ? '(White)' : '(Black)'}
-          </div>
-          <div
-            className={`text-2xl font-bold font-mono ${
-              isCritical && isMyTurn ? 'animate-pulse-fast' : ''
-            }`}
-          >
+          <span className="text-xs">{myColor === 'white' ? 'W' : 'B'}</span>
+          <span className={`text-lg font-mono font-bold ${isCritical && isMyTurn ? 'animate-pulse' : ''}`}>
             {myTimeFormatted}
-          </div>
+          </span>
         </div>
-        {/* Progress bar */}
-        <div className="mt-2 h-1.5 bg-black/20 rounded-full overflow-hidden">
+        <div className="h-1 bg-black/20 rounded-full mt-1">
           <div
-            className={`h-full transition-all duration-200 ${getMyBarColorClasses()}`}
+            className="h-full bg-white/30 rounded-full transition-all"
             style={{ width: `${myPercentage}%` }}
           />
         </div>
-      </div>
-
-      {/* Turn indicator */}
-      <div className="mt-3 text-center">
-        <span
-          className={`text-xs font-medium px-2 py-1 rounded ${
-            isMyTurn
-              ? 'bg-green-500/20 text-green-400'
-              : 'bg-blue-500/20 text-blue-400'
-          }`}
-        >
-          {isMyTurn ? "Your turn" : "Opponent's turn"}
-        </span>
       </div>
     </div>
   );

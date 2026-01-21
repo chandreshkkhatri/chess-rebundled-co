@@ -21,40 +21,37 @@ export function MoveHistory() {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4">
-      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-        Move History
-      </h3>
+    <div className="bg-slate-800 rounded-lg p-2">
+      <div className="text-xs text-slate-500 text-center mb-1 font-medium">MOVES</div>
 
-      <div className="max-h-48 overflow-y-auto">
+      <div className="h-24 overflow-y-auto">
         {movePairs.length === 0 ? (
-          <div className="text-gray-400 text-sm italic">No moves yet</div>
+          <div className="text-slate-600 text-xs italic text-center py-2">No moves yet</div>
         ) : (
-          <div className="space-y-1 font-mono text-sm">
+          <div className="font-mono text-xs text-slate-300 space-y-0.5">
             {movePairs.map((pair) => (
-              <div key={pair.number} className="flex gap-2">
-                <span className="text-gray-400 w-6">{pair.number}.</span>
-                <span className="w-12">{pair.white || '...'}</span>
-                <span className="w-12">{pair.black || ''}</span>
+              <div key={pair.number} className="flex gap-1">
+                <span className="text-slate-500 w-4">{pair.number}.</span>
+                <span className="w-10">{pair.white || '...'}</span>
+                <span className="w-10 text-slate-400">{pair.black || ''}</span>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Last move result */}
+      {/* Last move result - compact */}
       {lastMoveResult && (
         <div
-          className={`mt-3 pt-3 border-t border-gray-200 text-sm ${
-            lastMoveResult.isCorrect ? 'text-green-600' : 'text-red-600'
+          className={`mt-1 pt-1 border-t border-slate-700 text-xs ${
+            lastMoveResult.isCorrect ? 'text-green-400' : 'text-red-400'
           }`}
         >
           {lastMoveResult.isCorrect ? (
-            <span>Correct! Expected: {lastMoveResult.expectedMove}</span>
+            <span>✓ {lastMoveResult.expectedMove}</span>
           ) : (
             <span>
-              Wrong! Got "{lastMoveResult.submittedMove || 'timeout'}", expected:{' '}
-              {lastMoveResult.expectedMove}
+              ✗ {lastMoveResult.submittedMove || '?'} → {lastMoveResult.expectedMove}
             </span>
           )}
         </div>

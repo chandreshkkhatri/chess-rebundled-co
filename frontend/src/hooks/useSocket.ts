@@ -5,6 +5,9 @@ import { getSocket, connectSocket, disconnectSocket } from '@/lib/socket';
 import { useGameStore } from '@/stores/gameStore';
 import { Player, HistoricalGame, MoveResult, Challenge, ChallengeAcceptedData, MoveDetails, RejoinData } from '@/types';
 
+// Trace listener attachments
+let listenerCount = 0;
+
 export function useSocket() {
   const {
     setConnected,
@@ -20,6 +23,7 @@ export function useSocket() {
     setSelectedGame,
     startGame,
     updateTimers,
+    reconcileState,
     setMoveResult,
     changeTurn,
     endGame,
@@ -35,133 +39,173 @@ export function useSocket() {
 
   useEffect(() => {
     const socket = getSocket();
+    
+    // Increment listener count
+    listenerCount++;
+    console.log(`[useSocket] Hook mounted. Listener count: ${listenerCount}`);
 
-    socket.on('connect', () => {
-      console.log('Connected to server');
-      setConnected(true);
+    // Only attach listeners if this is the first active hook
+    if (listenerCount === 1) {
+        console.log('[useSocket] Attaching global socket listeners');
+        // Remove loop of existing listeners just in case
+        socket.off('connect');
+        socket.off('disconnect');
+        socket.off('room-joined');
+        socket.off('player-joined');
+        socket.off('player-left');
+        socket.off('game-selected');
+        socket.off('game-start');
+        socket.off('timer-sync');
+        socket.off('move-result');
+        socket.off('turn-change');
+        socket.off('game-end');
+        socket.off('error');
+        socket.off('challenges-list');
+        socket.off('challenge-created');
+        socket.off('challenge-removed');
+        socket.off('challenge-accepted');
+        socket.off('room-rejoined');
+        socket.off('rejoin-failed');
+        socket.off('player-ready');
+        socket.off('countdown-start');
+        socket.off('countdown-tick');
 
-      // Check if we need to rejoin a room (for ready, countdown, or playing states)
-      const state = useGameStore.getState();
-      const rejoinableStatuses = ['ready', 'countdown', 'playing'];
-      if (state.roomId && state.myPlayerId && rejoinableStatuses.includes(state.status)) {
-        console.log('Attempting to rejoin room:', state.roomId, 'status:', state.status);
-        socket.emit('rejoin-room', {
-          roomId: state.roomId,
-          playerId: state.myPlayerId,
+        socket.on('connect', () => {
+          console.log('[FRONTEND] Connected to server. Socket ID:', socket.id);
+          setConnected(true);
+
+          // Check if we need to rejoin a room (for ready, countdown, or playing states)
+          const state = useGameStore.getState();
+          const rejoinableStatuses = ['ready', 'countdown', 'playing'];
+          if (state.roomId && state.myPlayerId && rejoinableStatuses.includes(state.status)) {
+            console.log('Attempting to rejoin room:', state.roomId, 'status:', state.status);
+            socket.emit('rejoin-room', {
+              roomId: state.roomId,
+              playerId: state.myPlayerId,
+            });
+          }
         });
-      }
-    });
 
-    socket.on('disconnect', () => {
-      console.log('Disconnected from server');
-      setConnected(false);
-    });
+        socket.on('disconnect', () => {
+          console.log('Disconnected from server');
+          setConnected(false);
+        });
 
-    socket.on('room-joined', (data: { roomId: string; players: Player[]; availableGames: HistoricalGame[] }) => {
-      console.log('Room joined:', data);
-      setRoom(data.roomId, data.players, data.availableGames);
-      // Set our player info based on the last player in the list (us)
-      const myPlayer = data.players[data.players.length - 1];
-      if (myPlayer) {
-        setMyPlayer(myPlayer.id, myPlayer.color);
-      }
-    });
+        socket.on('room-joined', (data: { roomId: string; players: Player[]; availableGames: HistoricalGame[] }) => {
+          console.log('Room joined:', data);
+          setRoom(data.roomId, data.players, data.availableGames);
+          // Set our player info based on the last player in the list (us)
+          const myPlayer = data.players[data.players.length - 1];
+          if (myPlayer) {
+            setMyPlayer(myPlayer.id, myPlayer.color);
+          }
+        });
 
-    socket.on('player-joined', (player: Player) => {
-      console.log('Player joined:', player);
-      addPlayer(player);
-    });
+        socket.on('player-joined', (player: Player) => {
+          console.log('Player joined:', player);
+          addPlayer(player);
+        });
 
-    socket.on('player-left', (playerId: string) => {
-      console.log('Player left:', playerId);
-      removePlayer(playerId);
-    });
+        socket.on('player-left', (playerId: string) => {
+          console.log('Player left:', playerId);
+          removePlayer(playerId);
+        });
 
-    socket.on('game-selected', (game: HistoricalGame) => {
-      console.log('Game selected:', game.title);
-      setSelectedGame(game);
-    });
+        socket.on('game-selected', (game: HistoricalGame) => {
+          console.log('Game selected:', game.title);
+          setSelectedGame(game);
+        });
 
-    socket.on('game-start', (data: { position: string; turn: 'white' | 'black'; timeLimit: number; whiteTime: number; blackTime: number; players: Player[]; expectedMove: MoveDetails | null }) => {
-      console.log('Game started:', data);
-      startGame(data.position, data.turn, data.timeLimit, data.whiteTime, data.blackTime, data.players, data.expectedMove);
-    });
+        socket.on('game-start', (data: { position: string; turn: 'white' | 'black'; timeLimit: number; whiteTime: number; blackTime: number; players: Player[]; expectedMove: MoveDetails | null }) => {
+          console.log('Game started:', data);
+          startGame(data.position, data.turn, data.timeLimit, data.whiteTime, data.blackTime, data.players, data.expectedMove);
+        });
 
-    socket.on('timer-sync', (data: { whiteTime: number; blackTime: number }) => {
-      updateTimers(data.whiteTime, data.blackTime);
-    });
+        socket.on('timer-sync', (data: { whiteTime: number; blackTime: number; turn: 'white' | 'black'; position: string; moveIndex: number; players: Player[] }) => {
+          // Use reconcileState to sync all game state, not just timers
+          // This ensures frontend catches up even if turn-change events are missed
+          reconcileState(data.turn, data.position, data.moveIndex, data.whiteTime, data.blackTime, data.players);
+        });
 
-    socket.on('move-result', (result: MoveResult) => {
-      console.log('Move result:', result);
-      setMoveResult(result);
-    });
+        socket.on('move-result', (result: MoveResult) => {
+          console.log('Move result:', result);
+          setMoveResult(result);
+        });
 
-    socket.on('turn-change', (data: { turn: 'white' | 'black'; position: string; moveIndex: number; whiteTime: number; blackTime: number; expectedMove: MoveDetails | null }) => {
-      console.log('Turn change:', data);
-      changeTurn(data.turn, data.position, data.moveIndex, data.whiteTime, data.blackTime, data.expectedMove);
-    });
+        socket.on('turn-change', (data: { turn: 'white' | 'black'; position: string; moveIndex: number; whiteTime: number; blackTime: number; expectedMove: MoveDetails | null }) => {
+          console.log('[FRONTEND] Turn change event received:', data);
+          console.log('[FRONTEND] Calling changeTurn with:', {
+            turn: data.turn,
+            position: data.position,
+            moveIndex: data.moveIndex,
+            whiteTime: data.whiteTime,
+            blackTime: data.blackTime,
+          });
+          changeTurn(data.turn, data.position, data.moveIndex, data.whiteTime, data.blackTime, data.expectedMove);
+        });
 
-    socket.on('game-end', (data: { winner: string | null; players: Player[]; trivia: string[] }) => {
-      console.log('Game ended:', data);
-      endGame(data.winner, data.players, data.trivia);
-    });
+        socket.on('game-end', (data: { winner: string | null; players: Player[]; trivia: string[] }) => {
+          console.log('Game ended:', data);
+          endGame(data.winner, data.players, data.trivia);
+        });
 
-    socket.on('error', (data: { message: string }) => {
-      console.error('Socket error:', data.message);
-    });
+        socket.on('error', (data: { message: string }) => {
+          console.error('Socket error:', data.message);
+        });
 
-    // Lobby events
-    socket.on('challenges-list', (challenges: Challenge[]) => {
-      console.log('Challenges received:', challenges.length);
-      setChallenges(challenges);
-    });
+        // Lobby events
+        socket.on('challenges-list', (challenges: Challenge[]) => {
+          console.log('Challenges received:', challenges.length);
+          setChallenges(challenges);
+        });
 
-    socket.on('challenge-created', (challenge: Challenge) => {
-      console.log('New challenge:', challenge);
-      // Check if this is our challenge
-      if (challenge.creatorSocketId === socket.id) {
-        setMyChallenge(challenge);
-      }
-      addChallenge(challenge);
-    });
+        socket.on('challenge-created', (challenge: Challenge) => {
+          console.log('New challenge:', challenge);
+          // Check if this is our challenge
+          if (challenge.creatorSocketId === socket.id) {
+            setMyChallenge(challenge);
+          }
+          addChallenge(challenge);
+        });
 
-    socket.on('challenge-removed', (challengeId: string) => {
-      console.log('Challenge removed:', challengeId);
-      removeChallenge(challengeId);
-    });
+        socket.on('challenge-removed', (challengeId: string) => {
+          console.log('Challenge removed:', challengeId);
+          removeChallenge(challengeId);
+        });
 
-    socket.on('challenge-accepted', (data: ChallengeAcceptedData) => {
-      console.log('Challenge accepted, game starting:', data);
-      handleMatchFound(data, socket.id || '');
-    });
+        socket.on('challenge-accepted', (data: ChallengeAcceptedData) => {
+          console.log('Challenge accepted, game starting:', data);
+          handleMatchFound(data, socket.id || '');
+        });
 
-    // Rejoin events
-    socket.on('room-rejoined', (data: RejoinData) => {
-      console.log('Rejoined room:', data);
-      handleRejoin(data);
-    });
+        // Rejoin events
+        socket.on('room-rejoined', (data: RejoinData) => {
+          console.log('Rejoined room:', data);
+          handleRejoin(data);
+        });
 
-    socket.on('rejoin-failed', (data: { message: string }) => {
-      console.log('Rejoin failed:', data.message);
-      // Clear stored state since the room no longer exists
-      reset();
-    });
+        socket.on('rejoin-failed', (data: { message: string }) => {
+          console.log('Rejoin failed:', data.message);
+          // Clear stored state since the room no longer exists
+          reset();
+        });
 
-    // Ready/Countdown events
-    socket.on('player-ready', (playerId: string) => {
-      console.log('Player ready:', playerId);
-      markPlayerReady(playerId);
-    });
+        // Ready/Countdown events
+        socket.on('player-ready', (playerId: string) => {
+          console.log('Player ready:', playerId);
+          markPlayerReady(playerId);
+        });
 
-    socket.on('countdown-start', (seconds: number) => {
-      console.log('Countdown starting:', seconds);
-      startCountdown(seconds);
-    });
+        socket.on('countdown-start', (seconds: number) => {
+          console.log('Countdown starting:', seconds);
+          startCountdown(seconds);
+        });
 
-    socket.on('countdown-tick', (seconds: number) => {
-      console.log('Countdown tick:', seconds);
-      countdownTick(seconds);
-    });
+        socket.on('countdown-tick', (seconds: number) => {
+          console.log('Countdown tick:', seconds);
+          countdownTick(seconds);
+        });
+    }
 
     connectSocket();
 
@@ -172,27 +216,33 @@ export function useSocket() {
     }
 
     return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('room-joined');
-      socket.off('player-joined');
-      socket.off('player-left');
-      socket.off('game-selected');
-      socket.off('game-start');
-      socket.off('timer-sync');
-      socket.off('move-result');
-      socket.off('turn-change');
-      socket.off('game-end');
-      socket.off('error');
-      socket.off('challenges-list');
-      socket.off('challenge-created');
-      socket.off('challenge-removed');
-      socket.off('challenge-accepted');
-      socket.off('room-rejoined');
-      socket.off('rejoin-failed');
-      socket.off('player-ready');
-      socket.off('countdown-start');
-      socket.off('countdown-tick');
+      listenerCount--;
+      console.log(`[useSocket] Hook unmounted. Listener count: ${listenerCount}`);
+      
+      if (listenerCount === 0) {
+          console.log('[useSocket] Removing global socket listeners');
+          socket.off('connect');
+          socket.off('disconnect');
+          socket.off('room-joined');
+          socket.off('player-joined');
+          socket.off('player-left');
+          socket.off('game-selected');
+          socket.off('game-start');
+          socket.off('timer-sync');
+          socket.off('move-result');
+          socket.off('turn-change');
+          socket.off('game-end');
+          socket.off('error');
+          socket.off('challenges-list');
+          socket.off('challenge-created');
+          socket.off('challenge-removed');
+          socket.off('challenge-accepted');
+          socket.off('room-rejoined');
+          socket.off('rejoin-failed');
+          socket.off('player-ready');
+          socket.off('countdown-start');
+          socket.off('countdown-tick');
+      }
       // Don't disconnect on unmount - keep socket alive for page navigation
     };
   }, []);
@@ -214,6 +264,24 @@ export function useSocket() {
 
   const submitMove = useCallback((roomId: string, move: string, confidence: number) => {
     const socket = getSocket();
+    const state = useGameStore.getState();
+
+    // Don't submit if already submitting (prevents double-submit)
+    if (state.isSubmitting) {
+      console.log('[FRONTEND] Ignoring move submission - already submitting');
+      return;
+    }
+
+    // Don't submit if it's not our turn
+    if (state.currentTurn !== state.myColor) {
+      console.log('[FRONTEND] Ignoring move submission - not my turn');
+      return;
+    }
+
+    // Set submission lock immediately
+    useGameStore.getState().setSubmitting(true);
+
+    console.log('[FRONTEND] Submitting move:', { roomId, move, confidence, socketId: socket.id });
     socket.emit('submit-move', { roomId, move, confidence });
   }, []);
 

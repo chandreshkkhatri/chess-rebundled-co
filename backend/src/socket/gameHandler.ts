@@ -15,19 +15,46 @@ export class GameHandler {
   constructor(private io: Server<ClientToServerEvents, ServerToClientEvents>) {
     this.gameService = new GameService();
     this.challengeService = new ChallengeService();
-    this.timerService = new TimerService(io as Server, (roomId, loser) =>
-      this.handleTimeoutLoss(roomId, loser)
+    this.timerService = new TimerService(
+      io as Server,
+      (roomId, loser) => this.handleTimeoutLoss(roomId, loser),
+      (roomId) => this.getGameStateForSync(roomId)
     );
   }
 
+  private getGameStateForSync(roomId: string) {
+    const room = this.gameService.getRoom(roomId);
+    if (!room || room.status !== 'playing') return null;
+
+    const position = this.gameService.getCurrentPosition(roomId);
+    return {
+      turn: room.currentTurn,
+      position,
+      moveIndex: room.currentMoveIndex,
+      players: room.players,
+    };
+  }
+
   register(socket: GameSocket): void {
-    console.log(`Client connected: ${socket.id}`);
+    console.log(`[DEBUG] Registering handlers for socket: ${socket.id}`);
 
     // Legacy room events
-    socket.on('join-room', (data) => this.handleJoinRoom(socket, data));
+    socket.on('join-room', (data) => {
+         console.log(`[DEBUG] Socket ${socket.id} received join-room`);
+         this.handleJoinRoom(socket, data)
+    });
     socket.on('select-game', (data) => this.handleSelectGame(socket, data));
     socket.on('start-game', (data) => this.handleStartGame(socket, data));
-    socket.on('submit-move', (data) => this.handleSubmitMove(socket, data));
+    
+    // Explicit debug for submit-move
+    socket.on('submit-move', (data) => {
+        console.log(`[DEBUG] Socket ${socket.id} received submit-move raw event:`, data);
+        try {
+            this.handleSubmitMove(socket, data);
+        } catch (e) {
+            console.error(`[DEBUG] Error in handleSubmitMove:`, e);
+        }
+    });
 
     // Ready event
     socket.on('player-ready', (data) => this.handlePlayerReady(socket, data));
@@ -42,6 +69,11 @@ export class GameHandler {
     socket.on('rejoin-room', (data) => this.handleRejoinRoom(socket, data));
 
     socket.on('disconnect', () => this.handleDisconnect(socket));
+    
+    // Catch-all listener for debugging
+    socket.onAny((eventName, ...args) => {
+        console.log(`[DEBUG] Socket ${socket.id} received event: ${eventName}`);
+    });
   }
 
   private handleJoinRoom(
@@ -149,12 +181,15 @@ export class GameHandler {
     data: { roomId: string; move: string; confidence: number }
   ): void {
     const { roomId, move } = data;
+    console.log(`handleSubmitMove called: roomId=${roomId}, move=${move}, socketId=${socket.id}`);
 
     const room = this.gameService.getRoom(roomId);
     if (!room) {
+      console.error(`handleSubmitMove: Room ${roomId} not found`);
       socket.emit('error', { message: 'Room not found' });
       return;
     }
+    console.log(`Room ${roomId} found, status=${room.status}, currentTurn=${room.currentTurn}`);
 
     // Verify it's this player's turn
     const player = this.gameService.getPlayerBySocketId(roomId, socket.id);
@@ -176,8 +211,14 @@ export class GameHandler {
       return;
     }
 
-    // Send result to all players
-    this.io.to(roomId).emit('move-result', result);
+    // Send result to all players - emit to submitter + broadcast to others
+    // Using socket.emit + socket.to() instead of io.to() to ensure delivery
+    const socketsInRoom = this.io.sockets.adapter.rooms.get(roomId);
+    console.log(`[DEBUG] Before move-result emit. Socket ${socket.id} in room ${roomId}: ${socket.rooms.has(roomId)}`);
+    console.log(`[DEBUG] Sockets in room ${roomId}: ${socketsInRoom ? Array.from(socketsInRoom).join(', ') : 'NONE'}`);
+
+    socket.emit('move-result', result);  // To submitter
+    socket.to(roomId).emit('move-result', result);  // To others in room
 
     console.log(
       `Move in room ${roomId}: ${move} -> ${result.isCorrect ? 'CORRECT' : 'WRONG'} (expected: ${result.expectedMove})`
@@ -193,30 +234,38 @@ export class GameHandler {
       const expectedMove = this.gameService.getCurrentExpectedMove(roomId);
 
       // Switch turn and get updated times
+      console.log(`Attempting to switch turn for room ${roomId}. Current turn before switch: ${updatedRoom.currentTurn}`);
       const times = this.timerService.switchTurn(roomId);
       if (!times) {
         console.error(`Failed to switch turn - timer not found for room ${roomId}`);
+        console.error(`Room whiteTime: ${updatedRoom.whiteTimeRemaining}, blackTime: ${updatedRoom.blackTimeRemaining}`);
         // Still emit turn change with room's stored times to prevent hang
-        this.io.to(roomId).emit('turn-change', {
+        const turnChangeData = {
           turn: updatedRoom.currentTurn,
           position: newPosition,
           moveIndex: updatedRoom.currentMoveIndex,
           whiteTime: updatedRoom.whiteTimeRemaining,
           blackTime: updatedRoom.blackTimeRemaining,
           expectedMove,
-        });
+        };
+        console.log(`Emitting turn-change (no timer) to room ${roomId}:`, JSON.stringify(turnChangeData, null, 2));
+        socket.emit('turn-change', turnChangeData);  // To submitter
+        socket.to(roomId).emit('turn-change', turnChangeData);  // To others in room
         return;
       }
 
       // Notify turn change with timer values
-      this.io.to(roomId).emit('turn-change', {
+      const turnChangeData = {
         turn: updatedRoom.currentTurn,
         position: newPosition,
         moveIndex: updatedRoom.currentMoveIndex,
         whiteTime: times.whiteTime,
         blackTime: times.blackTime,
         expectedMove,
-      });
+      };
+      console.log(`Emitting turn-change (with timer) to room ${roomId}:`, JSON.stringify(turnChangeData, null, 2));
+      socket.emit('turn-change', turnChangeData);  // To submitter
+      socket.to(roomId).emit('turn-change', turnChangeData);  // To others in room
     }
   }
 
@@ -432,20 +481,33 @@ export class GameHandler {
   }
 
   private actuallyStartGame(roomId: string): void {
+    console.log(`actuallyStartGame called for room ${roomId}`);
+
     const room = this.gameService.getRoom(roomId);
-    if (!room) return;
+    if (!room) {
+      console.error(`actuallyStartGame: Room ${roomId} not found`);
+      return;
+    }
 
     const startResult = this.gameService.startGame(roomId);
-    if (!startResult) return;
+    if (!startResult) {
+      console.error(`actuallyStartGame: Failed to start game in room ${roomId}`);
+      return;
+    }
 
     // Get the first expected move
     const expectedMove = this.gameService.getCurrentExpectedMove(roomId);
 
     // Start the game timer (3 minutes per player)
     const times = this.timerService.startGameTimer(roomId, startResult.turn);
+    console.log(`Timer started for room ${roomId}: whiteTime=${times.whiteTime}, blackTime=${times.blackTime}`);
+
+    // Check which sockets are in this room
+    const socketsInRoom = this.io.sockets.adapter.rooms.get(roomId);
+    console.log(`Sockets in room ${roomId}: ${socketsInRoom ? Array.from(socketsInRoom).join(', ') : '(none)'}`);
 
     // Notify all players that game is starting
-    this.io.to(roomId).emit('game-start', {
+    const gameStartData = {
       position: startResult.position,
       turn: startResult.turn,
       timeLimit: room.timeLimit,
@@ -453,7 +515,10 @@ export class GameHandler {
       blackTime: times.blackTime,
       players: room.players,
       expectedMove,
-    });
+    };
+    console.log(`Emitting game-start to room ${roomId}:`, JSON.stringify(gameStartData, null, 2));
+
+    this.io.to(roomId).emit('game-start', gameStartData);
 
     console.log(`Game started in room ${roomId}`);
   }

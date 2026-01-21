@@ -47,6 +47,9 @@ interface GameState {
   transcript: string;
   voiceConfidence: number;
 
+  // Submission lock - prevents double-submit race conditions
+  isSubmitting: boolean;
+
   // Actions
   setConnected: (connected: boolean) => void;
   setPlayerName: (name: string) => void;
@@ -62,6 +65,7 @@ interface GameState {
   setSelectedGame: (game: HistoricalGame) => void;
   startGame: (position: string, turn: 'white' | 'black', timeLimit: number, whiteTime: number, blackTime: number, players: Player[], expectedMove: MoveDetails | null) => void;
   updateTimers: (whiteTime: number, blackTime: number) => void;
+  reconcileState: (turn: 'white' | 'black', position: string, moveIndex: number, whiteTime: number, blackTime: number, players: Player[]) => void;
   setMoveResult: (result: MoveResult) => void;
   changeTurn: (turn: 'white' | 'black', position: string, moveIndex: number, whiteTime: number, blackTime: number, expectedMove: MoveDetails | null) => void;
   endGame: (winnerId: string | null, players: Player[], trivia: string[]) => void;
@@ -70,6 +74,7 @@ interface GameState {
   markPlayerReady: (playerId: string) => void;
   startCountdown: (seconds: number) => void;
   countdownTick: (seconds: number) => void;
+  setSubmitting: (isSubmitting: boolean) => void;
   reset: () => void;
 }
 
@@ -100,6 +105,7 @@ const initialState = {
   isListening: false,
   transcript: '',
   voiceConfidence: 0,
+  isSubmitting: false,
 };
 
 export const useGameStore = create<GameState>()(
@@ -201,6 +207,38 @@ export const useGameStore = create<GameState>()(
 
   updateTimers: (whiteTime, blackTime) => set({ whiteTime, blackTime }),
 
+  reconcileState: (turn, position, moveIndex, whiteTime, blackTime, players) => {
+    const state = get();
+    // Only reconcile if we're in playing state and there's a mismatch
+    if (state.status !== 'playing') return;
+
+    const hasStateChange =
+      state.currentTurn !== turn ||
+      state.currentPosition !== position ||
+      state.moveIndex !== moveIndex;
+
+    if (hasStateChange) {
+      console.log('[RECONCILE] State mismatch detected, syncing from server:', {
+        localTurn: state.currentTurn, serverTurn: turn,
+        localMoveIndex: state.moveIndex, serverMoveIndex: moveIndex,
+      });
+      set({
+        currentTurn: turn,
+        currentPosition: position,
+        moveIndex,
+        whiteTime,
+        blackTime,
+        players,
+        // Clear lastMoveResult since turn changed
+        lastMoveResult: null,
+        isSubmitting: false,  // Clear submission lock on state reconciliation
+      });
+    } else {
+      // Just update timers if no state change
+      set({ whiteTime, blackTime, players });
+    }
+  },
+
   setMoveResult: (result) =>
     set((state) => ({
       lastMoveResult: result,
@@ -220,6 +258,7 @@ export const useGameStore = create<GameState>()(
       blackTime,
       lastMoveResult: null,
       currentExpectedMove: expectedMove,
+      isSubmitting: false,  // Clear submission lock on turn change
     }),
 
   endGame: (winnerId, players, trivia) =>
@@ -269,6 +308,8 @@ export const useGameStore = create<GameState>()(
     set({
       countdownValue: seconds,
     }),
+
+  setSubmitting: (isSubmitting) => set({ isSubmitting }),
 
       reset: () => set(initialState),
     }),

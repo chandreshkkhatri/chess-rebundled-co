@@ -55,14 +55,20 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
 
       switch (event.error) {
         case 'not-allowed':
-          setError('Microphone access denied. Please allow microphone access.');
+          setError('Microphone access denied. Click the camera icon in address bar to allow.');
           break;
         case 'no-speech':
-          setError('No speech detected. Try again.');
+          setError('No speech detected. Please speak closer or try again.');
           break;
         case 'network':
-          setError('Network error. Please check your connection.');
+          setError('Network error. Check your connection.');
           break;
+        case 'audio-capture':
+          setError('No microphone found. Ensure it is connected.');
+          break;
+        case 'service-not-allowed':
+            setError('Browser blocked voice service. Try generic Chrome.');
+            break;
         default:
           setError(`Recognition error: ${event.error}`);
       }

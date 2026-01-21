@@ -1,4 +1,5 @@
 import { Server } from 'socket.io';
+import { Player } from '../types/index.js';
 
 interface ActiveTimer {
   roomId: string;
@@ -9,6 +10,13 @@ interface ActiveTimer {
   intervalId: NodeJS.Timeout;
 }
 
+interface GameState {
+  turn: 'white' | 'black';
+  position: string;
+  moveIndex: number;
+  players: Player[];
+}
+
 const TOTAL_TIME_PER_PLAYER = 180000; // 3 minutes in milliseconds
 
 export class TimerService {
@@ -17,13 +25,16 @@ export class TimerService {
 
   constructor(
     private io: Server,
-    private onTimeExpired: (roomId: string, loser: 'white' | 'black') => void
+    private onTimeExpired: (roomId: string, loser: 'white' | 'black') => void,
+    private getGameState?: (roomId: string) => GameState | null
   ) {}
 
   /**
    * Start the game timer for a room
    */
   startGameTimer(roomId: string, initialTurn: 'white' | 'black' = 'white'): { whiteTime: number; blackTime: number } {
+    console.log(`[TimerService] startGameTimer called for room ${roomId}, initialTurn: ${initialTurn}`);
+
     // Clear any existing timer
     this.clearTimer(roomId);
 
@@ -37,6 +48,7 @@ export class TimerService {
     };
 
     this.activeTimers.set(roomId, timer);
+    console.log(`[TimerService] Timer started for room ${roomId}. Active timers count: ${this.activeTimers.size}`);
 
     return { whiteTime: timer.whiteTimeRemaining, blackTime: timer.blackTimeRemaining };
   }
@@ -45,11 +57,19 @@ export class TimerService {
    * Switch turn - stops current player's clock and starts opponent's
    */
   switchTurn(roomId: string): { whiteTime: number; blackTime: number } | null {
+    console.log(`[TimerService] switchTurn called for room ${roomId}. Active timers: ${Array.from(this.activeTimers.keys()).join(', ') || '(none)'}`);
+
     const timer = this.activeTimers.get(roomId);
-    if (!timer) return null;
+    if (!timer) {
+      console.error(`[TimerService] Timer not found for room ${roomId}. Total active timers: ${this.activeTimers.size}`);
+      return null;
+    }
+
+    console.log(`[TimerService] Found timer for room ${roomId}. Current turn: ${timer.currentTurn}`);
 
     // Calculate elapsed time for current player
     const elapsed = Date.now() - timer.turnStartTime;
+    console.log(`[TimerService] Elapsed time for ${timer.currentTurn}: ${elapsed}ms`);
 
     // Deduct time from current player
     if (timer.currentTurn === 'white') {
@@ -59,8 +79,11 @@ export class TimerService {
     }
 
     // Switch turn
+    const oldTurn = timer.currentTurn;
     timer.currentTurn = timer.currentTurn === 'white' ? 'black' : 'white';
     timer.turnStartTime = Date.now();
+
+    console.log(`[TimerService] Turn switched from ${oldTurn} to ${timer.currentTurn}. Times: white=${timer.whiteTimeRemaining}ms, black=${timer.blackTimeRemaining}ms`);
 
     return { whiteTime: timer.whiteTimeRemaining, blackTime: timer.blackTimeRemaining };
   }
@@ -120,10 +143,17 @@ export class TimerService {
       return;
     }
 
-    // Broadcast time sync to all players
+    // Get game state if available
+    const gameState = this.getGameState?.(roomId);
+
+    // Broadcast time sync to all players with full state for reconciliation
     this.io.to(roomId).emit('timer-sync', {
       whiteTime: times.whiteTime,
       blackTime: times.blackTime,
+      turn: gameState?.turn ?? timer.currentTurn,
+      position: gameState?.position ?? '',
+      moveIndex: gameState?.moveIndex ?? 0,
+      players: gameState?.players ?? [],
     });
   }
 
