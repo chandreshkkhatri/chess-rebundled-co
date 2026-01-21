@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { usePracticeStore } from '@/stores/practiceStore';
-import { useGameStore } from '@/stores/gameStore';
 import { PracticeMode } from '@/types';
 
 export default function PracticeSelectPage() {
@@ -22,21 +21,19 @@ export default function PracticeSelectPage() {
     sessionId,
     status,
     error,
+    playerName: storedPlayerName,
     setPlayerName: storeSetPlayerName,
     setError,
     reset,
   } = usePracticeStore();
 
-  // Try to get playerName from game store first
-  const { playerName: gameStoreName } = useGameStore();
-
   // Load stored player name on mount
   useEffect(() => {
-    if (gameStoreName) {
-      setPlayerName(gameStoreName);
+    if (storedPlayerName) {
+      setPlayerName(storedPlayerName);
       setHasEnteredName(true);
     }
-  }, [gameStoreName]);
+  }, [storedPlayerName]);
 
   // Reset stale status on mount (handles persisted state from previous sessions)
   useEffect(() => {
@@ -85,7 +82,6 @@ export default function PracticeSelectPage() {
       return;
     }
     storeSetPlayerName(playerName);
-    useGameStore.getState().setPlayerName(playerName);
     setHasEnteredName(true);
     setShowModeSelection(true);
   };

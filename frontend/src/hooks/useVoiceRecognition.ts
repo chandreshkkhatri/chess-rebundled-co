@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { useGameStore } from '@/stores/gameStore';
 import { parseVoiceInput } from '@/lib/voiceParser';
 
 interface UseVoiceRecognitionOptions {
@@ -18,8 +17,6 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
   const [transcript, setTranscript] = useState('');
   const [confidence, setConfidence] = useState(0);
   const [error, setError] = useState<string | null>(null);
-
-  const { setVoiceState } = useGameStore();
 
   // Keep onResult ref up to date
   useEffect(() => {
@@ -48,12 +45,10 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     recognition.onstart = () => {
       setIsListening(true);
       setError(null);
-      setVoiceState(true, '', 0);
     };
 
     recognition.onend = () => {
       setIsListening(false);
-      setVoiceState(false, transcript, confidence);
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -78,14 +73,11 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
         default:
           setError(`Recognition error: ${event.error}`);
       }
-
-      setVoiceState(false, '', 0);
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       const results = event.results[event.resultIndex];
       const rawTranscript = results[0].transcript.trim();
-      const rawConfidence = results[0].confidence;
 
       if (results.isFinal) {
         // Parse the voice input
@@ -93,7 +85,6 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
 
         setTranscript(rawTranscript);
         setConfidence(parsed.confidence);
-        setVoiceState(false, rawTranscript, parsed.confidence);
 
         // Call the result callback with parsed move (using ref)
         if (onResultRef.current && parsed.notation) {
@@ -102,7 +93,6 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
       } else {
         // Interim result
         setTranscript(rawTranscript);
-        setVoiceState(true, rawTranscript, rawConfidence);
       }
     };
 
@@ -113,7 +103,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
         recognitionRef.current.abort();
       }
     };
-  }, [continuous, setVoiceState]);
+  }, [continuous]);
 
   const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening) {

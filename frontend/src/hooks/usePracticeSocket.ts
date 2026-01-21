@@ -3,7 +3,6 @@
 import { useEffect, useCallback } from 'react';
 import { getSocket, connectSocket } from '@/lib/socket';
 import { usePracticeStore } from '@/stores/practiceStore';
-import { useGameStore } from '@/stores/gameStore';
 import {
   HistoricalGame,
   PracticeMoveResult,
@@ -21,7 +20,6 @@ let listenersAttached = false;
 export function usePracticeSocket() {
   const {
     setConnected,
-    setPlayerName,
     setSubmitting,
   } = usePracticeStore();
 
@@ -47,10 +45,6 @@ export function usePracticeSocket() {
       socket.on('connect', () => {
         console.log('[PRACTICE] Connected to server. Socket ID:', socket.id);
         usePracticeStore.getState().setConnected(true);
-        const gameState = useGameStore.getState();
-        if (gameState.playerName) {
-          usePracticeStore.getState().setPlayerName(gameState.playerName);
-        }
       });
 
       socket.on('disconnect', () => {
@@ -121,14 +115,10 @@ export function usePracticeSocket() {
     // If socket is already connected, set connected state immediately
     if (socket.connected) {
       setConnected(true);
-      const gameState = useGameStore.getState();
-      if (gameState.playerName) {
-        setPlayerName(gameState.playerName);
-      }
     }
 
     // NO CLEANUP - listeners stay attached forever to prevent race conditions
-  }, [setConnected, setPlayerName]);
+  }, [setConnected]);
 
   const getPracticeGames = useCallback(() => {
     // Deprecated - kept for backward compatibility
