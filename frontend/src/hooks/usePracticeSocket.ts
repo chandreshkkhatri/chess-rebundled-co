@@ -80,6 +80,7 @@ export function usePracticeSocket() {
       });
 
       socket.on('practice-error', (data: { message: string }) => {
+        console.log('[Socket] Received practice-error:', data.message);
         usePracticeStore.getState().setError(data.message);
       });
 
@@ -119,13 +120,16 @@ export function usePracticeSocket() {
     playerColor: 'white' | 'black' | null = null
   ): boolean => {
     const socket = getSocket();
+    console.log('[Socket] startPracticeRandom called. socket.connected:', socket.connected);
 
     // Validate connection before emit
     if (!socket.connected) {
+      console.log('[Socket] Not connected, setting error');
       usePracticeStore.getState().setError('Not connected to server. Please refresh the page.');
       return false;
     }
 
+    console.log('[Socket] Emitting start-practice-random:', { playerName, mode, playerColor });
     usePracticeStore.getState().setStarting(true);
     socket.emit('start-practice-random', { playerName, mode, playerColor });
     return true;

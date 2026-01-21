@@ -35,6 +35,7 @@ export default function PracticeSelectPage() {
     if (storedPlayerName) {
       setPlayerName(storedPlayerName);
       setHasEnteredName(true);
+      setShowModeSelection(true);  // Also show mode selection when name is restored
     }
   }, [storedPlayerName]);
 

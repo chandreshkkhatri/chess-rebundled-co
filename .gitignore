@@ -2,3 +2,5 @@ node_modules
 .next
 dist
 .env
+ngrok_logs.txt
+.DS_Store
