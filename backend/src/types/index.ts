@@ -143,6 +143,15 @@ export interface PracticeCompletedData {
   trivia: string[];
 }
 
+// AI Move Parsing Types
+export interface AIParsedMoveResult {
+  transcript: string;
+  parsedMove: string;
+  confidence: number;
+  alternatives: string[];
+  reasoning?: string;
+}
+
 // Socket Event Types
 export interface ServerToClientEvents {
   // Room events (legacy)
@@ -175,6 +184,9 @@ export interface ServerToClientEvents {
   'practice-next-move': (data: { position: string; currentMoveIndex: number; currentSide: 'white' | 'black'; expectedMove: MoveDetails; opponentMove?: MoveDetails }) => void;
   'practice-completed': (data: PracticeCompletedData) => void;
   'practice-error': (data: { message: string }) => void;
+  // AI move parsing events
+  'move-parsed': (data: AIParsedMoveResult) => void;
+  'parse-error': (data: { message: string }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -198,4 +210,6 @@ export interface ClientToServerEvents {
   'start-practice-random': (data: { playerName: string; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
   'submit-practice-move': (data: { sessionId: string; move: string }) => void;
   'abandon-practice': (data: { sessionId: string }) => void;
+  // AI move parsing events
+  'parse-move-with-ai': (data: { sessionId: string; transcript: string }) => void;
 }

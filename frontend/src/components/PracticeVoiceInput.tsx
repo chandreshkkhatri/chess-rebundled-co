@@ -3,6 +3,8 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { useVoiceRecognition } from '@/hooks/useVoiceRecognition';
 import { usePracticeStore } from '@/stores/practiceStore';
+import { usePracticeSocket } from '@/hooks/usePracticeSocket';
+import { AIParsedMoveResult } from '@/types';
 
 interface PracticeVoiceInputProps {
   onMoveSubmit: (move: string, confidence: number) => void;
@@ -10,25 +12,73 @@ interface PracticeVoiceInputProps {
 }
 
 export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeVoiceInputProps) {
-  const { status, currentSide, lastMoveResult, isSubmitting, mode, playerColor } = usePracticeStore();
+  const { status, currentSide, lastMoveResult, isSubmitting, mode, playerColor, sessionId } = usePracticeStore();
+  const { parseMoveWithAI } = usePracticeSocket();
   const isActive = status === 'playing' && !disabled;
-  const [pendingMove, setPendingMove] = useState<{ notation: string; confidence: number } | null>(null);
+
+  // Raw transcript from speech recognition
+  const [rawTranscript, setRawTranscript] = useState<string>('');
+  // AI parsing state
+  const [isParsing, setIsParsing] = useState(false);
+  const [aiResult, setAiResult] = useState<AIParsedMoveResult | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
+  // Selected move (from AI result or alternatives)
+  const [selectedMove, setSelectedMove] = useState<string | null>(null);
+
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Use refs to avoid recreating the callback
   const isActiveRef = useRef(isActive);
   const isSubmittingRef = useRef(isSubmitting);
+  const sessionIdRef = useRef(sessionId);
 
   useEffect(() => {
     isActiveRef.current = isActive;
     isSubmittingRef.current = isSubmitting;
-  }, [isActive, isSubmitting]);
+    sessionIdRef.current = sessionId;
+  }, [isActive, isSubmitting, sessionId]);
 
-  // Stable callback using refs
-  const handleVoiceResult = useCallback((move: string, confidence: number) => {
-    if (!isSubmittingRef.current && isActiveRef.current) {
-      setPendingMove({ notation: move, confidence });
+  // Handle raw voice result - show transcript and request AI parsing
+  const handleVoiceResult = useCallback((transcript: string) => {
+    if (!isSubmittingRef.current && isActiveRef.current && sessionIdRef.current) {
+      setRawTranscript(transcript);
+      setIsParsing(true);
+      setAiResult(null);
+      setParseError(null);
+      setSelectedMove(null);
+      // Request AI parsing
+      parseMoveWithAI(sessionIdRef.current, transcript);
     }
+  }, [parseMoveWithAI]);
+
+  // Listen for AI parsing results via custom events
+  useEffect(() => {
+    const handleAIParsed = (event: CustomEvent<AIParsedMoveResult>) => {
+      console.log('[PracticeVoiceInput] AI Parsed received:', event.detail);
+      setIsParsing(false);
+      setAiResult(event.detail);
+      
+      // Always auto-select the primary move if valid - user can pick alternatives if they disagree
+      if (event.detail.parsedMove) {
+        console.log('[PracticeVoiceInput] Auto-selecting move:', event.detail.parsedMove);
+        setSelectedMove(event.detail.parsedMove);
+      } else {
+        console.log('[PracticeVoiceInput] No parsed move to select');
+      }
+    };
+
+    const handleParseError = (event: CustomEvent<{ message: string }>) => {
+      setIsParsing(false);
+      setParseError(event.detail.message);
+    };
+
+    window.addEventListener('ai-move-parsed', handleAIParsed as EventListener);
+    window.addEventListener('ai-parse-error', handleParseError as EventListener);
+
+    return () => {
+      window.removeEventListener('ai-move-parsed', handleAIParsed as EventListener);
+      window.removeEventListener('ai-parse-error', handleParseError as EventListener);
+    };
   }, []);
 
   const { isSupported, isListening, transcript, error, startListening, stopListening } =
@@ -39,25 +89,28 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
 
   // Auto-start listening when active and not submitting
   useEffect(() => {
-    if (isActive && !isListening && !pendingMove && !isSubmitting) {
+    if (isActive && !isListening && !rawTranscript && !isSubmitting && !isParsing) {
       const timeout = setTimeout(() => {
         startListening();
       }, 300);
       return () => clearTimeout(timeout);
     }
-  }, [isActive, isListening, pendingMove, isSubmitting, startListening]);
+  }, [isActive, isListening, rawTranscript, isSubmitting, isParsing, startListening]);
 
-  // Stop listening when submitting
+  // Stop listening when submitting or parsing
   useEffect(() => {
-    if (isSubmitting && isListening) {
+    if ((isSubmitting || isParsing) && isListening) {
       stopListening();
     }
-  }, [isSubmitting, isListening, stopListening]);
+  }, [isSubmitting, isParsing, isListening, stopListening]);
 
-  // Clear pending move when new move result comes in
+  // Clear state when new move result comes in
   useEffect(() => {
     if (lastMoveResult) {
-      setPendingMove(null);
+      setRawTranscript('');
+      setAiResult(null);
+      setSelectedMove(null);
+      setParseError(null);
       if (submitTimeoutRef.current) {
         clearTimeout(submitTimeoutRef.current);
         submitTimeoutRef.current = null;
@@ -75,20 +128,26 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
   }, []);
 
   const handleSubmit = useCallback(() => {
-    if (pendingMove && isActive && !isSubmitting) {
-      console.log('[PracticeVoiceInput] Submitting move:', pendingMove.notation);
-      onMoveSubmit(pendingMove.notation, pendingMove.confidence);
+    if (selectedMove && isActive && !isSubmitting) {
+      console.log('[PracticeVoiceInput] Submitting move:', selectedMove);
+      onMoveSubmit(selectedMove, aiResult?.confidence || 0.5);
 
       // Fallback: reset after 3 seconds if no response
       submitTimeoutRef.current = setTimeout(() => {
         console.log('[PracticeVoiceInput] Timeout - resetting');
-        setPendingMove(null);
+        setRawTranscript('');
+        setAiResult(null);
+        setSelectedMove(null);
       }, 3000);
     }
-  }, [pendingMove, isActive, isSubmitting, onMoveSubmit]);
+  }, [selectedMove, isActive, isSubmitting, onMoveSubmit, aiResult?.confidence]);
 
   const handleReset = useCallback(() => {
-    setPendingMove(null);
+    setRawTranscript('');
+    setAiResult(null);
+    setSelectedMove(null);
+    setParseError(null);
+    setIsParsing(false);
     if (submitTimeoutRef.current) {
       clearTimeout(submitTimeoutRef.current);
       submitTimeoutRef.current = null;
@@ -97,6 +156,10 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
       startListening();
     }
   }, [startListening, isListening, isActive]);
+
+  const handleSelectAlternative = useCallback((move: string) => {
+    setSelectedMove(move);
+  }, []);
 
   if (!isSupported) {
     return (
@@ -119,9 +182,9 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
         }`}
       >
         {mode === 'one-side' && playerColor ? (
-          <>Your move ({playerColor === 'white' ? '⬜' : '⬛'})</>
+          <>Your move ({playerColor === 'white' ? '\u2B1C' : '\u2B1B'})</>
         ) : (
-          <>{currentSide === 'white' ? '⬜ White' : '⬛ Black'} to move</>
+          <>{currentSide === 'white' ? '\u2B1C White' : '\u2B1B Black'} to move</>
         )}
       </div>
 
@@ -131,23 +194,74 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
           className={`w-3 h-3 rounded-full ${
             isListening
               ? 'bg-red-500 animate-pulse'
+              : isParsing
+              ? 'bg-yellow-500 animate-pulse'
               : isActive
               ? 'bg-green-400'
               : 'bg-slate-600'
           }`}
         />
-        <span className={`text-sm ${isListening ? 'text-red-400' : 'text-slate-400'}`}>
-          {isListening ? 'Listening...' : pendingMove ? 'Move detected' : isActive ? 'Ready' : 'Waiting'}
+        <span className={`text-sm ${isListening ? 'text-red-400' : isParsing ? 'text-yellow-400' : 'text-slate-400'}`}>
+          {isListening ? 'Listening...' : isParsing ? 'AI parsing...' : rawTranscript ? 'Ready to submit' : isActive ? 'Ready' : 'Waiting'}
         </span>
       </div>
 
-      {/* Parsed move display */}
-      <div className="h-14 flex items-center justify-center mb-2">
-        {pendingMove ? (
-          <div className="text-center">
-            <div className="font-mono text-3xl font-bold text-green-400">
-              {pendingMove.notation}
+      {/* Raw transcript display */}
+      {rawTranscript && (
+        <div className="bg-slate-700 rounded-lg p-2 mb-2">
+          <div className="text-xs text-slate-400 mb-1">You said:</div>
+          <div className="text-white text-sm font-medium">&ldquo;{rawTranscript}&rdquo;</div>
+        </div>
+      )}
+
+      {/* AI Parsing result */}
+      <div className="min-h-[60px] flex flex-col items-center justify-center mb-2">
+        {isParsing ? (
+          <div className="flex items-center gap-2">
+            <div className="animate-spin h-5 w-5 border-2 border-yellow-500 border-t-transparent rounded-full"></div>
+            <span className="text-yellow-400 text-sm">AI parsing...</span>
+          </div>
+        ) : parseError ? (
+          <div className="text-red-400 text-sm text-center">{parseError}</div>
+        ) : aiResult ? (
+          <div className="text-center w-full">
+            <div
+              className={`font-mono text-3xl font-bold cursor-pointer py-2 px-4 rounded-lg transition-colors ${
+                selectedMove === aiResult.parsedMove
+                  ? 'bg-green-600 text-white'
+                  : 'bg-slate-700 text-green-400 hover:bg-slate-600'
+              }`}
+              onClick={() => setSelectedMove(aiResult.parsedMove)}
+            >
+              {aiResult.parsedMove || '???'}
             </div>
+            {aiResult.confidence < 1 && (
+              <div className="text-xs text-slate-500 mt-1">
+                {(aiResult.confidence * 100).toFixed(0)}% confident
+                {aiResult.reasoning && ` - ${aiResult.reasoning}`}
+              </div>
+            )}
+            {/* Alternatives */}
+            {aiResult.alternatives && aiResult.alternatives.length > 0 && (
+              <div className="mt-2">
+                <div className="text-xs text-slate-500 mb-1">Also possible:</div>
+                <div className="flex justify-center gap-2 flex-wrap">
+                  {aiResult.alternatives.map((alt) => (
+                    <button
+                      key={alt}
+                      onClick={() => handleSelectAlternative(alt)}
+                      className={`px-3 py-1 rounded font-mono text-sm transition-colors ${
+                        selectedMove === alt
+                          ? 'bg-green-600 text-white'
+                          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                      }`}
+                    >
+                      {alt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : transcript ? (
           <div className="text-center">
@@ -170,9 +284,9 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
           }`}
         >
           {lastMoveResult.isCorrect ? (
-            <>✓ Correct!</>
+            <>\u2713 Correct!</>
           ) : (
-            <>✗ Expected: {lastMoveResult.expectedMove}</>
+            <>\u2717 Expected: {lastMoveResult.expectedMove}</>
           )}
         </div>
       )}
@@ -192,16 +306,16 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
         </button>
         <button
           onClick={handleSubmit}
-          disabled={!pendingMove || isSubmitting || !isActive}
+          disabled={!selectedMove || isSubmitting || !isActive}
           className={`flex-[2] py-3 px-4 rounded-lg font-bold text-lg transition-colors ${
             isSubmitting
               ? 'bg-yellow-500 text-white cursor-wait animate-pulse'
-              : pendingMove && isActive
+              : selectedMove && isActive
               ? 'bg-green-500 hover:bg-green-400 text-white shadow-lg shadow-green-500/30'
               : 'bg-slate-700 text-slate-500 cursor-not-allowed'
           }`}
         >
-          {isSubmitting ? '...' : '✓ SUBMIT'}
+          {isSubmitting ? '...' : `\u2713 SUBMIT ${selectedMove || ''}`}
         </button>
       </div>
 
@@ -224,7 +338,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
 
       {/* Phonetic hint */}
       <div className="mt-2 text-xs text-slate-500 text-center">
-        Tip: Say "Echo 4" for e4, "Delta 4" for d4
+        Tip: Say &ldquo;Echo 4&rdquo; for e4, &ldquo;knight delta 5&rdquo; for Nd5
       </div>
     </div>
   );

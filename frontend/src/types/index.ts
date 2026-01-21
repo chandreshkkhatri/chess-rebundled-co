@@ -126,3 +126,12 @@ export interface PracticeCompletedData {
 
 export type PracticeStatus = 'idle' | 'selecting' | 'playing' | 'completed';
 export type PracticeMode = 'both-sides' | 'one-side';
+
+// AI Move Parsing Types
+export interface AIParsedMoveResult {
+  transcript: string;
+  parsedMove: string;
+  confidence: number;
+  alternatives: string[];
+  reasoning?: string;
+}

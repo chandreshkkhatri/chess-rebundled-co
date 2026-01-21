@@ -233,6 +233,36 @@ export class PracticeService {
     }
   }
 
+  /**
+   * Remove only inactive sessions (completed/abandoned) for a socket.
+   * Keeps active 'playing' sessions alive for potential reconnection.
+   */
+  removeInactiveSessionsBySocketId(socketId: string): void {
+    for (const [id, session] of this.sessions) {
+      if (session.socketId === socketId && session.status !== 'playing') {
+        this.sessions.delete(id);
+        this.moveStartTimes.delete(id);
+      }
+    }
+  }
+
+  /**
+   * Update the socket ID for an existing session (for reconnection)
+   */
+  updateSessionSocketId(sessionId: string, newSocketId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.socketId = newSocketId;
+      return true;
+    }
+    return false;
+  }
+
+  getLegalMoves(sessionId: string): string[] {
+    const currentFen = this.getCurrentPosition(sessionId);
+    return this.pgnService.getLegalMoves(currentFen);
+  }
+
   getNextMoveData(sessionId: string): {
     position: string;
     currentMoveIndex: number;

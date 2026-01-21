@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback } from 'react';
 import { getSocket, connectSocket } from '@/lib/socket';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { useGameStore } from '@/stores/gameStore';
@@ -11,45 +11,38 @@ import {
   PracticeNextMoveData,
   PracticeCompletedData,
   PracticeMode,
+  AIParsedMoveResult,
 } from '@/types';
 
-// Track if listeners have been attached globally (survives component remounts)
+// Track if listeners have been attached (module-level, survives remounts)
+// IMPORTANT: Never remove listeners - they stay attached for the app's lifetime
 let listenersAttached = false;
 
 export function usePracticeSocket() {
   const {
     setConnected,
     setPlayerName,
-    setAvailableGames,
-    startSession,
-    updatePosition,
-    setMoveResult,
-    setCompleted,
     setSubmitting,
   } = usePracticeStore();
 
-  // Use ref to track if this instance has initialized
-  const initializedRef = useRef(false);
-
   useEffect(() => {
-    // Skip if already initialized in this component instance
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-
     const socket = getSocket();
 
-    // Only attach listeners once globally
+    // Only attach listeners ONCE globally - never remove them
+    // This prevents race conditions with React Strict Mode's double-mounting
     if (!listenersAttached) {
-      console.log('[usePracticeSocket] Attaching practice socket listeners');
       listenersAttached = true;
+      console.log('[usePracticeSocket] Attaching global practice socket listeners (permanent)');
 
-      // Remove any existing practice listeners first
+      // Remove any stale listeners first (safety cleanup from previous hot reloads)
       socket.off('practice-games-list');
       socket.off('practice-started');
       socket.off('practice-move-result');
       socket.off('practice-next-move');
       socket.off('practice-completed');
       socket.off('practice-error');
+      socket.off('move-parsed');
+      socket.off('parse-error');
 
       socket.on('connect', () => {
         console.log('[PRACTICE] Connected to server. Socket ID:', socket.id);
@@ -97,6 +90,7 @@ export function usePracticeSocket() {
           currentMoveIndex: data.currentMoveIndex,
           currentSide: data.currentSide,
           expectedMove: data.expectedMove,
+          opponentMove: data.opponentMove,
         });
       });
 
@@ -108,6 +102,17 @@ export function usePracticeSocket() {
       socket.on('practice-error', (data: { message: string }) => {
         console.error('[PRACTICE] Error:', data.message);
         usePracticeStore.getState().setError(data.message);
+      });
+
+      // AI parsing events
+      socket.on('move-parsed', (data: AIParsedMoveResult) => {
+        console.log('[PRACTICE] AI parsed move:', data.parsedMove, `(${(data.confidence * 100).toFixed(0)}% confident)`);
+        window.dispatchEvent(new CustomEvent('ai-move-parsed', { detail: data }));
+      });
+
+      socket.on('parse-error', (data: { message: string }) => {
+        console.error('[PRACTICE] AI parse error:', data.message);
+        window.dispatchEvent(new CustomEvent('ai-parse-error', { detail: data }));
       });
     }
 
@@ -122,7 +127,7 @@ export function usePracticeSocket() {
       }
     }
 
-    // Don't remove listeners on cleanup - keep them for the lifetime of the app
+    // NO CLEANUP - listeners stay attached forever to prevent race conditions
   }, [setConnected, setPlayerName]);
 
   const getPracticeGames = useCallback(() => {
@@ -176,11 +181,18 @@ export function usePracticeSocket() {
     socket.emit('abandon-practice', { sessionId });
   }, []);
 
+  const parseMoveWithAI = useCallback((sessionId: string, transcript: string) => {
+    const socket = getSocket();
+    console.log('[PRACTICE] Requesting AI parse for:', transcript);
+    socket.emit('parse-move-with-ai', { sessionId, transcript });
+  }, []);
+
   return {
     getPracticeGames,
     startPractice,
     startPracticeRandom,
     submitPracticeMove,
     abandonPractice,
+    parseMoveWithAI,
   };
 }
