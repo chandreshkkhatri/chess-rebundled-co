@@ -181,7 +181,7 @@ export const usePracticeStore = create<PracticeState>()(
       reset: () => set(initialState),
     }),
     {
-      name: 'chess-practice-storage',
+      name: 'chess-practice-v2', // Versioned to invalidate old full-state storage
       storage: {
         getItem: (name) => {
           if (typeof window === 'undefined') return null;

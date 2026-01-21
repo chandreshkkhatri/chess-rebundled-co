@@ -35,11 +35,10 @@ export default function PracticeSelectPage() {
     }
   }, [storedPlayerName]);
 
-  // Reset stale status on mount (handles persisted state from previous sessions)
+  // Always reset to idle on mount - user is on /practice so any existing session is stale
   useEffect(() => {
     const currentStatus = usePracticeStore.getState().status;
-    // If status is not 'idle' and not 'playing' (with valid session), reset to start fresh
-    if (currentStatus !== 'idle' && currentStatus !== 'playing') {
+    if (currentStatus !== 'idle') {
       reset();
       hasStartedRef.current = false;
     }
