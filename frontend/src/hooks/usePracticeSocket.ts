@@ -38,6 +38,8 @@ export function usePracticeSocket() {
       socket.off('practice-error');
       socket.off('move-parsed');
       socket.off('parse-error');
+      socket.off('audio-move-parsed');
+      socket.off('audio-parse-error');
 
       socket.on('connect', () => {
         usePracticeStore.getState().setConnected(true);
@@ -90,6 +92,18 @@ export function usePracticeSocket() {
       });
 
       socket.on('parse-error', (data: { message: string }) => {
+        usePracticeStore.getState().setAIParseError(data.message);
+      });
+
+      // Gemini audio parsing events
+      socket.on('audio-move-parsed', (data: AIParsedMoveResult & { transcription?: string }) => {
+        usePracticeStore.getState().setAIParseResult(data);
+        if (data.transcription) {
+          usePracticeStore.getState().setGeminiTranscription(data.transcription);
+        }
+      });
+
+      socket.on('audio-parse-error', (data: { message: string }) => {
         usePracticeStore.getState().setAIParseError(data.message);
       });
     }
@@ -159,11 +173,22 @@ export function usePracticeSocket() {
     socket.emit('parse-move-with-ai', { sessionId, transcript });
   }, []);
 
+  const parseAudioMoveWithGemini = useCallback((
+    sessionId: string,
+    audioBase64: string,
+    mimeType: string
+  ) => {
+    const socket = getSocket();
+    usePracticeStore.getState().setAIParsing(true);
+    socket.emit('parse-audio-move-with-gemini', { sessionId, audioBase64, mimeType });
+  }, []);
+
   return {
     startPractice,
     startPracticeRandom,
     submitPracticeMove,
     abandonPractice,
     parseMoveWithAI,
+    parseAudioMoveWithGemini,
   };
 }

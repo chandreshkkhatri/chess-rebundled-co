@@ -82,6 +82,7 @@ export interface AIParsedMoveResult {
   confidence: number;
   alternatives: string[];
   reasoning?: string;
+  transcription?: string; // What the AI heard (for Gemini audio mode)
 }
 
 // Socket Event Types
@@ -93,9 +94,12 @@ export interface ServerToClientEvents {
   'practice-next-move': (data: { position: string; currentMoveIndex: number; currentSide: 'white' | 'black'; expectedMove: MoveDetails; opponentMove?: MoveDetails }) => void;
   'practice-completed': (data: PracticeCompletedData) => void;
   'practice-error': (data: { message: string }) => void;
-  // AI move parsing events
+  // AI move parsing events (Web Speech + Haiku)
   'move-parsed': (data: AIParsedMoveResult) => void;
   'parse-error': (data: { message: string }) => void;
+  // Gemini audio parsing events
+  'audio-move-parsed': (data: AIParsedMoveResult) => void;
+  'audio-parse-error': (data: { message: string }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -105,6 +109,8 @@ export interface ClientToServerEvents {
   'start-practice-random': (data: { playerName: string; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
   'submit-practice-move': (data: { sessionId: string; move: string }) => void;
   'abandon-practice': (data: { sessionId: string }) => void;
-  // AI move parsing events
+  // AI move parsing events (Web Speech + Haiku)
   'parse-move-with-ai': (data: { sessionId: string; transcript: string }) => void;
+  // Gemini audio parsing events
+  'parse-audio-move-with-gemini': (data: { sessionId: string; audioBase64: string; mimeType: string }) => void;
 }
