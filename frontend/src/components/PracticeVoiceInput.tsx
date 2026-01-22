@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { useVoiceRecognition } from '@/hooks/useVoiceRecognition';
+import { useGeminiVoice } from '@/hooks/useGeminiVoice';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 
@@ -23,8 +24,11 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
     aiParseError,
     isAIParsing,
     clearAIParseState,
+    voiceParsingMode,
+    setVoiceParsingMode,
+    geminiTranscription,
   } = usePracticeStore();
-  const { parseMoveWithAI } = usePracticeSocket();
+  const { parseMoveWithAI, parseAudioMoveWithGemini } = usePracticeSocket();
   const isActive = status === 'playing' && !disabled;
 
   // Raw transcript from speech recognition
@@ -35,32 +39,77 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoListenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Handle raw voice result - show transcript and request AI parsing
+  // Handle raw voice result - show transcript and request AI parsing (Web Speech mode)
+  // Speaking again automatically replaces the previous result (no reset needed)
   const handleVoiceResult = useCallback((transcript: string) => {
-    if (!isSubmitting && isActive && sessionId) {
+    if (!isSubmitting && isActive && sessionId && voiceParsingMode === 'webspeech-haiku') {
+      // Clear previous state before setting new transcript
+      clearAIParseState();
       setRawTranscript(transcript);
       setSelectedMove(null);
       // Request AI parsing - the store will be updated via socket
       parseMoveWithAI(sessionId, transcript);
     }
-  }, [parseMoveWithAI, isSubmitting, isActive, sessionId]);
+  }, [parseMoveWithAI, isSubmitting, isActive, sessionId, clearAIParseState, voiceParsingMode]);
+
+  // Handle audio ready from Gemini voice (Gemini mode)
+  const handleAudioReady = useCallback((audioBase64: string, mimeType: string) => {
+    if (!isSubmitting && isActive && sessionId && voiceParsingMode === 'gemini-audio') {
+      clearAIParseState();
+      setRawTranscript('[Processing audio...]');
+      setSelectedMove(null);
+      parseAudioMoveWithGemini(sessionId, audioBase64, mimeType);
+    }
+  }, [parseAudioMoveWithGemini, isSubmitting, isActive, sessionId, clearAIParseState, voiceParsingMode]);
 
   // Auto-select parsed move when AI result comes in (but not during submission)
   useEffect(() => {
     if (aiParseResult?.parsedMove && !isSubmitting) {
       setSelectedMove(aiParseResult.parsedMove);
+      // Update transcript with Gemini's transcription if available
+      if (geminiTranscription && voiceParsingMode === 'gemini-audio') {
+        setRawTranscript(geminiTranscription);
+      }
     }
-  }, [aiParseResult, isSubmitting]);
+  }, [aiParseResult, isSubmitting, geminiTranscription, voiceParsingMode]);
 
-  const { isSupported, isListening, transcript, error, startListening, stopListening } =
+  // Web Speech API hook
+  const { isSupported: isWebSpeechSupported, isListening: isWebSpeechListening, transcript, error: webSpeechError, startListening: startWebSpeechListening, stopListening: stopWebSpeechListening } =
     useVoiceRecognition({
       continuous: true,
       onResult: handleVoiceResult,
     });
 
-  // Auto-start listening when active and not submitting
+  // Gemini Voice hook
+  const { isSupported: isGeminiSupported, isListening: isGeminiListening, isRecording: isGeminiRecording, error: geminiError, startListening: startGeminiListening, stopListening: stopGeminiListening } =
+    useGeminiVoice({
+      onAudioReady: handleAudioReady,
+    });
+
+  // Unified listening state based on mode
+  const isListening = voiceParsingMode === 'webspeech-haiku' ? isWebSpeechListening : isGeminiListening;
+  const isSupported = voiceParsingMode === 'webspeech-haiku' ? isWebSpeechSupported : isGeminiSupported;
+  const error = voiceParsingMode === 'webspeech-haiku' ? webSpeechError : geminiError;
+  const startListening = voiceParsingMode === 'webspeech-haiku' ? startWebSpeechListening : startGeminiListening;
+  const stopListening = voiceParsingMode === 'webspeech-haiku' ? stopWebSpeechListening : stopGeminiListening;
+
+  // Stop the inactive mode when switching
   useEffect(() => {
-    if (isActive && !isListening && !rawTranscript && !isSubmitting && !isAIParsing) {
+    if (voiceParsingMode === 'webspeech-haiku') {
+      stopGeminiListening();
+    } else {
+      stopWebSpeechListening();
+    }
+    // Clear state when switching modes
+    clearAIParseState();
+    setRawTranscript('');
+    setSelectedMove(null);
+  }, [voiceParsingMode, stopGeminiListening, stopWebSpeechListening, clearAIParseState]);
+
+  // Auto-start listening when active and not submitting/parsing
+  // Keeps listening even when there's a transcript, so speaking again replaces the previous result
+  useEffect(() => {
+    if (isActive && !isListening && !isSubmitting && !isAIParsing) {
       autoListenTimeoutRef.current = setTimeout(() => {
         autoListenTimeoutRef.current = null;
         startListening();
@@ -72,7 +121,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
         }
       };
     }
-  }, [isActive, isListening, rawTranscript, isSubmitting, isAIParsing, startListening]);
+  }, [isActive, isListening, isSubmitting, isAIParsing, startListening]);
 
   // Stop listening when submitting or parsing
   useEffect(() => {
@@ -169,11 +218,24 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
         )}
       </div>
 
+      {/* Mode toggle */}
+      <div className="flex items-center justify-center gap-2 mb-2">
+        <button
+          onClick={() => setVoiceParsingMode(voiceParsingMode === 'webspeech-haiku' ? 'gemini-audio' : 'webspeech-haiku')}
+          disabled={isSubmitting || isAIParsing}
+          className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {voiceParsingMode === 'webspeech-haiku' ? 'Web Speech' : 'Gemini Audio'}
+        </button>
+      </div>
+
       {/* Status + Listening indicator */}
       <div className="flex items-center justify-center gap-2 mb-2">
         <div
           className={`w-3 h-3 rounded-full ${
-            isListening
+            isGeminiRecording
+              ? 'bg-red-600 animate-pulse'
+              : isListening
               ? 'bg-red-500 animate-pulse'
               : isAIParsing
               ? 'bg-yellow-500 animate-pulse'
@@ -182,8 +244,8 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
               : 'bg-slate-600'
           }`}
         />
-        <span className={`text-sm ${isListening ? 'text-red-400' : isAIParsing ? 'text-yellow-400' : 'text-slate-400'}`}>
-          {isListening ? 'Listening...' : isAIParsing ? 'AI parsing...' : rawTranscript ? 'Ready to submit' : isActive ? 'Ready' : 'Waiting'}
+        <span className={`text-sm ${isGeminiRecording ? 'text-red-400' : isListening ? 'text-red-400' : isAIParsing ? 'text-yellow-400' : 'text-slate-400'}`}>
+          {isGeminiRecording ? 'Recording...' : isListening ? (rawTranscript ? 'Listening (speak to change)...' : 'Listening...') : isAIParsing ? 'AI parsing...' : rawTranscript ? 'Ready to submit' : isActive ? 'Ready' : 'Waiting'}
         </span>
       </div>
 
