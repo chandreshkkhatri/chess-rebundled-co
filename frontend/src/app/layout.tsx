@@ -1,9 +1,22 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
+import { PWAInstallPrompt } from '@/components/PWAInstallPrompt';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Chess Rebundled - Voice Chess Memory Game',
   description: 'Test your chess knowledge by speaking moves from famous historical games',
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/icons/icon-192x192.svg',
+    apple: '/icons/icon-192x192.svg',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0f172a',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({
@@ -14,6 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <PWAInstallPrompt />
         {children}
       </body>
     </html>

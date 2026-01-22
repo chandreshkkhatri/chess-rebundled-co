@@ -59,7 +59,8 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
           setError('Microphone access denied. Click the camera icon in address bar to allow.');
           break;
         case 'no-speech':
-          setError('No speech detected. Please speak closer or try again.');
+          // Ignore no-speech error to allow silent auto-restart
+          // setError('No speech detected. Please speak closer or try again.');
           break;
         case 'network':
           setError('Network error. Check your connection.');
