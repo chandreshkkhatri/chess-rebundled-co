@@ -7,12 +7,14 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "import-games": "tsx src/scripts/importGames.ts"
+    "import-games": "tsx src/scripts/importGames.ts",
+    "migrate:01": "tsx src/scripts/migrations/01-seed-famous-players.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
     "@fastify/cors": "^9.0.1",
     "@google/genai": "^1.38.0",
+    "adm-zip": "^0.5.16",
     "chess.js": "^1.0.0-beta.8",
     "dotenv": "^17.2.3",
     "fastify": "^4.28.1",
@@ -20,6 +22,7 @@
     "socket.io": "^4.7.5"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
     "@types/node": "^20.14.10",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3"

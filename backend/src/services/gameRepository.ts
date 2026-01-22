@@ -30,7 +30,9 @@ export async function getRandomGame(): Promise<HistoricalGame | null> {
   const collection = getCollection();
 
   // Use aggregation with $sample for random selection
+  // Exclude draws (1/2-1/2) to get more interesting games for practice
   const results = await collection.aggregate<GameDocument & { _id: ObjectId }>([
+    { $match: { result: { $ne: '1/2-1/2' } } },
     { $sample: { size: 1 } },
   ]).toArray();
 
