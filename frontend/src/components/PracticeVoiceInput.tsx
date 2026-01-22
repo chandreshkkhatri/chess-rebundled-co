@@ -9,23 +9,21 @@ import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 interface PracticeVoiceInputProps {
   onMoveSubmit: (move: string, confidence: number) => void;
   disabled?: boolean;
+  onShowHistory?: () => void;
+  moveCount?: number;
 }
 
-export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeVoiceInputProps) {
+export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHistory, moveCount = 0 }: PracticeVoiceInputProps) {
   const {
     status,
-    currentSide,
     lastMoveResult,
     isSubmitting,
-    mode,
-    playerColor,
     sessionId,
     aiParseResult,
     aiParseError,
     isAIParsing,
     clearAIParseState,
     voiceParsingMode,
-    setVoiceParsingMode,
     geminiTranscription,
   } = usePracticeStore();
   const { parseMoveWithAI, parseAudioMoveWithGemini } = usePracticeSocket();
@@ -202,63 +200,47 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
   }
 
   return (
-    <div className="bg-slate-800 rounded-lg shadow-lg p-2 md:p-3">
-      {/* Side indicator */}
-      <div
-        className={`text-center py-2 px-3 rounded-lg mb-2 font-bold ${
-          currentSide === 'white'
-            ? 'bg-white text-slate-800'
-            : 'bg-slate-600 text-white'
-        }`}
-      >
-        {mode === 'one-side' && playerColor ? (
-          <>Your move ({playerColor === 'white' ? '\u2B1C' : '\u2B1B'})</>
-        ) : (
-          <>{currentSide === 'white' ? '\u2B1C White' : '\u2B1B Black'} to move</>
+    <div className="bg-slate-800 rounded-lg shadow-lg p-1.5 h-full flex flex-col overflow-hidden">
+      {/* History + Status in single row */}
+      <div className="flex items-center justify-between gap-1 mb-1 flex-shrink-0">
+        {/* History button - mobile only */}
+        {onShowHistory && (
+          <button
+            onClick={onShowHistory}
+            className="lg:hidden py-0.5 px-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-400 text-xs"
+          >
+            ☰ {moveCount}
+          </button>
         )}
+        <div className="flex items-center gap-1 ml-auto">
+          <div
+            className={`w-2 h-2 rounded-full ${
+              isGeminiRecording
+                ? 'bg-red-600 animate-pulse'
+                : isListening
+                ? 'bg-red-500 animate-pulse'
+                : isAIParsing
+                ? 'bg-yellow-500 animate-pulse'
+                : isActive
+                ? 'bg-green-400'
+                : 'bg-slate-600'
+            }`}
+          />
+          <span className={`text-xs ${isGeminiRecording ? 'text-red-400' : isListening ? 'text-red-400' : isAIParsing ? 'text-yellow-400' : 'text-slate-400'}`}>
+            {isGeminiRecording ? 'Recording' : isListening ? 'Listening' : isAIParsing ? 'Parsing' : rawTranscript ? 'Ready' : isActive ? 'Ready' : 'Waiting'}
+          </span>
+        </div>
       </div>
 
-      {/* Mode toggle */}
-      <div className="flex items-center justify-center gap-2 mb-2">
-        <button
-          onClick={() => setVoiceParsingMode(voiceParsingMode === 'webspeech-haiku' ? 'gemini-audio' : 'webspeech-haiku')}
-          disabled={isSubmitting || isAIParsing}
-          className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {voiceParsingMode === 'webspeech-haiku' ? 'Web Speech' : 'Gemini Audio'}
-        </button>
-      </div>
-
-      {/* Status + Listening indicator */}
-      <div className="flex items-center justify-center gap-2 mb-2">
-        <div
-          className={`w-3 h-3 rounded-full ${
-            isGeminiRecording
-              ? 'bg-red-600 animate-pulse'
-              : isListening
-              ? 'bg-red-500 animate-pulse'
-              : isAIParsing
-              ? 'bg-yellow-500 animate-pulse'
-              : isActive
-              ? 'bg-green-400'
-              : 'bg-slate-600'
-          }`}
-        />
-        <span className={`text-sm ${isGeminiRecording ? 'text-red-400' : isListening ? 'text-red-400' : isAIParsing ? 'text-yellow-400' : 'text-slate-400'}`}>
-          {isGeminiRecording ? 'Recording...' : isListening ? (rawTranscript ? 'Listening (speak to change)...' : 'Listening...') : isAIParsing ? 'AI parsing...' : rawTranscript ? 'Ready to submit' : isActive ? 'Ready' : 'Waiting'}
-        </span>
-      </div>
-
-      {/* Raw transcript display */}
+      {/* Raw transcript display - compact */}
       {rawTranscript && (
-        <div className="bg-slate-700 rounded-lg p-2 mb-2">
-          <div className="text-xs text-slate-400 mb-1">You said:</div>
-          <div className="text-white text-sm font-medium">&ldquo;{rawTranscript}&rdquo;</div>
+        <div className="bg-slate-700 rounded p-1.5 mb-1 flex-shrink-0">
+          <div className="text-white text-xs font-medium truncate">&ldquo;{rawTranscript}&rdquo;</div>
         </div>
       )}
 
-      {/* AI Parsing result */}
-      <div className="min-h-[48px] flex flex-col items-center justify-center mb-2">
+      {/* AI Parsing result - flexible middle section */}
+      <div className="flex-1 flex flex-col items-center justify-center min-h-0 mb-1 overflow-hidden">
         {isAIParsing ? (
           <div className="flex items-center gap-2">
             <div className="animate-spin h-5 w-5 border-2 border-yellow-500 border-t-transparent rounded-full"></div>
@@ -269,7 +251,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
         ) : aiParseResult ? (
           <div className="text-center w-full">
             <div
-              className={`font-mono text-2xl md:text-3xl font-bold cursor-pointer py-2 px-4 rounded-lg transition-colors ${
+              className={`font-mono text-lg md:text-xl font-bold cursor-pointer py-1 px-2 rounded-lg transition-colors ${
                 selectedMove === aiParseResult.parsedMove
                   ? 'bg-green-600 text-white'
                   : 'bg-slate-700 text-green-400 hover:bg-slate-600'
@@ -284,25 +266,22 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
                 {aiParseResult.reasoning && ` - ${aiParseResult.reasoning}`}
               </div>
             )}
-            {/* Alternatives */}
+            {/* Alternatives - compact */}
             {aiParseResult.alternatives && aiParseResult.alternatives.length > 0 && (
-              <div className="mt-2">
-                <div className="text-xs text-slate-500 mb-1">Also possible:</div>
-                <div className="flex justify-center gap-2 flex-wrap">
-                  {aiParseResult.alternatives.map((alt) => (
-                    <button
-                      key={alt}
-                      onClick={() => handleSelectAlternative(alt)}
-                      className={`px-3 py-1 rounded font-mono text-sm transition-colors ${
-                        selectedMove === alt
-                          ? 'bg-green-600 text-white'
-                          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      }`}
-                    >
-                      {alt}
-                    </button>
-                  ))}
-                </div>
+              <div className="mt-1 flex justify-center gap-1 flex-wrap">
+                {aiParseResult.alternatives.map((alt) => (
+                  <button
+                    key={alt}
+                    onClick={() => handleSelectAlternative(alt)}
+                    className={`px-2 py-0.5 rounded font-mono text-xs transition-colors ${
+                      selectedMove === alt
+                        ? 'bg-green-600 text-white'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    {alt}
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -317,10 +296,10 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
         )}
       </div>
 
-      {/* Last move feedback */}
+      {/* Last move feedback - compact */}
       {lastMoveResult && (
         <div
-          className={`text-center py-1 px-2 rounded mb-2 text-sm font-medium ${
+          className={`text-center py-0.5 px-1 rounded mb-1 text-xs font-medium flex-shrink-0 ${
             lastMoveResult.isCorrect
               ? 'bg-green-900/50 text-green-300'
               : 'bg-red-900/50 text-red-300'
@@ -329,17 +308,17 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
           {lastMoveResult.isCorrect ? (
             <>{'\u2713'} Correct!</>
           ) : (
-            <>{'\u2717'} Expected: {lastMoveResult.expectedMove}</>
+            <>{'\u2717'} {lastMoveResult.expectedMove}</>
           )}
         </div>
       )}
 
-      {/* Action buttons */}
-      <div className="flex gap-2">
+      {/* Action buttons - pinned to bottom */}
+      <div className="flex gap-1.5 mt-auto flex-shrink-0">
         <button
           onClick={handleReset}
           disabled={isSubmitting || !isActive}
-          className={`flex-1 py-2 px-3 rounded-lg font-medium text-sm transition-colors ${
+          className={`flex-1 py-1.5 px-2 rounded-lg font-medium text-xs transition-colors ${
             isSubmitting || !isActive
               ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
               : 'bg-slate-600 hover:bg-slate-500 text-white'
@@ -350,7 +329,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
         <button
           onClick={handleSubmit}
           disabled={!selectedMove || isSubmitting || !isActive}
-          className={`flex-[2] py-2 px-3 md:py-3 md:px-4 rounded-lg font-bold text-lg transition-colors ${
+          className={`flex-[2] py-1.5 px-2 rounded-lg font-bold text-sm transition-colors ${
             isSubmitting
               ? 'bg-yellow-500 text-white cursor-wait animate-pulse'
               : selectedMove && isActive
@@ -358,31 +337,16 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false }: PracticeV
               : 'bg-slate-700 text-slate-500 cursor-not-allowed'
           }`}
         >
-          {isSubmitting ? '...' : `${'\u2713'} SUBMIT ${selectedMove || ''}`}
+          {isSubmitting ? '...' : `${'\u2713'} ${selectedMove || 'OK'}`}
         </button>
       </div>
 
-      {/* Error display */}
+      {/* Error display - compact */}
       {error && (
-        <div className="mt-2 p-3 bg-red-900/80 border border-red-500 rounded-lg flex flex-col items-center gap-2">
-          <span className="text-red-100 font-bold text-center text-sm">{error}</span>
-          {error.includes('denied') || error.includes('blocked') ? (
-            <div className="text-xs text-red-200">Check browser settings</div>
-          ) : (
-            <button
-              onClick={handleReset}
-              className="px-3 py-1 bg-red-700 hover:bg-red-600 rounded text-xs text-white uppercase font-bold tracking-wider"
-            >
-              Retry
-            </button>
-          )}
+        <div className="mt-1 p-1.5 bg-red-900/80 border border-red-500 rounded flex-shrink-0">
+          <span className="text-red-100 font-bold text-center text-xs block">{error}</span>
         </div>
       )}
-
-      {/* Phonetic hint */}
-      <div className="mt-2 text-xs text-slate-500 text-center">
-        Tip: Say &ldquo;Echo 4&rdquo; for e4, &ldquo;knight delta 5&rdquo; for Nd5
-      </div>
     </div>
   );
 }

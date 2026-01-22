@@ -117,7 +117,7 @@ const initialState = {
   aiParseResult: null as AIParsedMoveResult | null,
   aiParseError: null as string | null,
   isAIParsing: false,
-  voiceParsingMode: 'webspeech-haiku' as const,
+  voiceParsingMode: 'gemini-audio' as const,
   geminiTranscription: null as string | null,
 };
 
