@@ -4,3 +4,4 @@ dist
 .env
 ngrok_logs.txt
 .DS_Store
+backend/data/
