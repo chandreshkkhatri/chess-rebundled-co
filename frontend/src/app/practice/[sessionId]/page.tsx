@@ -6,7 +6,6 @@ import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { ChessBoard } from '@/components/ChessBoard';
 import { PracticeVoiceInput } from '@/components/PracticeVoiceInput';
-import { PracticeProgressBar } from '@/components/PracticeProgressBar';
 import { PracticeResults } from '@/components/PracticeResults';
 
 export default function PracticeGamePage() {
@@ -14,6 +13,8 @@ export default function PracticeGamePage() {
   const router = useRouter();
   const sessionId = params.sessionId as string;
   const [showingOpponentMove, setShowingOpponentMove] = useState(false);
+  const [showGameInfo, setShowGameInfo] = useState(false);
+  const [showMoveHistory, setShowMoveHistory] = useState(false);
 
   const { submitPracticeMove, abandonPractice } = usePracticeSocket();
   const {
@@ -33,6 +34,7 @@ export default function PracticeGamePage() {
     setPendingOpponentMove,
     error,
     setError,
+    isStarting,
   } = usePracticeStore();
 
   // Calculate correct moves so far (memoized to avoid recalculating on every render)
@@ -73,11 +75,15 @@ export default function PracticeGamePage() {
   }, [reset, router]);
 
   // Redirect if no session
+  // Bug 4 fix: Don't redirect while starting or if already playing/completed
   useEffect(() => {
+    if (isStarting || status === 'playing' || status === 'completed') {
+      return;
+    }
     if (status === 'idle' || status === 'selecting') {
       router.push('/practice');
     }
-  }, [status, router]);
+  }, [status, isStarting, router]);
 
   // Show results when completed
   if (status === 'completed' && completedData) {
@@ -123,61 +129,77 @@ export default function PracticeGamePage() {
   }
 
   return (
-    <main className="min-h-screen p-2">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="bg-slate-800 rounded-lg p-2 mb-2">
-          <div className="flex items-center justify-between">
+    <main className="h-dvh flex flex-col p-2 overflow-hidden">
+      <div className="max-w-6xl mx-auto w-full flex flex-col flex-1 min-h-0">
+        {/* Header with integrated progress */}
+        <div className="bg-slate-800 rounded-lg py-1 px-2 mb-1">
+          <div className="flex items-center justify-between gap-2">
             <button
               onClick={handleAbandon}
-              className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors text-sm"
+              className="py-1 px-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors text-sm"
+              title="Exit practice"
             >
-              ← Exit
+              ←
             </button>
-            <div className="text-center flex-1 mx-4">
-              <div className="text-white font-medium text-sm truncate">
-                {selectedGame.title}
-              </div>
-              <div className="text-slate-500 text-xs">
+            <div className="flex-1 flex items-center justify-center gap-1 min-w-0">
+              <span className="text-white font-medium text-sm truncate">
                 {selectedGame.white.shortName} vs {selectedGame.black.shortName}
+              </span>
+              <div className="relative">
+                <button
+                  onClick={() => setShowGameInfo(!showGameInfo)}
+                  className="w-5 h-5 flex items-center justify-center rounded-full border border-slate-500 text-slate-400 hover:border-slate-300 hover:text-white transition-colors text-xs"
+                  title="Game info"
+                >
+                  i
+                </button>
+                {showGameInfo && (
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-10 bg-slate-700 rounded-lg p-2 shadow-lg max-w-xs">
+                    <div className="text-white text-sm">{selectedGame.title}</div>
+                  </div>
+                )}
               </div>
             </div>
+            {/* Progress indicator */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-400 text-xs">{currentMoveIndex}/{totalMoves}</span>
+              <div className="w-10 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-purple-500 transition-all"
+                  style={{ width: `${totalMoves > 0 ? (currentMoveIndex / totalMoves) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+            {/* Side indicator with "You" */}
             {mode === 'one-side' && playerColor ? (
               <div
-                className={`text-sm font-bold px-3 py-1 rounded ${
+                className={`text-xs font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${
                   playerColor === 'white'
                     ? 'bg-white text-slate-800'
                     : 'bg-slate-600 text-white'
                 }`}
               >
-                Playing as {playerColor === 'white' ? '⬜' : '⬛'}
+                {playerColor === 'white' ? '⬜' : '⬛'} You
               </div>
             ) : (
               <div
-                className={`text-sm font-bold px-3 py-1 rounded ${
+                className={`text-xs font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${
                   currentSide === 'white'
                     ? 'bg-white text-slate-800'
                     : 'bg-slate-600 text-white'
                 }`}
               >
-                {currentSide === 'white' ? '⬜' : '⬛'}
+                {currentSide === 'white' ? '⬜' : '⬛'} You
               </div>
             )}
           </div>
         </div>
 
-        {/* Progress bar */}
-        <PracticeProgressBar
-          currentMove={currentMoveIndex}
-          totalMoves={totalMoves}
-          correctMoves={correctMoves}
-        />
-
         {/* Game area */}
-        <div className="flex flex-col lg:flex-row gap-2 lg:gap-3">
-          {/* Board */}
-          <div className="flex justify-center lg:flex-1">
-            <div className="w-full max-w-md lg:max-w-lg">
+        <div className="flex flex-col lg:flex-row gap-1 lg:gap-3 flex-1 min-h-0 overflow-hidden">
+          {/* Board - constrained to leave room for controls */}
+          <div className="flex justify-center flex-shrink-0 lg:flex-1 lg:flex-shrink min-h-0">
+            <div className="w-full max-w-[min(100%,calc(100vh-220px))] lg:max-w-lg">
               <ChessBoard
                 fen={currentPosition}
                 orientation={boardOrientation}
@@ -192,23 +214,85 @@ export default function PracticeGamePage() {
             </div>
           </div>
 
-          {/* Sidebar */}
-          <div className="flex flex-col gap-2 lg:w-72">
+          {/* Control area - voice input on mobile, sidebar on desktop */}
+          <div className="flex flex-col gap-1 lg:gap-2 flex-1 min-h-0 lg:w-72 lg:flex-initial">
+            {/* Opponent move indicator */}
             {showingOpponentMove && pendingOpponentMove && (
-              <div className="bg-amber-900/50 border border-amber-600 rounded-lg p-2 text-center">
+              <div className="hidden lg:block bg-amber-900/50 border border-amber-600 rounded-lg p-2 text-center">
                 <p className="text-amber-200 text-sm font-medium">
                   Opponent played: <span className="font-mono">{pendingOpponentMove.san}</span>
                 </p>
               </div>
             )}
-            <PracticeVoiceInput onMoveSubmit={handleMoveSubmit} disabled={showingOpponentMove} />
 
-            {/* Move History */}
-            <div className="bg-slate-800 rounded-lg p-3">
-              <h3 className="text-slate-400 text-xs font-semibold mb-2 uppercase tracking-wider">
-                Move History
+            {/* Voice input - full width on mobile */}
+            <div className="flex-1 lg:flex-initial min-w-0 min-h-0">
+              <PracticeVoiceInput
+                onMoveSubmit={handleMoveSubmit}
+                disabled={showingOpponentMove}
+                onShowHistory={() => setShowMoveHistory(true)}
+                moveCount={moveResults.length}
+              />
+            </div>
+
+            {/* Move History - hidden on mobile, visible on desktop */}
+            <div className="hidden lg:flex lg:flex-initial bg-slate-800 rounded-lg p-1.5 min-h-0 flex-col">
+              <h3 className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
+                Moves
               </h3>
-              <div className="max-h-24 lg:max-h-32 overflow-y-auto">
+              <div className="overflow-y-auto lg:max-h-32">
+                {moveResults.length === 0 ? (
+                  <p className="text-slate-500 text-xs">No moves</p>
+                ) : (
+                  <div className="space-y-0.5">
+                    {moveResults.map((result, idx) => (
+                      <div
+                        key={idx}
+                        className={`text-xs font-mono py-0.5 px-1 rounded ${
+                          result.isCorrect
+                            ? 'bg-green-900/30 text-green-300'
+                            : 'bg-red-900/30 text-red-300'
+                        }`}
+                      >
+                        <span className="text-slate-500 mr-1">
+                          {Math.floor(result.moveIndex / 2) + 1}.
+                        </span>
+                        {result.isCorrect ? (
+                          <span>{result.expectedMove} ✓</span>
+                        ) : (
+                          <span>
+                            <span className="line-through">{result.submittedMove}</span>
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Move History Overlay - mobile only */}
+        {showMoveHistory && (
+          <div
+            className="lg:hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+            onClick={() => setShowMoveHistory(false)}
+          >
+            <div
+              className="bg-slate-800 rounded-lg p-3 max-w-sm w-full mx-4 max-h-[60vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-white font-semibold">Move History</h3>
+                <button
+                  onClick={() => setShowMoveHistory(false)}
+                  className="text-slate-400 hover:text-white text-xl leading-none"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto">
                 {moveResults.length === 0 ? (
                   <p className="text-slate-500 text-sm">No moves yet</p>
                 ) : (
@@ -223,17 +307,14 @@ export default function PracticeGamePage() {
                         }`}
                       >
                         <span className="text-slate-500 mr-2">
-                          {Math.floor(result.moveIndex / 2) + 1}
-                          {result.moveIndex % 2 === 0 ? '.' : '...'}
+                          {Math.floor(result.moveIndex / 2) + 1}.
                         </span>
                         {result.isCorrect ? (
                           <span>{result.expectedMove} ✓</span>
                         ) : (
                           <span>
                             <span className="line-through">{result.submittedMove}</span>
-                            <span className="text-slate-400 ml-1">
-                              ({result.expectedMove})
-                            </span>
+                            <span className="text-slate-400 ml-1">({result.expectedMove})</span>
                           </span>
                         )}
                       </div>
@@ -243,7 +324,7 @@ export default function PracticeGamePage() {
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </main>
   );

@@ -52,6 +52,10 @@ interface PracticeState {
   aiParseError: string | null;
   isAIParsing: boolean;
 
+  // Voice parsing mode
+  voiceParsingMode: 'webspeech-haiku' | 'gemini-audio';
+  geminiTranscription: string | null;
+
   // Actions
   setConnected: (connected: boolean) => void;
   setPlayerName: (name: string) => void;
@@ -84,6 +88,8 @@ interface PracticeState {
   setAIParseError: (error: string | null) => void;
   setAIParsing: (isParsing: boolean) => void;
   clearAIParseState: () => void;
+  setVoiceParsingMode: (mode: 'webspeech-haiku' | 'gemini-audio') => void;
+  setGeminiTranscription: (transcription: string | null) => void;
   reset: () => void;
 }
 
@@ -111,6 +117,8 @@ const initialState = {
   aiParseResult: null as AIParsedMoveResult | null,
   aiParseError: null as string | null,
   isAIParsing: false,
+  voiceParsingMode: 'gemini-audio' as const,
+  geminiTranscription: null as string | null,
 };
 
 export const usePracticeStore = create<PracticeState>()(
@@ -184,7 +192,11 @@ export const usePracticeStore = create<PracticeState>()(
 
       setAIParsing: (isParsing) => set({ isAIParsing: isParsing }),
 
-      clearAIParseState: () => set({ aiParseResult: null, aiParseError: null, isAIParsing: false }),
+      clearAIParseState: () => set({ aiParseResult: null, aiParseError: null, isAIParsing: false, geminiTranscription: null }),
+
+      setVoiceParsingMode: (mode) => set({ voiceParsingMode: mode }),
+
+      setGeminiTranscription: (transcription) => set({ geminiTranscription: transcription }),
 
       reset: () => set(initialState),
     }),
@@ -205,10 +217,11 @@ export const usePracticeStore = create<PracticeState>()(
           sessionStorage.removeItem(name);
         },
       },
-      // Only persist player name - session state should not survive page refreshes
+      // Only persist player name and voice mode - session state should not survive page refreshes
       partialize: (state) =>
         ({
           playerName: state.playerName,
+          voiceParsingMode: state.voiceParsingMode,
         }) as unknown as PracticeState,
     }
   )

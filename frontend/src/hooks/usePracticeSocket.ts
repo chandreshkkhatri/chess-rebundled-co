@@ -3,6 +3,7 @@
 import { useEffect, useCallback } from 'react';
 import { getSocket, connectSocket } from '@/lib/socket';
 import { usePracticeStore } from '@/stores/practiceStore';
+import { trackEvent } from '@/lib/analytics';
 import {
   PracticeMoveResult,
   PracticeStartedData,
@@ -15,6 +16,9 @@ import {
 // Track if listeners have been attached (module-level, survives remounts)
 // IMPORTANT: Never remove listeners - they stay attached for the app's lifetime
 let listenersAttached = false;
+
+// Track submit timeout for safety reset (Bug 3 fix)
+let submitTimeoutId: NodeJS.Timeout | null = null;
 
 export function usePracticeSocket() {
   const {
@@ -38,13 +42,25 @@ export function usePracticeSocket() {
       socket.off('practice-error');
       socket.off('move-parsed');
       socket.off('parse-error');
+      socket.off('audio-move-parsed');
+      socket.off('audio-parse-error');
 
       socket.on('connect', () => {
         usePracticeStore.getState().setConnected(true);
       });
 
       socket.on('disconnect', () => {
-        usePracticeStore.getState().setConnected(false);
+        // Bug 1 fix: Reset all submission states on disconnect
+        const store = usePracticeStore.getState();
+        store.setConnected(false);
+        store.setSubmitting(false);
+        store.setAIParsing(false);
+        store.clearAIParseState();
+        // Clear any pending submit timeout
+        if (submitTimeoutId) {
+          clearTimeout(submitTimeoutId);
+          submitTimeoutId = null;
+        }
       });
 
       socket.on('practice-started', (data: PracticeStartedData) => {
@@ -59,9 +75,26 @@ export function usePracticeSocket() {
           mode: data.mode,
           playerColor: data.playerColor,
         });
+
+        // Track session started
+        trackEvent('practice_session_started', {
+          gameId: data.game.id,
+          gameTitle: data.game.title,
+          whitePlayer: data.game.white.name,
+          blackPlayer: data.game.black.name,
+          year: data.game.year,
+          mode: data.mode,
+          playerColor: data.playerColor ?? undefined,
+          totalMoves: data.totalMoves,
+        });
       });
 
       socket.on('practice-move-result', (result: PracticeMoveResult) => {
+        // Bug 3 fix: Clear submit timeout on successful response
+        if (submitTimeoutId) {
+          clearTimeout(submitTimeoutId);
+          submitTimeoutId = null;
+        }
         usePracticeStore.getState().setMoveResult(result);
       });
 
@@ -77,11 +110,29 @@ export function usePracticeSocket() {
 
       socket.on('practice-completed', (data: PracticeCompletedData) => {
         usePracticeStore.getState().setCompleted(data);
+
+        // Track session completed
+        trackEvent('practice_session_completed', {
+          gameId: data.game.id,
+          gameTitle: data.game.title,
+          correctMoves: data.correctMoves,
+          incorrectMoves: data.totalMoves - data.correctMoves,
+          totalMoves: data.totalMoves,
+          accuracy: Math.round(data.accuracy * 100),
+          mode: usePracticeStore.getState().mode,
+        });
       });
 
       socket.on('practice-error', (data: { message: string }) => {
+        // Bug 3 fix: Clear submit timeout and reset submitting on error
+        if (submitTimeoutId) {
+          clearTimeout(submitTimeoutId);
+          submitTimeoutId = null;
+        }
         console.log('[Socket] Received practice-error:', data.message);
-        usePracticeStore.getState().setError(data.message);
+        const store = usePracticeStore.getState();
+        store.setError(data.message);
+        store.setSubmitting(false);
       });
 
       // AI parsing events - use store instead of window events
@@ -90,6 +141,18 @@ export function usePracticeSocket() {
       });
 
       socket.on('parse-error', (data: { message: string }) => {
+        usePracticeStore.getState().setAIParseError(data.message);
+      });
+
+      // Gemini audio parsing events
+      socket.on('audio-move-parsed', (data: AIParsedMoveResult & { transcription?: string }) => {
+        usePracticeStore.getState().setAIParseResult(data);
+        if (data.transcription) {
+          usePracticeStore.getState().setGeminiTranscription(data.transcription);
+        }
+      });
+
+      socket.on('audio-parse-error', (data: { message: string }) => {
         usePracticeStore.getState().setAIParseError(data.message);
       });
     }
@@ -144,8 +207,23 @@ export function usePracticeSocket() {
       return;
     }
 
+    // Bug 3 fix: Clear any existing timeout
+    if (submitTimeoutId) {
+      clearTimeout(submitTimeoutId);
+    }
+
     setSubmitting(true);
     socket.emit('submit-practice-move', { sessionId, move });
+
+    // Bug 3 fix: Safety timeout - reset isSubmitting after 10s if no response
+    submitTimeoutId = setTimeout(() => {
+      submitTimeoutId = null;
+      const currentState = usePracticeStore.getState();
+      if (currentState.isSubmitting) {
+        currentState.setSubmitting(false);
+        currentState.setError('Move submission timed out. Please try again.');
+      }
+    }, 10000);
   }, [setSubmitting]);
 
   const abandonPractice = useCallback((sessionId: string) => {
@@ -159,11 +237,22 @@ export function usePracticeSocket() {
     socket.emit('parse-move-with-ai', { sessionId, transcript });
   }, []);
 
+  const parseAudioMoveWithGemini = useCallback((
+    sessionId: string,
+    audioBase64: string,
+    mimeType: string
+  ) => {
+    const socket = getSocket();
+    usePracticeStore.getState().setAIParsing(true);
+    socket.emit('parse-audio-move-with-gemini', { sessionId, audioBase64, mimeType });
+  }, []);
+
   return {
     startPractice,
     startPracticeRandom,
     submitPracticeMove,
     abandonPractice,
     parseMoveWithAI,
+    parseAudioMoveWithGemini,
   };
 }

@@ -1,6 +1,7 @@
 import { Server, Socket } from 'socket.io';
 import { PracticeService } from '../services/practiceService.js';
 import { parseChessMoveWithAI } from '../services/aiMoveParser.js';
+import { parseChessMoveFromAudio } from '../services/geminiAudioParser.js';
 import { ClientToServerEvents, ServerToClientEvents } from '../types/index.js';
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -20,6 +21,7 @@ export class GameHandler {
     socket.on('submit-practice-move', (data) => this.handleSubmitPracticeMove(socket, data));
     socket.on('abandon-practice', (data) => this.handleAbandonPractice(socket, data));
     socket.on('parse-move-with-ai', (data) => this.handleParseMoveWithAI(socket, data));
+    socket.on('parse-audio-move-with-gemini', (data) => this.handleParseAudioMoveWithGemini(socket, data));
 
     socket.on('disconnect', () => this.handleDisconnect(socket));
   }
@@ -170,6 +172,48 @@ export class GameHandler {
       console.error('[GameHandler] AI parse error:', error);
       socket.emit('parse-error', {
         message: `AI parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
+    }
+  }
+
+  private async handleParseAudioMoveWithGemini(
+    socket: GameSocket,
+    data: { sessionId: string; audioBase64: string; mimeType: string }
+  ): Promise<void> {
+    const session = this.practiceService.getSession(data.sessionId);
+    if (!session) {
+      socket.emit('audio-parse-error', { message: 'Session not found' });
+      return;
+    }
+
+    // Update socket ID if reconnected
+    if (session.socketId !== socket.id) {
+      this.practiceService.updateSessionSocketId(data.sessionId, socket.id);
+    }
+
+    const currentFen = this.practiceService.getCurrentPosition(data.sessionId);
+    const legalMoves = this.practiceService.getLegalMoves(data.sessionId);
+
+    try {
+      const parsed = await parseChessMoveFromAudio(
+        data.audioBase64,
+        data.mimeType,
+        currentFen,
+        legalMoves
+      );
+
+      socket.emit('audio-move-parsed', {
+        transcript: parsed.transcription || '[audio input]',
+        parsedMove: parsed.move,
+        confidence: parsed.confidence,
+        alternatives: parsed.alternatives,
+        reasoning: parsed.reasoning,
+        transcription: parsed.transcription,
+      });
+    } catch (error) {
+      console.error('[GameHandler] Gemini audio parse error:', error);
+      socket.emit('audio-parse-error', {
+        message: `Audio parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       });
     }
   }

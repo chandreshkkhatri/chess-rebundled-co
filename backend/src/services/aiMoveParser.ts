@@ -3,10 +3,10 @@ import Anthropic from '@anthropic-ai/sdk';
 const anthropic = new Anthropic();
 
 export interface AIParsedMove {
-  move: string;           // SAN notation (e.g., "Nxd5")
-  confidence: number;     // 0-1
-  alternatives: string[]; // Other possible interpretations
-  reasoning?: string;     // Why this interpretation
+  move: string;
+  confidence: number;
+  alternatives: string[];
+  reasoning?: string;
 }
 
 /**
@@ -103,10 +103,7 @@ If the transcript is unclear, pick the most likely legal move based on common ch
     if (parsed.move && !legalMoves.includes(parsed.move)) {
       // Try to find a matching legal move (case-insensitive, ignore check symbols)
       const cleanParsedMove = parsed.move.replace(/[+#]/g, '');
-      const matchingMove = legalMoves.find(m =>
-        m.replace(/[+#]/g, '') === cleanParsedMove
-      );
-
+      const matchingMove = legalMoves.find(m => m.replace(/[+#]/g, '') === cleanParsedMove);
       if (matchingMove) {
         parsed.move = matchingMove;
       } else {
@@ -119,7 +116,7 @@ If the transcript is unclear, pick the most likely legal move based on common ch
 
     // Filter alternatives to only include legal moves
     if (parsed.alternatives) {
-      parsed.alternatives = parsed.alternatives.filter(alt =>
+      parsed.alternatives = parsed.alternatives.filter((alt: string) =>
         legalMoves.some(m => m.replace(/[+#]/g, '') === alt.replace(/[+#]/g, ''))
       );
     }
@@ -131,7 +128,7 @@ If the transcript is unclear, pick the most likely legal move based on common ch
       move: '',
       confidence: 0,
       alternatives: [],
-      reasoning: `AI parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      reasoning: `AI parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
     };
   }
 }

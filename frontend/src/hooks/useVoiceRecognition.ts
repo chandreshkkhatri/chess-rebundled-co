@@ -59,7 +59,8 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
           setError('Microphone access denied. Click the camera icon in address bar to allow.');
           break;
         case 'no-speech':
-          setError('No speech detected. Please speak closer or try again.');
+          // Ignore no-speech error to allow silent auto-restart
+          // setError('No speech detected. Please speak closer or try again.');
           break;
         case 'network':
           setError('Network error. Check your connection.');
@@ -80,15 +81,16 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
       const rawTranscript = results[0].transcript.trim();
 
       if (results.isFinal) {
-        // Parse the voice input
+        // Parse the voice input for local state (confidence display)
         const parsed = parseVoiceInput(rawTranscript);
 
         setTranscript(rawTranscript);
         setConfidence(parsed.confidence);
 
-        // Call the result callback with parsed move (using ref)
-        if (onResultRef.current && parsed.notation) {
-          onResultRef.current(parsed.notation, parsed.confidence);
+        // Call the result callback with RAW transcript for AI parsing
+        // Always call if we have a transcript - AI will handle parsing
+        if (onResultRef.current && rawTranscript) {
+          onResultRef.current(rawTranscript, parsed.confidence);
         }
       } else {
         // Interim result

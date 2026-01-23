@@ -114,7 +114,11 @@ if command -v firewall-cmd &> /dev/null && systemctl is-active --quiet firewalld
     sudo firewall-cmd --permanent --add-service=http
     sudo firewall-cmd --permanent --add-service=https
     sudo firewall-cmd --reload
-    echo "Firewall configured for HTTP/HTTPS"
+    echo "Firewall configured for HTTP/HTTPS (firewalld)"
+elif command -v ufw &> /dev/null; then
+    sudo ufw allow 80/tcp
+    sudo ufw allow 443/tcp
+    echo "Firewall configured for HTTP/HTTPS (ufw)"
 fi
 
 # Step 5: Get SSL certificate
