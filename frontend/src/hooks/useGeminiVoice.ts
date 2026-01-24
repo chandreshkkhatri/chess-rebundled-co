@@ -21,6 +21,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
   const [isRecording, setIsRecording] = useState(false); // Actually capturing speech
   const [isSupported, setIsSupported] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [volumeLevel, setVolumeLevel] = useState(0); // 0-1 normalized volume
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -31,6 +32,8 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
   const recordingStartRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const onAudioReadyRef = useRef(onAudioReady);
+  const isListeningRef = useRef(false); // Sync ref for animation frame access
+  const isRecordingRef = useRef(false); // Sync ref for animation frame access
 
   // Keep callback ref updated
   useEffect(() => {
@@ -44,7 +47,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
   }, []);
 
   const checkVolume = useCallback(() => {
-    if (!analyserRef.current || !isListening) return;
+    if (!analyserRef.current || !isListeningRef.current) return;
 
     const analyser = analyserRef.current;
     // Guard against division by zero if analyser not properly initialized
@@ -56,6 +59,9 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
     // Calculate average volume (0-255 range, normalize to 0-1)
     const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length / 255;
 
+    // Update volume level for debug display
+    setVolumeLevel(average);
+
     const now = Date.now();
 
     if (average > silenceThreshold) {
@@ -63,13 +69,14 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
       silenceStartRef.current = null;
 
       // Start recording if not already
-      if (!isRecording && mediaRecorderRef.current?.state === 'inactive') {
+      if (!isRecordingRef.current && mediaRecorderRef.current?.state === 'inactive') {
         chunksRef.current = [];
         mediaRecorderRef.current.start();
         recordingStartRef.current = now;
+        isRecordingRef.current = true;
         setIsRecording(true);
       }
-    } else if (isRecording) {
+    } else if (isRecordingRef.current) {
       // Silence detected while recording
       if (!silenceStartRef.current) {
         silenceStartRef.current = now;
@@ -81,14 +88,14 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
     }
 
     // Check max duration
-    if (isRecording && recordingStartRef.current && now - recordingStartRef.current > maxDuration) {
+    if (isRecordingRef.current && recordingStartRef.current && now - recordingStartRef.current > maxDuration) {
       stopAndSendAudio();
       return;
     }
 
     // Continue monitoring
     animationFrameRef.current = requestAnimationFrame(checkVolume);
-  }, [isListening, isRecording, silenceThreshold, silenceDuration, maxDuration, stopAndSendAudio]);
+  }, [silenceThreshold, silenceDuration, maxDuration, stopAndSendAudio]);
 
   const startListening = useCallback(async () => {
     try {
@@ -130,6 +137,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
       };
 
       mediaRecorder.onstop = () => {
+        isRecordingRef.current = false;
         setIsRecording(false);
         silenceStartRef.current = null;
         recordingStartRef.current = null;
@@ -152,6 +160,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
         chunksRef.current = [];
       };
 
+      isListeningRef.current = true;
       setIsListening(true);
 
       // Start volume monitoring
@@ -213,6 +222,8 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
 
     analyserRef.current = null;
     mediaRecorderRef.current = null;
+    isListeningRef.current = false;
+    isRecordingRef.current = false;
     setIsListening(false);
     setIsRecording(false);
     silenceStartRef.current = null;
@@ -241,5 +252,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
     error,
     startListening,
     stopListening,
+    volumeLevel, // 0-1 normalized volume for debug display
+    silenceThreshold, // Current threshold for reference
   };
 }
