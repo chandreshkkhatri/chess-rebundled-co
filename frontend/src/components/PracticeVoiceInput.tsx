@@ -6,8 +6,8 @@ import { useGeminiVoice } from '@/hooks/useGeminiVoice';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 
-// Debug flag - set to true to show audio debug overlay
-const DEBUG_AUDIO = true;
+// Debug flag - disabled for production builds
+const DEBUG_AUDIO = process.env.NODE_ENV !== 'production';
 
 interface PracticeVoiceInputProps {
   onMoveSubmit: (move: string, confidence: number) => void;

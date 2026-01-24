@@ -11,7 +11,7 @@ export interface GeminiAudioParsedMove {
 }
 
 /**
- * Parse a chess move directly from audio using Gemini 2.0 Flash multimodal.
+ * Parse a chess move directly from audio using Gemini 2.5 Flash multimodal.
  * Takes raw audio data (base64) and current board position,
  * returns the most likely chess move in SAN notation.
  */
