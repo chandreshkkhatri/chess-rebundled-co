@@ -1,0 +1,36 @@
+name: Deploy Backend (Development)
+
+on:
+  push:
+    branches: [development]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend-dev.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Oracle VM via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e  # Exit immediately if any command fails
+
+            # Navigate to the project directory
+            cd ~/deployments/development/chess-rebundled-co
+
+            # Fetch and force reset to match origin (ensures clean deploy state)
+            git fetch origin development
+            git reset --hard origin/development
+
+            # Backend Build & Restart
+            cd backend
+            npm install
+            npm run build
+
+            # Restart Application
+            pm2 restart chess-backend-dev
