@@ -117,7 +117,7 @@ const initialState = {
   aiParseResult: null as AIParsedMoveResult | null,
   aiParseError: null as string | null,
   isAIParsing: false,
-  voiceParsingMode: 'gemini-audio' as const,
+  voiceParsingMode: 'webspeech-haiku' as const,
   geminiTranscription: null as string | null,
 };
 
@@ -201,7 +201,7 @@ export const usePracticeStore = create<PracticeState>()(
       reset: () => set(initialState),
     }),
     {
-      name: 'chess-practice-v2', // Versioned to invalidate old full-state storage
+      name: 'chess-practice-v3', // Versioned to invalidate old full-state storage
       storage: {
         getItem: (name) => {
           if (typeof window === 'undefined') return null;

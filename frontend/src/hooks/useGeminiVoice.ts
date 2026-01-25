@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 interface UseGeminiVoiceOptions {
   onAudioReady?: (audioBase64: string, mimeType: string) => void;
   silenceThreshold?: number; // Volume level to consider as silence (0-1), default 0.02
-  silenceDuration?: number; // ms of silence before stopping, default 1500
+  silenceDuration?: number; // ms of silence before stopping, default 600
   maxDuration?: number; // max recording duration in ms, default 8000
 }
 
@@ -13,7 +13,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
   const {
     onAudioReady,
     silenceThreshold = 0.02,
-    silenceDuration = 1500,
+    silenceDuration = 600,
     maxDuration = 8000,
   } = options;
 
