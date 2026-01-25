@@ -136,12 +136,12 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
     }
   }, [isActive, isListening, isSubmitting, isAIParsing, startListening]);
 
-  // Stop listening when submitting or parsing
+  // Stop listening when submitting (but allow listening during parsing for parallel processing)
   useEffect(() => {
-    if ((isSubmitting || isAIParsing) && isListening) {
+    if (isSubmitting && isListening) {
       stopListening();
     }
-  }, [isSubmitting, isAIParsing, isListening, stopListening]);
+  }, [isSubmitting, isListening, stopListening]);
 
   // Clear state when new move result comes in
   useEffect(() => {
