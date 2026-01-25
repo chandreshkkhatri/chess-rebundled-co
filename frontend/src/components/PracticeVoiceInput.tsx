@@ -38,6 +38,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
   const [selectedMove, setSelectedMove] = useState<string | null>(null);
 
   const autoListenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const startGeminiListeningRef = useRef<(() => Promise<void>) | null>(null);
 
   // Handle raw voice result - show transcript and request AI parsing (Web Speech mode)
   // Block new requests while already parsing to prevent race conditions
@@ -60,6 +61,12 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
       setRawTranscript('[Processing audio...]');
       setSelectedMove(null);
       parseAudioMoveWithGemini(sessionId, audioBase64, mimeType);
+      // Restart listening immediately for parallel processing
+      setTimeout(() => {
+        if (startGeminiListeningRef.current) {
+          startGeminiListeningRef.current();
+        }
+      }, 50);
     }
   }, [parseAudioMoveWithGemini, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, voiceParsingMode]);
 
@@ -86,6 +93,11 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
     useGeminiVoice({
       onAudioReady: handleAudioReady,
     });
+
+  // Keep ref updated for handleAudioReady callback
+  useEffect(() => {
+    startGeminiListeningRef.current = startGeminiListening;
+  }, [startGeminiListening]);
 
   // Unified listening state based on mode
   const isListening = voiceParsingMode === 'webspeech-haiku' ? isWebSpeechListening : isGeminiListening;
@@ -114,7 +126,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
       autoListenTimeoutRef.current = setTimeout(() => {
         autoListenTimeoutRef.current = null;
         startListening();
-      }, 300);
+      }, 100);
       return () => {
         if (autoListenTimeoutRef.current) {
           clearTimeout(autoListenTimeoutRef.current);

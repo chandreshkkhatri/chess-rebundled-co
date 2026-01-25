@@ -12,8 +12,8 @@ interface UseGeminiVoiceOptions {
 export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
   const {
     onAudioReady,
-    silenceThreshold = 0.02,
-    silenceDuration = 1500,
+    silenceThreshold = 0.03,
+    silenceDuration = 800,
     maxDuration = 8000,
   } = options;
 
@@ -127,7 +127,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
         ? 'audio/webm'
         : 'audio/wav';
 
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 16000 });
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -146,7 +146,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
           const blob = new Blob(chunksRef.current, { type: mimeType });
 
           // Only send if we have meaningful audio (at least 200ms worth)
-          if (blob.size > 1000) {
+          if (blob.size > 100) {
             const reader = new FileReader();
             reader.onloadend = () => {
               const base64 = (reader.result as string).split(',')[1];
