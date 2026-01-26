@@ -21,46 +21,22 @@ export async function parseChessMoveFromAudio(
   currentFen: string,
   legalMoves: string[]
 ): Promise<GeminiAudioParsedMove> {
-  const prompt = `You are a chess move parser. Listen to the audio and convert the spoken chess move to standard algebraic notation (SAN).
+  const prompt = `You are a fast chess move parser.
+Context:
+- FEN: ${currentFen}
+- Legal Moves: ${legalMoves.join(', ')}
 
-Current position (FEN): ${currentFen}
-Legal moves in this position: ${legalMoves.join(', ')}
+Task: Identify the spoken move from the audio.
+- Match strictly against the Legal Moves list.
+- If the audio is ambiguous, choose the most phonetically similar legal move.
+- output JSON only.
 
-Parse the spoken audio and identify the chess move. Consider these common speech patterns:
-
-**NATO Phonetic Alphabet:**
-- Alpha/Alfa = a, Bravo = b, Charlie = c, Delta = d, Echo = e, Foxtrot = f, Golf = g, Hotel = h
-
-**Alternative Names:**
-- Adam/Apple/Able = a, Boy/Baker = b, Charlie/Cat = c, David/Dog/Delta = d
-- Edward/Easy/Echo = e, Frank/Fox = f, George/Golf = g, Henry/Hotel/Harry = h
-
-**Number Words:**
-- one/won = 1, two/to/too = 2, three = 3, four/for = 4
-- five = 5, six = 6, seven = 7, eight/ate = 8
-
-**Piece Names:**
-- knight/night/horse = N, bishop = B, rook/castle/tower = R, queen = Q, king = K, pawn = (no prefix)
-
-**Special Moves:**
-- "takes", "captures", "x" = x (capture)
-- "castle king side", "short castle" = O-O
-- "castle queen side", "long castle" = O-O-O
-- "promotes to queen" = =Q
-
-Return ONLY valid JSON in this exact format, no other text:
-{"move": "e4", "confidence": 0.95, "alternatives": ["d4"], "reasoning": "Heard 'Echo four'", "transcription": "echo four"}
-
-Rules:
-1. The "move" field MUST be one of the legal moves listed above, or empty string if unparseable
-2. "confidence" should be 0.0-1.0 based on audio clarity
-3. "alternatives" should list 0-3 other possible legal moves if ambiguous
-4. "reasoning" briefly explains the interpretation
-5. "transcription" is what you heard in the audio`;
+Returns:
+{"move": "e4", "confidence": 0.9, "alternatives": ["d4"], "reasoning": "Heard echo-four", "transcription": "echo four"}`;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash-exp',
       contents: [
         {
           inlineData: {

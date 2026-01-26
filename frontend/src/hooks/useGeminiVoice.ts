@@ -13,7 +13,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
   const {
     onAudioReady,
     silenceThreshold = 0.02,
-    silenceDuration = 800, // Reduced from 1500ms for lower latency
+    silenceDuration = 400, // Reduced from 800ms for lower latency
     maxDuration = 8000,
   } = options;
 
@@ -132,8 +132,8 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/webm')
-        ? 'audio/webm'
-        : 'audio/wav';
+          ? 'audio/webm'
+          : 'audio/wav';
 
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
@@ -181,7 +181,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
         animationFrameRef.current = null;
       }
       if (audioContextRef.current) {
-        audioContextRef.current.close().catch(() => {});
+        audioContextRef.current.close().catch(() => { });
         audioContextRef.current = null;
       }
       if (streamRef.current) {

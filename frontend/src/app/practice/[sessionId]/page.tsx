@@ -7,6 +7,7 @@ import { usePracticeStore } from '@/stores/practiceStore';
 import { ChessBoard } from '@/components/ChessBoard';
 import { PracticeVoiceInput } from '@/components/PracticeVoiceInput';
 import { PracticeResults } from '@/components/PracticeResults';
+import { DiscordIcon } from '@/components/icons/DiscordIcon';
 
 export default function PracticeGamePage() {
   const params = useParams();
@@ -192,14 +193,39 @@ export default function PracticeGamePage() {
                 {currentSide === 'white' ? '⬜' : '⬛'} You
               </div>
             )}
+            {/* Discord link - desktop only */}
+            <a
+              href="https://discord.gg/ySGBwu9xvk"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden lg:flex items-center text-slate-400 hover:text-indigo-400 transition-colors"
+              title="Join our Discord"
+            >
+              <DiscordIcon className="w-5 h-5" />
+            </a>
           </div>
         </div>
 
-        {/* Game area */}
-        <div className="flex flex-col lg:flex-row gap-1 lg:gap-3 flex-1 min-h-0 overflow-hidden">
-          {/* Board - constrained to leave room for controls */}
-          <div className="flex justify-center flex-shrink-0 lg:flex-1 lg:flex-shrink min-h-0">
-            <div className="w-full max-w-[min(100%,calc(100vh-220px))] lg:max-w-lg">
+        {/* Game area with mobile sidebar */}
+        <div className="flex flex-row gap-1 lg:gap-3 flex-1 min-h-0 overflow-hidden">
+          {/* Mobile left sidebar */}
+          <div className="flex lg:hidden flex-col items-center py-2 px-1 bg-slate-800/50 rounded-lg flex-shrink-0">
+            <a
+              href="https://discord.gg/ySGBwu9xvk"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1.5 text-slate-400 hover:text-indigo-400 transition-colors"
+              title="Join Discord"
+            >
+              <DiscordIcon className="w-5 h-5" />
+            </a>
+          </div>
+
+          {/* Main content: board + controls */}
+          <div className="flex flex-col lg:flex-row gap-1 lg:gap-3 flex-1 min-h-0 overflow-hidden">
+            {/* Board - constrained to leave room for controls */}
+            <div className="flex justify-center flex-shrink-0 lg:flex-1 lg:flex-shrink min-h-0">
+              <div className="w-full max-w-[min(100%,calc(100vh-220px))] lg:max-w-lg">
               <ChessBoard
                 fen={currentPosition}
                 orientation={boardOrientation}
@@ -270,6 +296,7 @@ export default function PracticeGamePage() {
                 )}
               </div>
             </div>
+          </div>
           </div>
         </div>
 

@@ -207,6 +207,29 @@ function getAdjacentRanks(rank: string): string[] {
 }
 
 /**
+ * Mirror a file across the a1-h8 diagonal (a↔h, b↔g, c↔f, d↔e)
+ * This represents how a square looks from the opposite side of the board
+ */
+function mirrorFile(file: string): string {
+  const fileMap: Record<string, string> = {
+    'a': 'h', 'b': 'g', 'c': 'f', 'd': 'e',
+    'e': 'd', 'f': 'c', 'g': 'b', 'h': 'a',
+  };
+  return fileMap[file] || file;
+}
+
+/**
+ * Mirror a rank across the a1-h8 diagonal (1↔8, 2↔7, 3↔6, 4↔5)
+ */
+function mirrorRank(rank: string): string {
+  const rankMap: Record<string, string> = {
+    '1': '8', '2': '7', '3': '6', '4': '5',
+    '5': '4', '6': '3', '7': '2', '8': '1',
+  };
+  return rankMap[rank] || rank;
+}
+
+/**
  * Get a random file
  */
 function getRandomFile(): string {
@@ -297,7 +320,35 @@ export function generateDistractors(
     }
   }
 
-  // Strategy 7: Promotion variants
+  // Strategy 7: Mirror move (diagonal reflection across a1-h8)
+  // This is confusing because a square for white looks like its mirror for black
+  // e.g., e4 for white visually appears where d5 is for black
+  if (parsed.toFile && parsed.toRank && !parsed.castling) {
+    const mirroredFile = mirrorFile(parsed.toFile);
+    const mirroredRank = mirrorRank(parsed.toRank);
+
+    // Full mirror (both file and rank)
+    distractors.add(buildMove({ ...parsed, toFile: mirroredFile, toRank: mirroredRank }));
+
+    // Mirror variations with same piece, nearby squares
+    for (const f of getAdjacentFiles(mirroredFile)) {
+      distractors.add(buildMove({ ...parsed, toFile: f, toRank: mirroredRank }));
+    }
+    for (const r of getAdjacentRanks(mirroredRank)) {
+      distractors.add(buildMove({ ...parsed, toFile: mirroredFile, toRank: r }));
+    }
+
+    // Different piece on mirror square
+    if (parsed.piece) {
+      for (const p of PIECES) {
+        if (p !== parsed.piece) {
+          distractors.add(buildMove({ ...parsed, piece: p, toFile: mirroredFile, toRank: mirroredRank }));
+        }
+      }
+    }
+  }
+
+  // Strategy 8: Promotion variants
   if (parsed.promotion) {
     const promoOptions = ['Q', 'R', 'B', 'N'];
     for (const p of promoOptions) {
@@ -309,7 +360,7 @@ export function generateDistractors(
     distractors.add(buildMove({ ...parsed, promotion: null }));
   }
 
-  // Strategy 8: Random squares with same piece
+  // Strategy 9: Random squares with same piece
   if (parsed.piece) {
     for (let i = 0; i < 3; i++) {
       const randomMove = buildMove({
@@ -325,7 +376,7 @@ export function generateDistractors(
     }
   }
 
-  // Strategy 9: Add common moves as fillers
+  // Strategy 10: Add common moves as fillers
   for (const m of COMMON_MOVES) {
     if (m !== expectedMove && distractors.size < count * 2) {
       distractors.add(m);
