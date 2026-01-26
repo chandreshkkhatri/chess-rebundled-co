@@ -8,6 +8,7 @@ import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { Chess } from 'chess.js';
 import { PracticeVoiceDebugOverlay } from './PracticeVoiceDebugOverlay';
 import { PracticeVoiceStatus } from './PracticeVoiceStatus';
+import { generateDistractors } from '@/lib/distractorGenerator';
 
 // Debug flag - disabled for production builds
 const DEBUG_AUDIO = process.env.NODE_ENV !== 'production';
@@ -36,6 +37,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
     voiceParsingMode,
     geminiTranscription,
     currentPosition,
+    currentExpectedMove,
   } = usePracticeStore();
   const { parseMoveWithAI, parseAudioMoveWithGemini } = usePracticeSocket();
   const isActive = status === 'playing' && !disabled;
@@ -64,6 +66,28 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
     const cleanMove = move.replace(/[+#]/g, '');
     return legalMoves.some(m => m.replace(/[+#]/g, '') === cleanMove);
   }, [legalMoves]);
+
+  // Generate distractor move options (10 options including the correct move)
+  const moveOptions = useMemo(() => {
+    if (!currentExpectedMove?.san) return [];
+    return generateDistractors(currentExpectedMove.san, { count: 10, includeCorrect: true, shuffle: true });
+  }, [currentExpectedMove?.san]);
+
+  // Handle selecting a move option (from tap)
+  const handleSelectOption = useCallback((move: string) => {
+    if (!isSubmitting && isActive) {
+      setSelectedMove(move);
+      setRawTranscript(move);
+      // Set a simple AI parse result so the UI shows it properly
+      usePracticeStore.getState().setAIParseResult({
+        parsedMove: move,
+        transcript: move,
+        confidence: 1.0,
+        alternatives: [],
+        reasoning: 'Selected from options',
+      });
+    }
+  }, [isSubmitting, isActive]);
 
   // Handle voice result - hook now passes parsed notation (e.g. "e4") directly
   // Block new requests while already parsing to prevent race conditions
@@ -305,20 +329,30 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
               </div>
             )}
           </div>
-        ) : transcript ? (
-          <div className="text-center">
-            {voiceParsingMode === 'webspeech-haiku' && isWebSpeechListening && parsedPreview && isLegalMove(parsedPreview) ? (
-              <>
-                <div className="font-mono text-2xl text-slate-200">{parsedPreview}</div>
-                <div className="font-mono text-xs text-slate-500 mt-1">{transcript}</div>
-              </>
-            ) : (
-              <div className="font-mono text-lg text-slate-400">{transcript}</div>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full opacity-20">
-            <div className="text-4xl mb-2">🎤</div>
+        ) : null}
+
+        {/* Move options grid - always visible when playing and we have options */}
+        {isActive && moveOptions.length > 0 && !isAIParsing && (
+          <div className="w-full mt-2">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5 text-center">
+              Tap or speak a move
+            </div>
+            <div className="grid grid-cols-5 gap-1">
+              {moveOptions.map((move) => (
+                <button
+                  key={move}
+                  onClick={() => handleSelectOption(move)}
+                  disabled={isSubmitting}
+                  className={`py-2 px-1 rounded font-mono text-sm transition-all border ${
+                    selectedMove === move
+                      ? 'bg-green-600/30 border-green-500 text-green-300 ring-2 ring-green-500/50'
+                      : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500 active:scale-95'
+                  } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {move}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
