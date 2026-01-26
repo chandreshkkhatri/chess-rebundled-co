@@ -71,6 +71,13 @@ export interface PracticeCompletedData {
 export type PracticeStatus = 'idle' | 'selecting' | 'playing' | 'completed';
 export type PracticeMode = 'both-sides' | 'one-side';
 
+// Combined move response (reduces socket round-trips)
+export interface PracticeMoveResponseData {
+  result: PracticeMoveResult;
+  nextMove?: PracticeNextMoveData;
+  completed?: PracticeCompletedData;
+}
+
 // AI Move Parsing Types
 export interface AIParsedMoveResult {
   transcript: string;

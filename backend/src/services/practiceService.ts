@@ -16,6 +16,7 @@ export class PracticeService {
   private moveStartTimes: Map<string, number> = new Map();
   // Performance optimizations
   private positionCache: Map<string, string> = new Map(); // sessionId:moveIndex -> FEN
+  private legalMovesCache: Map<string, string[]> = new Map(); // sessionId:moveIndex -> legal moves
   private socketToSession: Map<string, string> = new Map(); // socketId -> sessionId
   private static readonly MAX_CACHE_SIZE = 1000;
 
@@ -251,10 +252,15 @@ export class PracticeService {
     }
     this.sessions.delete(sessionId);
     this.moveStartTimes.delete(sessionId);
-    // Clear position cache for this session
+    // Clear caches for this session
     for (const key of this.positionCache.keys()) {
       if (key.startsWith(`${sessionId}:`)) {
         this.positionCache.delete(key);
+      }
+    }
+    for (const key of this.legalMovesCache.keys()) {
+      if (key.startsWith(`${sessionId}:`)) {
+        this.legalMovesCache.delete(key);
       }
     }
   }
@@ -296,8 +302,28 @@ export class PracticeService {
   }
 
   getLegalMoves(sessionId: string): string[] {
+    const session = this.sessions.get(sessionId);
+    if (!session) return [];
+
+    // Check cache first
+    const cacheKey = `${sessionId}:${session.currentMoveIndex}`;
+    const cached = this.legalMovesCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Calculate and cache
     const currentFen = this.getCurrentPosition(sessionId);
-    return this.pgnService.getLegalMoves(currentFen);
+    const moves = this.pgnService.getLegalMoves(currentFen);
+    this.legalMovesCache.set(cacheKey, moves);
+
+    // Evict oldest entries if cache exceeds max size
+    if (this.legalMovesCache.size > PracticeService.MAX_CACHE_SIZE) {
+      const keysToDelete = Array.from(this.legalMovesCache.keys()).slice(0, 100);
+      keysToDelete.forEach(key => this.legalMovesCache.delete(key));
+    }
+
+    return moves;
   }
 
   getNextMoveData(sessionId: string): {

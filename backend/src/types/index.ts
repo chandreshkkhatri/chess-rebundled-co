@@ -85,14 +85,30 @@ export interface AIParsedMoveResult {
   transcription?: string; // What the AI heard (for Gemini audio mode)
 }
 
+// Combined response for move submission (reduces socket round-trips)
+export interface PracticeNextMoveData {
+  position: string;
+  currentMoveIndex: number;
+  currentSide: 'white' | 'black';
+  expectedMove: MoveDetails;
+  opponentMove?: MoveDetails;
+}
+
+export interface PracticeMoveResponseData {
+  result: PracticeMoveResult;
+  nextMove?: PracticeNextMoveData;
+  completed?: PracticeCompletedData;
+}
+
 // Socket Event Types
 export interface ServerToClientEvents {
   // Practice mode events
   'practice-games-list': (games: HistoricalGame[]) => void;
   'practice-started': (data: PracticeStartedData) => void;
   'practice-move-result': (result: PracticeMoveResult) => void;
-  'practice-next-move': (data: { position: string; currentMoveIndex: number; currentSide: 'white' | 'black'; expectedMove: MoveDetails; opponentMove?: MoveDetails }) => void;
+  'practice-next-move': (data: PracticeNextMoveData) => void;
   'practice-completed': (data: PracticeCompletedData) => void;
+  'practice-move-response': (data: PracticeMoveResponseData) => void; // Combined event
   'practice-error': (data: { message: string }) => void;
   // AI move parsing events (Web Speech + Haiku)
   'move-parsed': (data: AIParsedMoveResult) => void;

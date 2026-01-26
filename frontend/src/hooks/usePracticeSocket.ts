@@ -11,6 +11,7 @@ import {
   PracticeCompletedData,
   PracticeMode,
   AIParsedMoveResult,
+  PracticeMoveResponseData,
 } from '@/types';
 
 // Track if listeners have been attached (module-level, survives remounts)
@@ -37,6 +38,7 @@ export function usePracticeSocket() {
       // Remove any stale listeners first (safety cleanup from previous hot reloads)
       socket.off('practice-started');
       socket.off('practice-move-result');
+      socket.off('practice-move-response');
       socket.off('practice-next-move');
       socket.off('practice-completed');
       socket.off('practice-error');
@@ -96,6 +98,43 @@ export function usePracticeSocket() {
           submitTimeoutId = null;
         }
         usePracticeStore.getState().setMoveResult(result);
+      });
+
+      // Combined response event (reduces latency by handling result + next move in one emission)
+      socket.on('practice-move-response', (data: PracticeMoveResponseData) => {
+        // Clear submit timeout on successful response
+        if (submitTimeoutId) {
+          clearTimeout(submitTimeoutId);
+          submitTimeoutId = null;
+        }
+
+        const store = usePracticeStore.getState();
+
+        // Handle move result
+        store.setMoveResult(data.result);
+
+        // Handle next move or completion
+        if (data.completed) {
+          store.setCompleted(data.completed);
+          // Track session completed
+          trackEvent('practice_session_completed', {
+            gameId: data.completed.game.id,
+            gameTitle: data.completed.game.title,
+            correctMoves: data.completed.correctMoves,
+            incorrectMoves: data.completed.totalMoves - data.completed.correctMoves,
+            totalMoves: data.completed.totalMoves,
+            accuracy: Math.round(data.completed.accuracy * 100),
+            mode: store.mode,
+          });
+        } else if (data.nextMove) {
+          store.updatePosition({
+            position: data.nextMove.position,
+            currentMoveIndex: data.nextMove.currentMoveIndex,
+            currentSide: data.nextMove.currentSide,
+            expectedMove: data.nextMove.expectedMove,
+            opponentMove: data.nextMove.opponentMove,
+          });
+        }
       });
 
       socket.on('practice-next-move', (data: PracticeNextMoveData) => {
@@ -215,7 +254,7 @@ export function usePracticeSocket() {
     setSubmitting(true);
     socket.emit('submit-practice-move', { sessionId, move });
 
-    // Bug 3 fix: Safety timeout - reset isSubmitting after 10s if no response
+    // Safety timeout - reset isSubmitting after 5s if no response (reduced from 10s for better UX)
     submitTimeoutId = setTimeout(() => {
       submitTimeoutId = null;
       const currentState = usePracticeStore.getState();
@@ -223,7 +262,7 @@ export function usePracticeSocket() {
         currentState.setSubmitting(false);
         currentState.setError('Move submission timed out. Please try again.');
       }
-    }, 10000);
+    }, 5000);
   }, [setSubmitting]);
 
   const abandonPractice = useCallback((sessionId: string) => {

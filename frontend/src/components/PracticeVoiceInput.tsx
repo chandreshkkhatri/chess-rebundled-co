@@ -1,13 +1,18 @@
 'use client';
 
-import { useEffect, useCallback, useState, useRef } from 'react';
+import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 import { useVoiceRecognition } from '@/hooks/useVoiceRecognition';
 import { useGeminiVoice } from '@/hooks/useGeminiVoice';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
+import { Chess } from 'chess.js';
 
 // Debug flag - disabled for production builds
 const DEBUG_AUDIO = process.env.NODE_ENV !== 'production';
+
+// Confidence threshold for local parsing (skip Haiku if above this)
+// Lowered from 0.85 to 0.70 to skip AI for more moves (d/b files get 0.7 confidence)
+const LOCAL_PARSE_CONFIDENCE_THRESHOLD = 0.70;
 
 interface PracticeVoiceInputProps {
   onMoveSubmit: (move: string, confidence: number) => void;
@@ -28,6 +33,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
     clearAIParseState,
     voiceParsingMode,
     geminiTranscription,
+    currentPosition,
   } = usePracticeStore();
   const { parseMoveWithAI, parseAudioMoveWithGemini } = usePracticeSocket();
   const isActive = status === 'playing' && !disabled;
@@ -39,16 +45,49 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
 
   const autoListenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Handle raw voice result - show transcript and request AI parsing (Web Speech mode)
+  // Memoize legal moves from current position to check if parsed preview is valid
+  const legalMoves = useMemo(() => {
+    if (!currentPosition) return [];
+    try {
+      const chess = new Chess(currentPosition);
+      return chess.moves();
+    } catch {
+      return [];
+    }
+  }, [currentPosition]);
+
+  // Check if a move is in the legal moves list (handles check/checkmate notation differences)
+  const isLegalMove = useCallback((move: string): boolean => {
+    if (!move || legalMoves.length === 0) return false;
+    const cleanMove = move.replace(/[+#]/g, '');
+    return legalMoves.some(m => m.replace(/[+#]/g, '') === cleanMove);
+  }, [legalMoves]);
+
+  // Handle voice result - hook now passes parsed notation (e.g. "e4") directly
   // Block new requests while already parsing to prevent race conditions
-  const handleVoiceResult = useCallback((transcript: string) => {
+  const handleVoiceResult = useCallback((parsedMove: string, confidence: number) => {
     if (!isSubmitting && !isAIParsing && isActive && sessionId && voiceParsingMode === 'webspeech-haiku') {
-      // Clear previous state before setting new transcript
+      // Clear previous state
       clearAIParseState();
-      setRawTranscript(transcript);
       setSelectedMove(null);
-      // Request AI parsing - the store will be updated via socket
-      parseMoveWithAI(sessionId, transcript);
+
+      // Show parsed move immediately (hook already parsed it)
+      setRawTranscript(parsedMove);
+
+      // Always surface a local parse immediately so the UI feels responsive.
+      // If confidence is low, we can still refine with Haiku in the background.
+      usePracticeStore.getState().setAIParseResult({
+        parsedMove,
+        transcript: parsedMove,
+        confidence,
+        alternatives: [],
+        reasoning: confidence >= LOCAL_PARSE_CONFIDENCE_THRESHOLD ? 'Parsed locally' : 'Local preview (refining...)',
+      });
+
+      if (confidence < LOCAL_PARSE_CONFIDENCE_THRESHOLD) {
+        // Low confidence - call Haiku for refinement
+        parseMoveWithAI(sessionId, parsedMove);
+      }
     }
   }, [parseMoveWithAI, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, voiceParsingMode]);
 
@@ -75,7 +114,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
   }, [aiParseResult, isSubmitting, geminiTranscription, voiceParsingMode]);
 
   // Web Speech API hook
-  const { isSupported: isWebSpeechSupported, isListening: isWebSpeechListening, transcript, error: webSpeechError, startListening: startWebSpeechListening, stopListening: stopWebSpeechListening } =
+  const { isSupported: isWebSpeechSupported, isListening: isWebSpeechListening, transcript, parsedPreview, error: webSpeechError, startListening: startWebSpeechListening, stopListening: stopWebSpeechListening } =
     useVoiceRecognition({
       continuous: true,
       onResult: handleVoiceResult,
@@ -111,16 +150,8 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
   // Keeps listening even when there's a transcript, so speaking again replaces the previous result
   useEffect(() => {
     if (isActive && !isListening && !isSubmitting && !isAIParsing) {
-      autoListenTimeoutRef.current = setTimeout(() => {
-        autoListenTimeoutRef.current = null;
-        startListening();
-      }, 300);
-      return () => {
-        if (autoListenTimeoutRef.current) {
-          clearTimeout(autoListenTimeoutRef.current);
-          autoListenTimeoutRef.current = null;
-        }
-      };
+      // Start listening immediately (removed 50ms delay for faster response)
+      startListening();
     }
   }, [isActive, isListening, isSubmitting, isAIParsing, startListening]);
 
@@ -229,14 +260,16 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
               ? 'bg-yellow-600 text-white cursor-wait animate-pulse'
               : selectedMove && isActive
               ? 'bg-green-600 hover:bg-green-500 text-white shadow-green-500/20 transform active:scale-95'
+              : isWebSpeechListening && parsedPreview && isLegalMove(parsedPreview)
+              ? 'bg-blue-600/70 text-white/90 animate-pulse border border-blue-400'
               : 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'
           }`}
         >
-          {isSubmitting ? '...' : selectedMove ? `\u2713 SUBMIT ${selectedMove}` : 'Speak Move...'}
+          {isSubmitting ? '...' : selectedMove ? `\u2713 SUBMIT ${selectedMove}` : isWebSpeechListening && parsedPreview && isLegalMove(parsedPreview) ? `${parsedPreview}...` : 'Speak Move...'}
         </button>
       </div>
 
-      {/* Raw transcript display - compact */}
+      {/* Transcript display - shows parsed move (e.g. "e4") */}
       {rawTranscript && (
         <div className="bg-slate-700/50 rounded p-1.5 mb-1 flex-shrink-0 text-center">
           <div className="text-white text-xs font-medium truncate">&ldquo;{rawTranscript}&rdquo;</div>
@@ -285,8 +318,15 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
             )}
           </div>
         ) : transcript ? (
-          <div className="text-center opacity-50">
-            <div className="font-mono text-sm text-slate-400">Listening...</div>
+          <div className="text-center">
+            {voiceParsingMode === 'webspeech-haiku' && isWebSpeechListening && parsedPreview && isLegalMove(parsedPreview) ? (
+              <>
+                <div className="font-mono text-2xl text-slate-200">{parsedPreview}</div>
+                <div className="font-mono text-xs text-slate-500 mt-1">{transcript}</div>
+              </>
+            ) : (
+              <div className="font-mono text-lg text-slate-400">{transcript}</div>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full opacity-20">
