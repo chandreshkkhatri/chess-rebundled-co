@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
-import { getSocket, connectSocket } from '@/lib/socket';
+import { getSocket, connectSocket, setAuthToken } from '@/lib/socket';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { trackEvent } from '@/lib/analytics';
+import { subscribeToAuthState, getIdToken } from '@/lib/firebase';
 import {
   PracticeMoveResult,
   PracticeStartedData,
@@ -21,11 +22,30 @@ let listenersAttached = false;
 // Track submit timeout for safety reset (Bug 3 fix)
 let submitTimeoutId: NodeJS.Timeout | null = null;
 
+// Track if auth subscription is set up
+let authSubscribed = false;
+
 export function usePracticeSocket() {
   const {
     setConnected,
     setSubmitting,
   } = usePracticeStore();
+
+  // Subscribe to auth state changes and update socket token
+  useEffect(() => {
+    if (!authSubscribed) {
+      authSubscribed = true;
+
+      subscribeToAuthState(async (user) => {
+        if (user) {
+          const token = await getIdToken();
+          setAuthToken(token);
+        } else {
+          setAuthToken(null);
+        }
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const socket = getSocket();
