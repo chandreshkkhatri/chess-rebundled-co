@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 export function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -10,10 +11,10 @@ export function PWAInstallPrompt() {
 
   useEffect(() => {
     // Check if running in standalone mode (already installed)
-    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || 
-                             (window.navigator as any).standalone || 
-                             document.referrer.includes('android-app://');
-    
+    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone ||
+      document.referrer.includes('android-app://');
+
     setIsStandalone(isStandaloneMode);
 
     if (isStandaloneMode) return;
@@ -25,7 +26,7 @@ export function PWAInstallPrompt() {
 
     // Auto-show prompt for iOS if not standalone (simplistic check, can be refined to be less intrusive)
     if (isIosDevice) {
-        setShowPrompt(true);
+      setShowPrompt(true);
     }
 
     // Capture the PWA install event (Android/Desktop)
@@ -57,30 +58,34 @@ export function PWAInstallPrompt() {
     setShowPrompt(false);
   };
 
-  if (!showPrompt || isStandalone) return null;
+  const pathname = usePathname();
+  // Don't show in active game (matches /practice/sessionId but not /practice)
+  const isGameSession = pathname?.startsWith('/practice/') && pathname !== '/practice';
+
+  if (!showPrompt || isStandalone || isGameSession) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-900 border-t border-slate-700 shadow-2xl z-50 animate-in slide-in-from-bottom-5">
+    <div className="fixed top-0 left-0 right-0 p-4 bg-slate-900 border-b border-slate-700 shadow-2xl z-50 animate-in slide-in-from-top-5">
       <div className="max-w-md mx-auto flex items-center justify-between gap-4">
         <div className="flex-1">
           <h3 className="text-white font-bold mb-1">Install App</h3>
           <p className="text-slate-300 text-sm">
-            {isIOS 
-              ? "Tap the Share button and select 'Add to Home Screen' for the best experience." 
+            {isIOS
+              ? "Tap the Share button and select 'Add to Home Screen' for the best experience."
               : "Install Chess Rebundled for full-screen voice practice."}
           </p>
         </div>
-        
+
         {isIOS ? (
-           <button 
-             onClick={handleDismiss}
-             className="px-4 py-2 bg-slate-700 text-white rounded-lg font-medium text-sm hover:bg-slate-600"
-           >
-             Close
-           </button>
+          <button
+            onClick={handleDismiss}
+            className="px-4 py-2 bg-slate-700 text-white rounded-lg font-medium text-sm hover:bg-slate-600"
+          >
+            Close
+          </button>
         ) : (
           <div className="flex gap-2">
-            <button 
+            <button
               onClick={handleDismiss}
               className="px-3 py-2 text-slate-400 hover:text-white text-sm"
             >

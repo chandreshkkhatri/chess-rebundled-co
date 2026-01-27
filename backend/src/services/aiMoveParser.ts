@@ -1,6 +1,6 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 
-const anthropic = new Anthropic();
+const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
 export interface AIParsedMove {
   move: string;
@@ -10,7 +10,7 @@ export interface AIParsedMove {
 }
 
 /**
- * Parse a spoken chess move transcript using Claude Haiku.
+ * Parse a spoken chess move transcript using Gemini 2.5 Flash Lite.
  * Takes the raw speech-to-text transcript and the current board position,
  * then returns the most likely chess move in SAN notation.
  */
@@ -82,13 +82,12 @@ Rules:
 If the transcript is unclear, pick the most likely legal move based on common chess patterns.`;
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-3-5-haiku-20241022',
-      max_tokens: 200,
-      messages: [{ role: 'user', content: prompt }],
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-lite',
+      contents: prompt,
     });
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : '';
+    const text = response.text || '';
 
     // Extract JSON from response (in case there's any extra text)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -123,7 +122,7 @@ If the transcript is unclear, pick the most likely legal move based on common ch
 
     return parsed;
   } catch (error) {
-    console.error('[AI Parser] Error calling Claude API:', error);
+    console.error('[AI Parser] Error calling Gemini API:', error);
     return {
       move: '',
       confidence: 0,

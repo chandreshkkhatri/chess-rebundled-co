@@ -7,7 +7,6 @@ import { usePracticeStore } from '@/stores/practiceStore';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { Chess } from 'chess.js';
 import { PracticeVoiceDebugOverlay } from './PracticeVoiceDebugOverlay';
-import { PracticeVoiceStatus } from './PracticeVoiceStatus';
 import { generateDistractors } from '@/lib/distractorGenerator';
 
 // Debug flag - disabled for production builds
@@ -17,14 +16,17 @@ const DEBUG_AUDIO = process.env.NODE_ENV !== 'production';
 // Lowered from 0.85 to 0.70 to skip AI for more moves (d/b files get 0.7 confidence)
 const LOCAL_PARSE_CONFIDENCE_THRESHOLD = 0.70;
 
+// Cooldown to prevent rapid re-triggering from continuous speech recognition
+const RESULT_COOLDOWN_MS = 500;
+
 interface PracticeVoiceInputProps {
   onMoveSubmit: (move: string, confidence: number) => void;
   disabled?: boolean;
-  onShowHistory?: () => void;
-  moveCount?: number;
+  showDebugPanel?: boolean;
+  onCloseDebugPanel?: () => void;
 }
 
-export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHistory, moveCount = 0 }: PracticeVoiceInputProps) {
+export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPanel = false, onCloseDebugPanel }: PracticeVoiceInputProps) {
   const {
     status,
     lastMoveResult,
@@ -35,19 +37,17 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
     isAIParsing,
     clearAIParseState,
     voiceParsingMode,
-    geminiTranscription,
     currentPosition,
     currentExpectedMove,
   } = usePracticeStore();
   const { parseMoveWithAI, parseAudioMoveWithGemini } = usePracticeSocket();
   const isActive = status === 'playing' && !disabled;
 
-  // Raw transcript from speech recognition
-  const [rawTranscript, setRawTranscript] = useState<string>('');
   // Selected move (from AI result or alternatives)
   const [selectedMove, setSelectedMove] = useState<string | null>(null);
 
   const autoListenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastProcessedRef = useRef<{ move: string; timestamp: number } | null>(null);
 
   // Memoize legal moves from current position to check if parsed preview is valid
   const legalMoves = useMemo(() => {
@@ -77,7 +77,6 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
   const handleSelectOption = useCallback((move: string) => {
     if (!isSubmitting && isActive) {
       setSelectedMove(move);
-      setRawTranscript(move);
       // Set a simple AI parse result so the UI shows it properly
       usePracticeStore.getState().setAIParseResult({
         parsedMove: move,
@@ -93,12 +92,27 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
   // Block new requests while already parsing to prevent race conditions
   const handleVoiceResult = useCallback((parsedMove: string, confidence: number) => {
     if (!isSubmitting && !isAIParsing && isActive && sessionId && voiceParsingMode === 'webspeech-haiku') {
+      const now = Date.now();
+
+      // Skip if same move within cooldown period (prevents rapid re-triggering from continuous recognition)
+      if (lastProcessedRef.current &&
+          lastProcessedRef.current.move === parsedMove &&
+          now - lastProcessedRef.current.timestamp < RESULT_COOLDOWN_MS) {
+        return;
+      }
+
+      // If we already have a valid legal move selected, don't replace it with an invalid one
+      // This prevents noise/garbage from clearing a good selection
+      if (selectedMove && isLegalMove(selectedMove) && !isLegalMove(parsedMove)) {
+        return;
+      }
+
+      // Track this result
+      lastProcessedRef.current = { move: parsedMove, timestamp: now };
+
       // Clear previous state
       clearAIParseState();
       setSelectedMove(null);
-
-      // Show parsed move immediately (hook already parsed it)
-      setRawTranscript(parsedMove);
 
       // Always surface a local parse immediately so the UI feels responsive.
       // If confidence is low, we can still refine with Haiku in the background.
@@ -115,14 +129,13 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
         parseMoveWithAI(sessionId, parsedMove);
       }
     }
-  }, [parseMoveWithAI, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, voiceParsingMode]);
+  }, [parseMoveWithAI, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, voiceParsingMode, selectedMove, isLegalMove]);
 
   // Handle audio ready from Gemini voice (Gemini mode)
   // Block new requests while already parsing to prevent race conditions
   const handleAudioReady = useCallback((audioBase64: string, mimeType: string) => {
     if (!isSubmitting && !isAIParsing && isActive && sessionId && voiceParsingMode === 'gemini-audio') {
       clearAIParseState();
-      setRawTranscript('[Processing audio...]');
       setSelectedMove(null);
       parseAudioMoveWithGemini(sessionId, audioBase64, mimeType);
     }
@@ -132,15 +145,11 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
   useEffect(() => {
     if (aiParseResult?.parsedMove && !isSubmitting) {
       setSelectedMove(aiParseResult.parsedMove);
-      // Update transcript with Gemini's transcription if available
-      if (geminiTranscription && voiceParsingMode === 'gemini-audio') {
-        setRawTranscript(geminiTranscription);
-      }
     }
-  }, [aiParseResult, isSubmitting, geminiTranscription, voiceParsingMode]);
+  }, [aiParseResult, isSubmitting]);
 
   // Web Speech API hook
-  const { isSupported: isWebSpeechSupported, isListening: isWebSpeechListening, transcript, parsedPreview, error: webSpeechError, startListening: startWebSpeechListening, stopListening: stopWebSpeechListening } =
+  const { isSupported: isWebSpeechSupported, isListening: isWebSpeechListening, parsedPreview, error: webSpeechError, startListening: startWebSpeechListening, stopListening: stopWebSpeechListening } =
     useVoiceRecognition({
       continuous: true,
       onResult: handleVoiceResult,
@@ -168,7 +177,6 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
     }
     // Clear state when switching modes
     clearAIParseState();
-    setRawTranscript('');
     setSelectedMove(null);
   }, [voiceParsingMode, stopGeminiListening, stopWebSpeechListening, clearAIParseState]);
 
@@ -191,9 +199,9 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
   // Clear state when new move result comes in
   useEffect(() => {
     if (lastMoveResult) {
-      setRawTranscript('');
       setSelectedMove(null);
       clearAIParseState();
+      lastProcessedRef.current = null;
     }
   }, [lastMoveResult, clearAIParseState]);
 
@@ -206,9 +214,9 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
   }, [selectedMove, isActive, isSubmitting, onMoveSubmit, aiParseResult?.confidence]);
 
   const handleReset = useCallback(() => {
-    setRawTranscript('');
     setSelectedMove(null);
     clearAIParseState();
+    lastProcessedRef.current = null;
     if (autoListenTimeoutRef.current) {
       clearTimeout(autoListenTimeoutRef.current);
       autoListenTimeoutRef.current = null;
@@ -233,64 +241,9 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
   }
 
   return (
-    <div className="bg-slate-800 rounded-lg shadow-lg p-1.5 h-full flex flex-col overflow-hidden">
-      {/* History + Status in single row */}
-      <div className="flex items-center justify-between gap-1 mb-2 flex-shrink-0">
-        {/* History button - mobile only */}
-        {onShowHistory && (
-          <button
-            onClick={onShowHistory}
-            className="lg:hidden py-1 px-2 rounded bg-slate-700 hover:bg-slate-600 text-slate-400 text-xs font-medium"
-          >
-            ☰ History ({moveCount})
-          </button>
-        )}
-        <PracticeVoiceStatus
-          isRecording={isGeminiRecording}
-          isListening={isListening}
-          isAIParsing={isAIParsing}
-          isActive={isActive}
-          rawTranscript={rawTranscript}
-        />
-      </div>
-
-      {/* Action buttons - NOW AT TOP for accessibility */}
-      <div className="flex gap-2 mb-2 flex-shrink-0">
-        <button
-          onClick={handleReset}
-          disabled={isSubmitting || !isActive}
-          className={`flex-1 h-12 rounded-lg font-bold text-sm transition-colors uppercase tracking-wide ${isSubmitting || !isActive
-            ? 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'
-            : 'bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-500'
-            }`}
-        >
-          Reset
-        </button>
-        <button
-          onClick={handleSubmit}
-          disabled={!selectedMove || isSubmitting || !isActive}
-          className={`flex-[2] h-12 rounded-lg font-bold text-lg transition-all shadow-lg ${isSubmitting
-            ? 'bg-yellow-600 text-white cursor-wait animate-pulse'
-            : selectedMove && isActive
-              ? 'bg-green-600 hover:bg-green-500 text-white shadow-green-500/20 transform active:scale-95'
-              : isWebSpeechListening && parsedPreview && isLegalMove(parsedPreview)
-                ? 'bg-blue-600/70 text-white/90 animate-pulse border border-blue-400'
-                : 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'
-            }`}
-        >
-          {isSubmitting ? '...' : selectedMove ? `\u2713 SUBMIT ${selectedMove}` : isWebSpeechListening && parsedPreview && isLegalMove(parsedPreview) ? `${parsedPreview}...` : 'Speak Move...'}
-        </button>
-      </div>
-
-      {/* Transcript display - shows parsed move (e.g. "e4") */}
-      {rawTranscript && (
-        <div className="bg-slate-700/50 rounded p-1.5 mb-1 flex-shrink-0 text-center">
-          <div className="text-white text-xs font-medium truncate">&ldquo;{rawTranscript}&rdquo;</div>
-        </div>
-      )}
-
-      {/* AI Parsing result - flexible middle section */}
-      <div className="flex-1 flex flex-col items-center justify-center min-h-0 mb-1 overflow-hidden relative">
+    <div className="bg-slate-800 rounded-lg shadow-lg p-1.5 h-full flex flex-row gap-2 overflow-hidden">
+      {/* Main content area - left side */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {isAIParsing ? (
           <div className="flex flex-col items-center gap-2">
             <div className="animate-spin h-8 w-8 border-4 border-yellow-500 border-t-transparent rounded-full"></div>
@@ -337,7 +290,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
             <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5 text-center">
               Tap or speak a move
             </div>
-            <div className="grid grid-cols-5 gap-1">
+            <div className="grid grid-cols-3 min-[400px]:grid-cols-4 sm:grid-cols-5 gap-1">
               {moveOptions.map((move) => (
                 <button
                   key={move}
@@ -355,33 +308,68 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
             </div>
           </div>
         )}
+
+        {/* Last move feedback - anchored bottom */}
+        {lastMoveResult && (
+          <div
+            className={`text-center py-1.5 px-2 rounded mt-auto text-xs font-bold uppercase tracking-wide flex-shrink-0 ${lastMoveResult.isCorrect
+              ? 'bg-green-900/40 text-green-400 border border-green-800'
+              : 'bg-red-900/40 text-red-400 border border-red-800'
+              }`}
+          >
+            {lastMoveResult.isCorrect ? (
+              <>{'\u2713'} Correct!</>
+            ) : (
+              <>{'\u2717'} Missed: {lastMoveResult.expectedMove}</>
+            )}
+          </div>
+        )}
+
+        {/* Error display */}
+        {error && (
+          <div className="mt-1 p-1.5 bg-red-900/80 border border-red-500 rounded flex-shrink-0">
+            <span className="text-red-100 font-bold text-center text-xs block">{error}</span>
+          </div>
+        )}
       </div>
 
-      {/* Last move feedback - anchored bottom */}
-      {lastMoveResult && (
-        <div
-          className={`text-center py-1.5 px-2 rounded mt-auto text-xs font-bold uppercase tracking-wide flex-shrink-0 ${lastMoveResult.isCorrect
-            ? 'bg-green-900/40 text-green-400 border border-green-800'
-            : 'bg-red-900/40 text-red-400 border border-red-800'
+      {/* Action buttons - right side, stacked vertically */}
+      <div className="flex flex-col gap-2 flex-shrink-0 w-20">
+        <button
+          onClick={handleReset}
+          disabled={isSubmitting || !isActive}
+          className={`h-10 rounded-lg font-bold text-xs transition-colors uppercase tracking-wide ${isSubmitting || !isActive
+            ? 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'
+            : 'bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-500'
             }`}
         >
-          {lastMoveResult.isCorrect ? (
-            <>{'\u2713'} Correct!</>
-          ) : (
-            <>{'\u2717'} Missed: {lastMoveResult.expectedMove}</>
+          Reset
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={!selectedMove || isSubmitting || !isActive}
+          className={`relative flex-1 rounded-lg font-bold transition-all shadow-lg flex flex-col items-center justify-center ${isSubmitting
+            ? 'bg-yellow-600 text-white cursor-wait animate-pulse'
+            : selectedMove && isActive
+              ? 'bg-green-600 hover:bg-green-500 text-white shadow-green-500/20 transform active:scale-95'
+              : isWebSpeechListening && parsedPreview && isLegalMove(parsedPreview)
+                ? 'bg-blue-600/70 text-white/90 animate-pulse border border-blue-400'
+                : 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'
+            }`}
+        >
+          {/* Listening indicator - red dot */}
+          {(isListening || isGeminiRecording) && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
           )}
-        </div>
-      )}
+          <span className="text-[10px] uppercase tracking-wider opacity-80">Submit</span>
+          <span className="text-lg font-mono">
+            {isSubmitting ? '...' : selectedMove ? selectedMove : isWebSpeechListening && parsedPreview && isLegalMove(parsedPreview) ? parsedPreview : '—'}
+          </span>
+        </button>
+      </div>
 
-      {/* Error display */}
-      {error && (
-        <div className="mt-1 p-1.5 bg-red-900/80 border border-red-500 rounded flex-shrink-0">
-          <span className="text-red-100 font-bold text-center text-xs block">{error}</span>
-        </div>
-      )}
-
-      {/* Debug overlay - toggle DEBUG_AUDIO flag to enable */}
-      {DEBUG_AUDIO && (
+      {/* Debug overlay - controlled by sidebar button */}
+      {DEBUG_AUDIO && showDebugPanel && onCloseDebugPanel && (
         <PracticeVoiceDebugOverlay
           volumeLevel={volumeLevel}
           silenceThreshold={silenceThreshold}
@@ -389,6 +377,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
           isRecording={isGeminiRecording}
           isActive={isActive}
           voiceParsingMode={voiceParsingMode}
+          onClose={onCloseDebugPanel}
         />
       )}
     </div>
