@@ -88,9 +88,11 @@ export class GameHandler {
       const isAnonymous = socket.data.isAnonymous;
       const email = socket.data.email;
 
-      // Ensure user exists in Firestore (if authenticated)
+      // Ensure user exists in Firestore (if authenticated) - non-blocking
       if (uid) {
-        await ensureUserExists(uid, email ?? null, isAnonymous ?? true);
+        ensureUserExists(uid, email ?? null, isAnonymous ?? true).catch((err) => {
+          console.warn('[GameHandler] Failed to ensure user exists:', err);
+        });
       }
 
       // If no gameId provided, use random game selection
@@ -133,9 +135,11 @@ export class GameHandler {
       const isAnonymous = socket.data.isAnonymous;
       const email = socket.data.email;
 
-      // Ensure user exists in Firestore (if authenticated)
+      // Ensure user exists in Firestore (if authenticated) - non-blocking
       if (uid) {
-        await ensureUserExists(uid, email ?? null, isAnonymous ?? true);
+        ensureUserExists(uid, email ?? null, isAnonymous ?? true).catch((err) => {
+          console.warn('[GameHandler] Failed to ensure user exists:', err);
+        });
       }
 
       const startData = await this.practiceService.startSessionWithRandomGame(
