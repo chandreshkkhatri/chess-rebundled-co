@@ -261,10 +261,18 @@ export default function PracticeSelectPage() {
           </div>
 
           <div className="bg-white rounded-2xl shadow-xl p-6">
+            {/* Connection status */}
+            {!isConnected && (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-700">Connecting to server...</p>
+              </div>
+            )}
+
             <div className="space-y-4 mb-6">
               <button
                 onClick={() => handleSelectMode('both-sides')}
-                className="w-full flex items-center p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
+                disabled={!isConnected}
+                className="w-full flex items-center p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white"
               >
                 <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
                   <span className="text-2xl">&#9812;&#9818;</span>
@@ -277,7 +285,8 @@ export default function PracticeSelectPage() {
 
               <button
                 onClick={() => handleSelectMode('one-side')}
-                className="w-full flex items-center p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
+                disabled={!isConnected}
+                className="w-full flex items-center p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white"
               >
                 <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
                   <span className="text-2xl">&#9812;</span>
