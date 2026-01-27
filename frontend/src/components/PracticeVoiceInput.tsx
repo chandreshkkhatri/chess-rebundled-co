@@ -7,7 +7,6 @@ import { usePracticeStore } from '@/stores/practiceStore';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { Chess } from 'chess.js';
 import { PracticeVoiceDebugOverlay } from './PracticeVoiceDebugOverlay';
-import { PracticeVoiceStatus } from './PracticeVoiceStatus';
 import { generateDistractors } from '@/lib/distractorGenerator';
 
 // Debug flag - disabled for production builds
@@ -20,11 +19,11 @@ const LOCAL_PARSE_CONFIDENCE_THRESHOLD = 0.70;
 interface PracticeVoiceInputProps {
   onMoveSubmit: (move: string, confidence: number) => void;
   disabled?: boolean;
-  onShowHistory?: () => void;
-  moveCount?: number;
+  showDebugPanel?: boolean;
+  onCloseDebugPanel?: () => void;
 }
 
-export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHistory, moveCount = 0 }: PracticeVoiceInputProps) {
+export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPanel = false, onCloseDebugPanel }: PracticeVoiceInputProps) {
   const {
     status,
     lastMoveResult,
@@ -234,27 +233,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
 
   return (
     <div className="bg-slate-800 rounded-lg shadow-lg p-1.5 h-full flex flex-col overflow-hidden">
-      {/* History + Status in single row */}
-      <div className="flex items-center justify-between gap-1 mb-2 flex-shrink-0">
-        {/* History button - mobile only */}
-        {onShowHistory && (
-          <button
-            onClick={onShowHistory}
-            className="lg:hidden py-1 px-2 rounded bg-slate-700 hover:bg-slate-600 text-slate-400 text-xs font-medium"
-          >
-            ☰ History ({moveCount})
-          </button>
-        )}
-        <PracticeVoiceStatus
-          isRecording={isGeminiRecording}
-          isListening={isListening}
-          isAIParsing={isAIParsing}
-          isActive={isActive}
-          rawTranscript={rawTranscript}
-        />
-      </div>
-
-      {/* Action buttons - NOW AT TOP for accessibility */}
+      {/* Action buttons */}
       <div className="flex gap-2 mb-2 flex-shrink-0">
         <button
           onClick={handleReset}
@@ -269,7 +248,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
         <button
           onClick={handleSubmit}
           disabled={!selectedMove || isSubmitting || !isActive}
-          className={`flex-[2] h-12 rounded-lg font-bold text-lg transition-all shadow-lg ${isSubmitting
+          className={`relative flex-[2] h-12 rounded-lg font-bold text-lg transition-all shadow-lg ${isSubmitting
             ? 'bg-yellow-600 text-white cursor-wait animate-pulse'
             : selectedMove && isActive
               ? 'bg-green-600 hover:bg-green-500 text-white shadow-green-500/20 transform active:scale-95'
@@ -278,6 +257,10 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
                 : 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'
             }`}
         >
+          {/* Listening indicator - red dot */}
+          {(isListening || isGeminiRecording) && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          )}
           {isSubmitting ? '...' : selectedMove ? `\u2713 SUBMIT ${selectedMove}` : isWebSpeechListening && parsedPreview && isLegalMove(parsedPreview) ? `${parsedPreview}...` : 'Speak Move...'}
         </button>
       </div>
@@ -380,8 +363,8 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
         </div>
       )}
 
-      {/* Debug overlay - toggle DEBUG_AUDIO flag to enable */}
-      {DEBUG_AUDIO && (
+      {/* Debug overlay - controlled by sidebar button */}
+      {DEBUG_AUDIO && showDebugPanel && onCloseDebugPanel && (
         <PracticeVoiceDebugOverlay
           volumeLevel={volumeLevel}
           silenceThreshold={silenceThreshold}
@@ -389,6 +372,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, onShowHisto
           isRecording={isGeminiRecording}
           isActive={isActive}
           voiceParsingMode={voiceParsingMode}
+          onClose={onCloseDebugPanel}
         />
       )}
     </div>

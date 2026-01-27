@@ -9,6 +9,9 @@ import { PracticeVoiceInput } from '@/components/PracticeVoiceInput';
 import { PracticeResults } from '@/components/PracticeResults';
 import { DiscordIcon } from '@/components/icons/DiscordIcon';
 
+// Debug flag - matches PracticeVoiceInput
+const DEBUG_AUDIO = process.env.NODE_ENV !== 'production';
+
 export default function PracticeGamePage() {
   const params = useParams();
   const router = useRouter();
@@ -16,6 +19,7 @@ export default function PracticeGamePage() {
   const [showingOpponentMove, setShowingOpponentMove] = useState(false);
   const [showGameInfo, setShowGameInfo] = useState(false);
   const [showMoveHistory, setShowMoveHistory] = useState(false);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
 
   const { submitPracticeMove, abandonPractice } = usePracticeSocket();
   const {
@@ -209,7 +213,8 @@ export default function PracticeGamePage() {
         {/* Game area with mobile sidebar */}
         <div className="flex flex-row gap-1 lg:gap-3 flex-1 min-h-0 overflow-hidden">
           {/* Mobile left sidebar */}
-          <div className="flex lg:hidden flex-col items-center py-2 px-1 bg-slate-800/50 rounded-lg flex-shrink-0">
+          <div className="flex lg:hidden flex-col items-center justify-between py-2 px-1 bg-slate-800/50 rounded-lg flex-shrink-0">
+            {/* Top: Discord */}
             <a
               href="https://discord.gg/ySGBwu9xvk"
               target="_blank"
@@ -219,6 +224,55 @@ export default function PracticeGamePage() {
             >
               <DiscordIcon className="w-5 h-5" />
             </a>
+
+            {/* Bottom group */}
+            <div className="flex flex-col items-center gap-1">
+              {/* History button */}
+              <button
+                onClick={() => setShowMoveHistory(true)}
+                className="p-1.5 text-slate-400 hover:text-white transition-colors relative"
+                title="Move History"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="8" y1="6" x2="21" y2="6" />
+                  <line x1="8" y1="12" x2="21" y2="12" />
+                  <line x1="8" y1="18" x2="21" y2="18" />
+                  <line x1="3" y1="6" x2="3.01" y2="6" />
+                  <line x1="3" y1="12" x2="3.01" y2="12" />
+                  <line x1="3" y1="18" x2="3.01" y2="18" />
+                </svg>
+                {moveResults.length > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-purple-500 rounded-full text-[10px] text-white flex items-center justify-center px-1">
+                    {moveResults.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Audio debug button - only in dev mode */}
+              {DEBUG_AUDIO && (
+                <button
+                  onClick={() => setShowDebugPanel(!showDebugPanel)}
+                  className={`p-1.5 transition-colors ${showDebugPanel ? 'text-green-400' : 'text-slate-400 hover:text-green-400'}`}
+                  title="Audio Debug"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    {/* Microphone (smaller, shifted left) */}
+                    <path d="M9 2a2.5 2.5 0 0 0-2.5 2.5v6a2.5 2.5 0 0 0 5 0v-6A2.5 2.5 0 0 0 9 2z" />
+                    <path d="M14.5 9v1.5a5.5 5.5 0 0 1-11 0V9" />
+                    <line x1="9" y1="16" x2="9" y2="19" />
+                    <line x1="6" y1="19" x2="12" y2="19" />
+                    {/* Bug icon (debug) - bottom right */}
+                    <ellipse cx="18.5" cy="17" rx="3" ry="4" />
+                    <line x1="15.5" y1="15" x2="14" y2="13.5" />
+                    <line x1="21.5" y1="15" x2="23" y2="13.5" />
+                    <line x1="15.5" y1="17" x2="14" y2="17" />
+                    <line x1="21.5" y1="17" x2="23" y2="17" />
+                    <line x1="15.5" y1="19" x2="14" y2="20.5" />
+                    <line x1="21.5" y1="19" x2="23" y2="20.5" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Main content: board + controls */}
@@ -256,8 +310,8 @@ export default function PracticeGamePage() {
               <PracticeVoiceInput
                 onMoveSubmit={handleMoveSubmit}
                 disabled={showingOpponentMove}
-                onShowHistory={() => setShowMoveHistory(true)}
-                moveCount={moveResults.length}
+                showDebugPanel={showDebugPanel}
+                onCloseDebugPanel={() => setShowDebugPanel(false)}
               />
             </div>
 

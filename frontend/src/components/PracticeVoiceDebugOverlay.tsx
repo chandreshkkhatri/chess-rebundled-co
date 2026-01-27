@@ -1,7 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-
 interface PracticeVoiceDebugOverlayProps {
     volumeLevel: number;
     silenceThreshold: number;
@@ -9,6 +7,7 @@ interface PracticeVoiceDebugOverlayProps {
     isRecording: boolean;
     isActive: boolean;
     voiceParsingMode: string;
+    onClose: () => void;
 }
 
 export function PracticeVoiceDebugOverlay({
@@ -18,30 +17,18 @@ export function PracticeVoiceDebugOverlay({
     isRecording,
     isActive,
     voiceParsingMode,
+    onClose,
 }: PracticeVoiceDebugOverlayProps) {
-    const [isMinimized, setIsMinimized] = useState(false);
-
-    if (isMinimized) {
-        return (
-            <div className="fixed bottom-4 right-4 bg-black/90 text-white p-2 rounded-lg font-mono text-xs z-50 border border-green-500/50 cursor-pointer hover:bg-black" onClick={() => setIsMinimized(false)}>
-                <div className="flex items-center gap-2">
-                    <span className="text-green-400 font-bold">🎤 Debug</span>
-                    <span className="text-[10px] text-slate-400">Click to expand</span>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="fixed bottom-4 right-4 bg-black/90 text-white p-3 rounded-lg font-mono text-xs z-50 min-w-[200px] border border-green-500/50">
             <div className="flex justify-between items-center mb-2">
-                <div className="text-green-400 font-bold">🎤 Audio Debug</div>
+                <div className="text-green-400 font-bold">Audio Debug</div>
                 <button
-                    onClick={() => setIsMinimized(true)}
+                    onClick={onClose}
                     className="text-slate-400 hover:text-white px-1 -mr-1"
-                    title="Minimize"
+                    title="Close"
                 >
-                    _
+                    ×
                 </button>
             </div>
 
