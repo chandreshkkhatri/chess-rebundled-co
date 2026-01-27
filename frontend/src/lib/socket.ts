@@ -21,9 +21,10 @@ export function getSocket(): Socket {
 }
 
 export function setAuthToken(token: string | null): void {
+  const oldToken = currentAuthToken;
   currentAuthToken = token;
-  // If socket exists and is connected, update auth and reconnect to apply new token
-  if (socket && socket.connected && token !== currentAuthToken) {
+  // If socket exists and is connected, reconnect to apply new token
+  if (socket && socket.connected && token !== oldToken) {
     socket.disconnect();
     socket.connect();
   }
