@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
+import { Header } from '@/components/Header';
 
 export default function Home() {
   const router = useRouter();
@@ -29,12 +30,14 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Chess Rebundled</h1>
-          <p className="text-slate-400">Learn chess notation by speaking moves from famous games</p>
-        </div>
+    <>
+      <Header />
+      <main className="min-h-screen flex items-center justify-center p-4 pt-20">
+        <div className="max-w-md w-full">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-white mb-2">Chess Rebundled</h1>
+            <p className="text-slate-400">Learn chess notation by speaking moves from famous games</p>
+          </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-6">
           <div className="mb-6">
@@ -85,5 +88,6 @@ export default function Home() {
         </div>
       </div>
     </main>
+    </>
   );
 }

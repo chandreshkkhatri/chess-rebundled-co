@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import { initializeSocket } from './socket/index.js';
 import { connectToDatabase } from './services/database.js';
 import { seedGamesIfEmpty, getAllGames } from './services/gameRepository.js';
+import { userRoutes } from './routes/userRoutes.js';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -35,6 +36,9 @@ async function main() {
   fastify.get('/api/games', async () => {
     return await getAllGames();
   });
+
+  // Register user routes (profile, history)
+  await fastify.register(userRoutes);
 
   // Initialize Fastify (required for routes to work)
   await fastify.ready();
