@@ -4,8 +4,8 @@ import { PostHogProvider } from './providers';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Chess Rebundled - Voice Chess Memory Game',
-  description: 'Test your chess knowledge by speaking moves from famous historical games',
+  title: 'Chess Rebundled - Learn Chess Notation by Voice',
+  description: 'Master chess notation by speaking moves from famous historical games',
   manifest: '/manifest.json',
   icons: {
     icon: '/icons/icon-192x192.svg',

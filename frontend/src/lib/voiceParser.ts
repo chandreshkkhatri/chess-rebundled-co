@@ -61,9 +61,15 @@ export interface ParsedMove {
   ambiguousType?: 'db' | 'piece';
 }
 
-export function parseVoiceInput(transcript: string): ParsedMove {
+// Helper to check if a move matches any legal move (ignoring +/# suffixes)
+function isLegalMove(notation: string, legalMoves: string[]): boolean {
+  const clean = notation.replace(/[+#]/g, '');
+  return legalMoves.some(m => m.replace(/[+#]/g, '') === clean);
+}
+
+export function parseVoiceInput(transcript: string, legalMoves?: string[]): ParsedMove {
   const normalized = transcript.toLowerCase().trim();
-  const alternatives: string[] = [];
+  let alternatives: string[] = [];
   let hasAmbiguity = false;
 
   // Check for castling first
@@ -158,10 +164,45 @@ export function parseVoiceInput(transcript: string): ParsedMove {
     alternatives.push(altNotation);
   }
 
-  // Calculate confidence
+  // Calculate base confidence
   let confidence = 0.9;
   if (hasAmbiguity) confidence = 0.7;
   if (!file || !rank) confidence = 0.5;
+
+  // Validate against legal moves if provided
+  if (legalMoves && legalMoves.length > 0 && notation) {
+    const mainLegal = isLegalMove(notation, legalMoves);
+
+    if (mainLegal && !hasAmbiguity) {
+      // Exact match, no ambiguity - high confidence
+      confidence = 0.95;
+    } else if (hasAmbiguity && (file === 'd' || file === 'b')) {
+      // d/b ambiguity - try to resolve using legal moves
+      const altFile = file === 'd' ? 'b' : 'd';
+      const altNotation = notation.replace(file, altFile);
+      const altLegal = isLegalMove(altNotation, legalMoves);
+
+      if (mainLegal && !altLegal) {
+        // Only main is legal - resolve ambiguity
+        confidence = 0.95;
+        hasAmbiguity = false;
+        alternatives = [];
+      } else if (!mainLegal && altLegal) {
+        // Only alt is legal - swap to the legal one
+        notation = altNotation;
+        confidence = 0.95;
+        hasAmbiguity = false;
+        alternatives = [];
+      } else if (mainLegal && altLegal) {
+        // Both are legal - keep ambiguity but note both are valid
+        confidence = 0.75;
+      }
+      // If neither is legal, keep low confidence
+    } else if (!mainLegal) {
+      // Parsed move isn't legal - lower confidence
+      confidence = Math.min(confidence, 0.5);
+    }
+  }
 
   return {
     notation,

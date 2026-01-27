@@ -33,7 +33,7 @@ export default function Home() {
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">Chess Rebundled</h1>
-          <p className="text-slate-400">Test your chess memory with famous historical games</p>
+          <p className="text-slate-400">Learn chess notation by speaking moves from famous games</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-6">

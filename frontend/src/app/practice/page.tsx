@@ -199,6 +199,11 @@ export default function PracticeSelectPage() {
               <li>3. Speak the moves using voice input</li>
               <li>4. Track your accuracy and improve!</li>
             </ol>
+            <div className="mt-3 p-2 bg-slate-700/50 rounded text-xs text-slate-300 max-w-sm mx-auto">
+              <span className="text-yellow-400 font-semibold">Tip:</span> Use phonetic alphabet for clearer recognition:
+              <span className="text-blue-300"> &quot;delta 4&quot;</span> for d4,
+              <span className="text-blue-300"> &quot;bravo 3&quot;</span> for b3
+            </div>
           </div>
         </div>
       </main>

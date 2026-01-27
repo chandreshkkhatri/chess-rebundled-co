@@ -153,6 +153,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     useVoiceRecognition({
       continuous: true,
       onResult: handleVoiceResult,
+      legalMoves,
     });
 
   // Gemini Voice hook
@@ -305,6 +306,9 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
                   {move}
                 </button>
               ))}
+            </div>
+            <div className="text-[9px] text-slate-500 text-center mt-1">
+              Tip: Say &quot;delta&quot; for d, &quot;bravo&quot; for b
             </div>
           </div>
         )}

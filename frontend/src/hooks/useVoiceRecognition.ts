@@ -10,12 +10,14 @@ const INTERIM_MIN_CONFIDENCE = 0.75; // Minimum confidence to trigger early
 interface UseVoiceRecognitionOptions {
   onResult?: (move: string, confidence: number) => void;
   continuous?: boolean;
+  legalMoves?: string[];
 }
 
 export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
-  const { onResult, continuous = false } = options;
+  const { onResult, continuous = false, legalMoves } = options;
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const onResultRef = useRef(onResult);
+  const legalMovesRef = useRef(legalMoves);
   const [isSupported, setIsSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -28,10 +30,14 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
   const hasTriggeredRef = useRef(false); // Prevent double-triggering
   const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Keep onResult ref up to date
+  // Keep refs up to date
   useEffect(() => {
     onResultRef.current = onResult;
   }, [onResult]);
+
+  useEffect(() => {
+    legalMovesRef.current = legalMoves;
+  }, [legalMoves]);
 
   useEffect(() => {
     // Check for browser support
@@ -91,7 +97,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
       const rawTranscript = results[0].transcript.trim();
 
       // Always update live transcript and a local parsed preview for immediate UI feedback
-      const parsed = parseVoiceInput(rawTranscript);
+      const parsed = parseVoiceInput(rawTranscript, legalMovesRef.current);
       setTranscript(rawTranscript);
       setParsedPreview(parsed.notation);
       setConfidence(parsed.confidence);
