@@ -8,6 +8,8 @@ import {
   PracticeStatus,
   PracticeMode,
   AIParsedMoveResult,
+  PracticeStartedData,
+  PracticeNextMoveData,
 } from '@/types';
 
 interface PracticeState {
@@ -60,24 +62,8 @@ interface PracticeState {
   setConnected: (connected: boolean) => void;
   setPlayerName: (name: string) => void;
   setAvailableGames: (games: HistoricalGame[]) => void;
-  startSession: (data: {
-    sessionId: string;
-    game: HistoricalGame;
-    position: string;
-    currentMoveIndex: number;
-    currentSide: 'white' | 'black';
-    expectedMove: MoveDetails;
-    totalMoves: number;
-    mode: PracticeMode;
-    playerColor: 'white' | 'black' | null;
-  }) => void;
-  updatePosition: (data: {
-    position: string;
-    currentMoveIndex: number;
-    currentSide: 'white' | 'black';
-    expectedMove: MoveDetails;
-    opponentMove?: MoveDetails;
-  }) => void;
+  startSession: (data: PracticeStartedData) => void;
+  updatePosition: (data: PracticeNextMoveData) => void;
   setPendingOpponentMove: (move: MoveDetails | null) => void;
   setMoveResult: (result: PracticeMoveResult) => void;
   setCompleted: (data: PracticeCompletedData) => void;
@@ -117,7 +103,9 @@ const initialState = {
   aiParseResult: null as AIParsedMoveResult | null,
   aiParseError: null as string | null,
   isAIParsing: false,
-  voiceParsingMode: 'gemini-audio' as const,
+  voiceParsingMode: (process.env.NEXT_PUBLIC_VOICE_PARSING_MODE === 'gemini-audio'
+    ? 'gemini-audio'
+    : 'webspeech-haiku') as 'webspeech-haiku' | 'gemini-audio',
   geminiTranscription: null as string | null,
 };
 

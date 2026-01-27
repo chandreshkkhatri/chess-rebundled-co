@@ -3,6 +3,10 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { parseVoiceInput } from '@/lib/voiceParser';
 
+// Configuration for early interim result triggering
+const INTERIM_STABILITY_MS = 300; // Trigger early if same result for this long
+const INTERIM_MIN_CONFIDENCE = 0.75; // Minimum confidence to trigger early
+
 interface UseVoiceRecognitionOptions {
   onResult?: (move: string, confidence: number) => void;
   continuous?: boolean;
@@ -15,8 +19,14 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
   const [isSupported, setIsSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [parsedPreview, setParsedPreview] = useState('');
   const [confidence, setConfidence] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  // Track interim results for early triggering
+  const lastInterimRef = useRef<{ notation: string; timestamp: number } | null>(null);
+  const hasTriggeredRef = useRef(false); // Prevent double-triggering
+  const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Keep onResult ref up to date
   useEffect(() => {
@@ -80,21 +90,75 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
       const results = event.results[event.resultIndex];
       const rawTranscript = results[0].transcript.trim();
 
+      // Always update live transcript and a local parsed preview for immediate UI feedback
+      const parsed = parseVoiceInput(rawTranscript);
+      setTranscript(rawTranscript);
+      setParsedPreview(parsed.notation);
+      setConfidence(parsed.confidence);
+
+      const moveForCallback = parsed.notation || rawTranscript;
+
       if (results.isFinal) {
-        // Parse the voice input for local state (confidence display)
-        const parsed = parseVoiceInput(rawTranscript);
-
-        setTranscript(rawTranscript);
-        setConfidence(parsed.confidence);
-
-        // Call the result callback with RAW transcript for AI parsing
-        // Always call if we have a transcript - AI will handle parsing
-        if (onResultRef.current && rawTranscript) {
-          onResultRef.current(rawTranscript, parsed.confidence);
+        // Clear stability timer since we got final result
+        if (stabilityTimerRef.current) {
+          clearTimeout(stabilityTimerRef.current);
+          stabilityTimerRef.current = null;
         }
+
+        // Only trigger if we haven't already triggered early
+        if (!hasTriggeredRef.current && onResultRef.current && moveForCallback) {
+          onResultRef.current(moveForCallback, parsed.confidence);
+        }
+        // Reset for next recognition
+        hasTriggeredRef.current = false;
+        lastInterimRef.current = null;
       } else {
-        // Interim result
-        setTranscript(rawTranscript);
+        // Interim result - check for early trigger opportunity
+        const now = Date.now();
+
+        // Skip if we've already triggered for this recognition session
+        if (hasTriggeredRef.current) return;
+
+        // Skip if no valid parsed move
+        if (!parsed.notation) {
+          lastInterimRef.current = null;
+          return;
+        }
+
+        // Check if this is the same result as before
+        if (lastInterimRef.current && lastInterimRef.current.notation === parsed.notation) {
+          // Same result - check if stable for long enough
+          const elapsed = now - lastInterimRef.current.timestamp;
+          if (elapsed >= INTERIM_STABILITY_MS && parsed.confidence >= INTERIM_MIN_CONFIDENCE) {
+            // Trigger early callback!
+            if (onResultRef.current) {
+              hasTriggeredRef.current = true;
+              onResultRef.current(moveForCallback, parsed.confidence);
+            }
+          }
+        } else {
+          // New result - start stability timer
+          lastInterimRef.current = { notation: parsed.notation, timestamp: now };
+
+          // Clear existing timer
+          if (stabilityTimerRef.current) {
+            clearTimeout(stabilityTimerRef.current);
+          }
+
+          // Set new timer to check stability after INTERIM_STABILITY_MS
+          if (parsed.confidence >= INTERIM_MIN_CONFIDENCE) {
+            stabilityTimerRef.current = setTimeout(() => {
+              stabilityTimerRef.current = null;
+              // Re-check conditions in case something changed
+              if (!hasTriggeredRef.current &&
+                  lastInterimRef.current?.notation === parsed.notation &&
+                  onResultRef.current) {
+                hasTriggeredRef.current = true;
+                onResultRef.current(parsed.notation, parsed.confidence);
+              }
+            }, INTERIM_STABILITY_MS);
+          }
+        }
       }
     };
 
@@ -104,14 +168,26 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
       if (recognitionRef.current) {
         recognitionRef.current.abort();
       }
+      if (stabilityTimerRef.current) {
+        clearTimeout(stabilityTimerRef.current);
+        stabilityTimerRef.current = null;
+      }
     };
   }, [continuous]);
 
   const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening) {
       setTranscript('');
+      setParsedPreview('');
       setConfidence(0);
       setError(null);
+      // Reset early trigger tracking
+      hasTriggeredRef.current = false;
+      lastInterimRef.current = null;
+      if (stabilityTimerRef.current) {
+        clearTimeout(stabilityTimerRef.current);
+        stabilityTimerRef.current = null;
+      }
       try {
         recognitionRef.current.start();
       } catch (e) {
@@ -130,6 +206,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     isSupported,
     isListening,
     transcript,
+    parsedPreview,
     confidence,
     error,
     startListening,

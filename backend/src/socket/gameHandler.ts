@@ -1,16 +1,61 @@
 import { Server, Socket } from 'socket.io';
 import { PracticeService } from '../services/practiceService.js';
-import { parseChessMoveWithAI } from '../services/aiMoveParser.js';
+import { parseChessMoveWithAI, AIParsedMove } from '../services/aiMoveParser.js';
 import { parseChessMoveFromAudio } from '../services/geminiAudioParser.js';
 import { ClientToServerEvents, ServerToClientEvents } from '../types/index.js';
+import crypto from 'crypto';
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 
+// AI parsing cache entry
+interface AIParseCacheEntry {
+  result: AIParsedMove;
+  timestamp: number;
+}
+
 export class GameHandler {
   private practiceService: PracticeService;
+  // AI parsing response cache (keyed by hash of transcript + fen)
+  private aiParseCache: Map<string, AIParseCacheEntry> = new Map();
+  private static readonly AI_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  private static readonly AI_CACHE_MAX_SIZE = 500;
 
   constructor(private io: Server<ClientToServerEvents, ServerToClientEvents>) {
     this.practiceService = new PracticeService();
+  }
+
+  // Generate cache key for AI parsing
+  private getAIParseCacheKey(transcript: string, fen: string): string {
+    const data = `${transcript.toLowerCase().trim()}:${fen}`;
+    return crypto.createHash('md5').update(data).digest('hex');
+  }
+
+  // Get cached AI parse result if valid
+  private getCachedAIParse(transcript: string, fen: string): AIParsedMove | null {
+    const key = this.getAIParseCacheKey(transcript, fen);
+    const entry = this.aiParseCache.get(key);
+    if (entry && Date.now() - entry.timestamp < GameHandler.AI_CACHE_TTL_MS) {
+      return entry.result;
+    }
+    // Remove expired entry
+    if (entry) {
+      this.aiParseCache.delete(key);
+    }
+    return null;
+  }
+
+  // Cache AI parse result
+  private cacheAIParse(transcript: string, fen: string, result: AIParsedMove): void {
+    const key = this.getAIParseCacheKey(transcript, fen);
+    this.aiParseCache.set(key, { result, timestamp: Date.now() });
+
+    // Evict oldest entries if cache exceeds max size
+    if (this.aiParseCache.size > GameHandler.AI_CACHE_MAX_SIZE) {
+      const entries = Array.from(this.aiParseCache.entries());
+      entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+      const toDelete = entries.slice(0, 50);
+      toDelete.forEach(([k]) => this.aiParseCache.delete(k));
+    }
   }
 
   register(socket: GameSocket): void {
@@ -108,20 +153,24 @@ export class GameHandler {
         return;
       }
 
-      socket.emit('practice-move-result', result);
+      // Check if session is complete and prepare response data
+      const isComplete = this.practiceService.isSessionComplete(data.sessionId);
+      const completedData = isComplete ? this.practiceService.completeSession(data.sessionId) : null;
+      const nextMoveData = !isComplete ? this.practiceService.getNextMoveData(data.sessionId) : null;
 
-      // Check if session is complete
-      if (this.practiceService.isSessionComplete(data.sessionId)) {
-        const completedData = this.practiceService.completeSession(data.sessionId);
-        if (completedData) {
-          socket.emit('practice-completed', completedData);
-        }
-      } else {
-        // Send next move data
-        const nextMoveData = this.practiceService.getNextMoveData(data.sessionId);
-        if (nextMoveData) {
-          socket.emit('practice-next-move', nextMoveData);
-        }
+      // Emit combined response (single round-trip instead of 2)
+      socket.emit('practice-move-response', {
+        result,
+        nextMove: nextMoveData || undefined,
+        completed: completedData || undefined,
+      });
+
+      // Also emit legacy events for backward compatibility
+      socket.emit('practice-move-result', result);
+      if (completedData) {
+        socket.emit('practice-completed', completedData);
+      } else if (nextMoveData) {
+        socket.emit('practice-next-move', nextMoveData);
       }
     } catch (error) {
        console.error('Error submitting practice move:', error);
@@ -155,11 +204,19 @@ export class GameHandler {
     const legalMoves = this.practiceService.getLegalMoves(data.sessionId);
 
     try {
-      const parsed = await parseChessMoveWithAI(
-        data.transcript,
-        currentFen,
-        legalMoves
-      );
+      // Check cache first for AI parsing results
+      let parsed = this.getCachedAIParse(data.transcript, currentFen);
+
+      if (!parsed) {
+        // Cache miss - call AI
+        parsed = await parseChessMoveWithAI(
+          data.transcript,
+          currentFen,
+          legalMoves
+        );
+        // Cache the result
+        this.cacheAIParse(data.transcript, currentFen, parsed);
+      }
 
       socket.emit('move-parsed', {
         transcript: data.transcript,

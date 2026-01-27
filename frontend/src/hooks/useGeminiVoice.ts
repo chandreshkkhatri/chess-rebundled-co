@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 interface UseGeminiVoiceOptions {
   onAudioReady?: (audioBase64: string, mimeType: string) => void;
   silenceThreshold?: number; // Volume level to consider as silence (0-1), default 0.02
-  silenceDuration?: number; // ms of silence before stopping, default 1500
+  silenceDuration?: number; // ms of silence before stopping, default 800 (reduced from 1500 for lower latency)
   maxDuration?: number; // max recording duration in ms, default 8000
 }
 
@@ -13,7 +13,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
   const {
     onAudioReady,
     silenceThreshold = 0.02,
-    silenceDuration = 1500,
+    silenceDuration = 400, // Reduced from 800ms for lower latency
     maxDuration = 8000,
   } = options;
 
@@ -108,7 +108,15 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
         return;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+          sampleRate: { ideal: 16000 }, // Optimal for speech recognition
+        },
+      });
       streamRef.current = stream;
 
       // Set up audio analysis for volume detection
@@ -124,8 +132,8 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/webm')
-        ? 'audio/webm'
-        : 'audio/wav';
+          ? 'audio/webm'
+          : 'audio/wav';
 
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
@@ -173,7 +181,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
         animationFrameRef.current = null;
       }
       if (audioContextRef.current) {
-        audioContextRef.current.close().catch(() => {});
+        audioContextRef.current.close().catch(() => { });
         audioContextRef.current = null;
       }
       if (streamRef.current) {
