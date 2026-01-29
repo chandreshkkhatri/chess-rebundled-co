@@ -16,6 +16,9 @@ const DEBUG_AUDIO = process.env.NODE_ENV !== 'production';
 // Lowered from 0.85 to 0.70 to skip AI for more moves (d/b files get 0.7 confidence)
 const LOCAL_PARSE_CONFIDENCE_THRESHOLD = 0.70;
 
+// Confidence threshold for auto-submit (automatically submit if above this AND move is legal)
+const AUTO_SUBMIT_CONFIDENCE_THRESHOLD = 0.85;
+
 // Cooldown to prevent rapid re-triggering from continuous speech recognition
 const RESULT_COOLDOWN_MS = 500;
 
@@ -124,12 +127,22 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
         reasoning: confidence >= LOCAL_PARSE_CONFIDENCE_THRESHOLD ? 'Parsed locally' : 'Local preview (refining...)',
       });
 
+      // Auto-submit for high confidence legal moves
+      if (confidence >= AUTO_SUBMIT_CONFIDENCE_THRESHOLD && isLegalMove(parsedMove)) {
+        setSelectedMove(parsedMove);
+        // Small delay to show the selection visually before submitting
+        setTimeout(() => {
+          onMoveSubmit(parsedMove, confidence);
+        }, 150);
+        return;
+      }
+
       if (confidence < LOCAL_PARSE_CONFIDENCE_THRESHOLD) {
         // Low confidence - call Haiku for refinement
         parseMoveWithAI(sessionId, parsedMove);
       }
     }
-  }, [parseMoveWithAI, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, voiceParsingMode, selectedMove, isLegalMove]);
+  }, [parseMoveWithAI, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, voiceParsingMode, selectedMove, isLegalMove, onMoveSubmit]);
 
   // Handle audio ready from Gemini voice (Gemini mode)
   // Block new requests while already parsing to prevent race conditions
@@ -142,11 +155,24 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
   }, [parseAudioMoveWithGemini, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, voiceParsingMode]);
 
   // Auto-select parsed move when AI result comes in (but not during submission)
+  // Also auto-submit for high confidence results (covers Gemini mode and Haiku refinements)
   useEffect(() => {
-    if (aiParseResult?.parsedMove && !isSubmitting) {
+    if (aiParseResult?.parsedMove && !isSubmitting && isActive) {
       setSelectedMove(aiParseResult.parsedMove);
+
+      // Auto-submit for high confidence legal moves from AI parsing
+      if (
+        aiParseResult.confidence >= AUTO_SUBMIT_CONFIDENCE_THRESHOLD &&
+        isLegalMove(aiParseResult.parsedMove)
+      ) {
+        // Small delay to show the selection visually before submitting
+        const timeoutId = setTimeout(() => {
+          onMoveSubmit(aiParseResult.parsedMove, aiParseResult.confidence);
+        }, 150);
+        return () => clearTimeout(timeoutId);
+      }
     }
-  }, [aiParseResult, isSubmitting]);
+  }, [aiParseResult, isSubmitting, isActive, isLegalMove, onMoveSubmit]);
 
   // Web Speech API hook
   const { isSupported: isWebSpeechSupported, isListening: isWebSpeechListening, parsedPreview, error: webSpeechError, startListening: startWebSpeechListening, stopListening: stopWebSpeechListening } =

@@ -14,14 +14,11 @@ export function getSocket(): Socket {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
-      auth: () => ({
-        token: currentAuthToken,
-      }),
-      // Extra headers to bypass ngrok browser warning for API requests
+      transports: ['polling', 'websocket'],
+      auth: { token: currentAuthToken },
       extraHeaders: {
         'ngrok-skip-browser-warning': '1',
       },
-      // Ensure credentials are sent with requests
       withCredentials: true,
     });
   }
@@ -31,7 +28,9 @@ export function getSocket(): Socket {
 export function setAuthToken(token: string | null): void {
   const oldToken = currentAuthToken;
   currentAuthToken = token;
-  // If socket exists and is connected, reconnect to apply new token
+  if (socket) {
+    socket.auth = { token: currentAuthToken };
+  }
   if (socket && socket.connected && token !== oldToken) {
     socket.disconnect();
     socket.connect();
