@@ -4,6 +4,7 @@ import { useEffect, useCallback, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { usePracticeStore } from '@/stores/practiceStore';
+import { useAuth } from '@/contexts/AuthContext';
 import { ChessBoard } from '@/components/ChessBoard';
 import { PracticeVoiceInput } from '@/components/PracticeVoiceInput';
 import { PracticeResults } from '@/components/PracticeResults';
@@ -25,6 +26,7 @@ export default function PracticeGamePage() {
   const [showSettings, setShowSettings] = useState(false);
 
   const { submitPracticeMove, abandonPractice } = usePracticeSocket();
+  const { user, isAnonymous } = useAuth();
   const {
     status,
     currentPosition,
@@ -43,10 +45,25 @@ export default function PracticeGamePage() {
     error,
     setError,
     isStarting,
+    playerName,
   } = usePracticeStore();
 
   // Calculate correct moves so far (memoized to avoid recalculating on every render)
   const correctMoves = useMemo(() => moveResults.filter((r) => r.isCorrect).length, [moveResults]);
+
+  // Calculate live accuracy percentage
+  const liveAccuracy = useMemo(() => {
+    if (moveResults.length === 0) return 100;
+    return Math.round((correctMoves / moveResults.length) * 100);
+  }, [correctMoves, moveResults.length]);
+
+  // Determine the display name for the player
+  const displayName = useMemo(() => {
+    if (user && !isAnonymous) {
+      return playerName || user.displayName || 'You';
+    }
+    return playerName || 'You';
+  }, [user, isAnonymous, playerName]);
 
   // Board orientation: in one-side mode, use player's color; otherwise follow current side
   const boardOrientation = mode === 'one-side' && playerColor ? playerColor : currentSide;
@@ -168,6 +185,20 @@ export default function PracticeGamePage() {
                 )}
               </div>
             </div>
+            {/* Live accuracy - only show after first move */}
+            {moveResults.length > 0 && (
+              <div
+                className={`text-xs font-medium px-2 py-0.5 rounded ${
+                  liveAccuracy >= 80
+                    ? 'bg-green-600/20 text-green-400'
+                    : liveAccuracy >= 60
+                    ? 'bg-yellow-600/20 text-yellow-400'
+                    : 'bg-red-600/20 text-red-400'
+                }`}
+              >
+                {liveAccuracy}%
+              </div>
+            )}
             {/* Progress indicator */}
             <div className="flex items-center gap-1.5">
               <span className="text-slate-400 text-xs">{currentMoveIndex}/{totalMoves}</span>
@@ -178,28 +209,20 @@ export default function PracticeGamePage() {
                 />
               </div>
             </div>
-            {/* Side indicator with "You" */}
-            {mode === 'one-side' && playerColor ? (
-              <div
-                className={`text-xs font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${
-                  playerColor === 'white'
-                    ? 'bg-white text-slate-800'
-                    : 'bg-slate-600 text-white'
-                }`}
-              >
-                {playerColor === 'white' ? '⬜' : '⬛'} You
-              </div>
-            ) : (
-              <div
-                className={`text-xs font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${
-                  currentSide === 'white'
-                    ? 'bg-white text-slate-800'
-                    : 'bg-slate-600 text-white'
-                }`}
-              >
-                {currentSide === 'white' ? '⬜' : '⬛'} You
-              </div>
-            )}
+            {/* Player indicator with name and avatar */}
+            <div
+              className={`text-xs font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${
+                (mode === 'one-side' && playerColor ? playerColor : currentSide) === 'white'
+                  ? 'bg-white text-slate-800'
+                  : 'bg-slate-600 text-white'
+              }`}
+            >
+              {(mode === 'one-side' && playerColor ? playerColor : currentSide) === 'white' ? '⬜' : '⬛'}
+              {user && !isAnonymous && user.photoURL ? (
+                <img src={user.photoURL} alt="" className="w-4 h-4 rounded-full" />
+              ) : null}
+              <span className="max-w-[60px] truncate">{displayName}</span>
+            </div>
             {/* Settings - desktop only */}
             <button
               onClick={() => setShowSettings(true)}

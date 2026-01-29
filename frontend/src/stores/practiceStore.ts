@@ -77,6 +77,7 @@ interface PracticeState {
   setAIParseError: (error: string | null) => void;
   setAIParsing: (isParsing: boolean) => void;
   clearAIParseState: () => void;
+  clearLastMoveResult: () => void;
   setVoiceParsingMode: (mode: 'webspeech-haiku' | 'gemini-audio') => void;
   setGeminiTranscription: (transcription: string | null) => void;
   setAutoSubmitEnabled: (enabled: boolean) => void;
@@ -186,6 +187,8 @@ export const usePracticeStore = create<PracticeState>()(
       setAIParsing: (isParsing) => set({ isAIParsing: isParsing }),
 
       clearAIParseState: () => set({ aiParseResult: null, aiParseError: null, isAIParsing: false, geminiTranscription: null }),
+
+      clearLastMoveResult: () => set({ lastMoveResult: null }),
 
       setVoiceParsingMode: (mode) => set({ voiceParsingMode: mode }),
 

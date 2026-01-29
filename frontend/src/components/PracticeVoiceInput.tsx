@@ -60,6 +60,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     aiParseError,
     isAIParsing,
     clearAIParseState,
+    clearLastMoveResult,
     voiceParsingMode,
     currentPosition,
     currentExpectedMove,
@@ -101,6 +102,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
   // Handle selecting a move option (from tap)
   const handleSelectOption = useCallback((move: string) => {
     if (!isSubmitting && isActive) {
+      clearLastMoveResult(); // Clear stale feedback from previous move
       setSelectedMove(move);
       // Set a simple AI parse result so the UI shows it properly
       usePracticeStore.getState().setAIParseResult({
@@ -111,7 +113,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
         reasoning: 'Selected from options',
       });
     }
-  }, [isSubmitting, isActive]);
+  }, [isSubmitting, isActive, clearLastMoveResult]);
 
   // Handle voice result - hook now passes parsed notation (e.g. "e4") directly
   // Block new requests while already parsing to prevent race conditions
@@ -137,6 +139,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
 
       // Clear previous state
       clearAIParseState();
+      clearLastMoveResult(); // Clear stale feedback from previous move
       setSelectedMove(null);
 
       // Always surface a local parse immediately so the UI feels responsive.
@@ -164,17 +167,18 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
         parseMoveWithAI(sessionId, parsedMove);
       }
     }
-  }, [parseMoveWithAI, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, voiceParsingMode, selectedMove, isLegalMove, onMoveSubmit, autoSubmitEnabled]);
+  }, [parseMoveWithAI, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, clearLastMoveResult, voiceParsingMode, selectedMove, isLegalMove, onMoveSubmit, autoSubmitEnabled]);
 
   // Handle audio ready from Gemini voice (Gemini mode)
   // Block new requests while already parsing to prevent race conditions
   const handleAudioReady = useCallback((audioBase64: string, mimeType: string) => {
     if (!isSubmitting && !isAIParsing && isActive && sessionId && voiceParsingMode === 'gemini-audio') {
       clearAIParseState();
+      clearLastMoveResult(); // Clear stale feedback from previous move
       setSelectedMove(null);
       parseAudioMoveWithGemini(sessionId, audioBase64, mimeType);
     }
-  }, [parseAudioMoveWithGemini, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, voiceParsingMode]);
+  }, [parseAudioMoveWithGemini, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, clearLastMoveResult, voiceParsingMode]);
 
   // Auto-select parsed move when AI result comes in (but not during submission)
   // Also auto-submit for high confidence results (covers Gemini mode and Haiku refinements)

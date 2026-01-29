@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { PracticeCompletedData } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 import { MoveHistory } from './MoveHistory';
 
 // Utility functions extracted outside component to prevent recreation
@@ -25,6 +27,9 @@ interface PracticeResultsProps {
 }
 
 export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
+  const { user, isAnonymous } = useAuth();
+  const isAuthenticated = user && !isAnonymous;
+
   const accuracyPercent = (data.accuracy * 100).toFixed(1);
   const avgTimePerMove = (data.averageTimePerMove / 1000).toFixed(1);
   const performance = getPerformanceMessage(data.accuracy);
@@ -98,6 +103,28 @@ export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
           {data.game.event}, {data.game.year}
         </p>
       </div>
+
+      {/* Auto-save confirmation for authenticated users */}
+      {isAuthenticated ? (
+        <div className="text-center mb-4">
+          <div className="inline-flex items-center gap-1.5 text-sm text-green-600 bg-green-50 px-3 py-1.5 rounded-full">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Saved to your history
+          </div>
+          <Link
+            href="/history"
+            className="block mt-2 text-sm text-purple-600 hover:text-purple-700 underline"
+          >
+            View all sessions
+          </Link>
+        </div>
+      ) : (
+        <p className="text-center text-xs text-gray-400 mb-3">
+          Sign in to save your progress
+        </p>
+      )}
 
       <button
         onClick={onPlayAgain}
