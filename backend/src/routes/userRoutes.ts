@@ -87,6 +87,13 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         return;
       }
 
+      // Validate characters: allow alphanumeric, spaces, hyphens, underscores, periods
+      const validNamePattern = /^[\w\s.\-]+$/;
+      if (!validNamePattern.test(sanitizedName)) {
+        reply.code(400).send({ error: 'displayName contains invalid characters' });
+        return;
+      }
+
       await updateUserDisplayName(auth.uid, sanitizedName);
       return { success: true, displayName: sanitizedName };
     }

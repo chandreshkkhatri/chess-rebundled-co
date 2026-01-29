@@ -31,17 +31,18 @@ export async function firebaseAuthMiddleware(
         socket.data.isAnonymous = decodedToken.firebase?.sign_in_provider === 'anonymous';
         socket.data.email = decodedToken.email || null;
 
-        console.log(`Socket authenticated: uid=${decodedToken.uid}, anonymous=${socket.data.isAnonymous}`);
+        console.log(`[Auth] Socket ${socket.id} authenticated: uid=${decodedToken.uid}, anonymous=${socket.data.isAnonymous}`);
       } else {
         // Invalid token - allow connection but without auth
-        console.warn('Invalid Firebase token provided, allowing unauthenticated connection');
+        // Log for security monitoring
+        console.warn(`[Auth] Socket ${socket.id}: Invalid Firebase token provided, allowing unauthenticated connection`);
       }
     }
 
     // Always allow connection (for backward compatibility with existing flow)
     next();
   } catch (error) {
-    console.error('Socket auth middleware error:', error);
+    console.error(`[Auth] Socket ${socket.id} auth error:`, error);
     // Don't block connection on auth errors
     next();
   }

@@ -39,7 +39,8 @@ export default function HistoryPage() {
           return;
         }
 
-        const apiUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+        // Use same-origin when SOCKET_URL is not set (production with backend on same domain)
+        const apiUrl = process.env.NEXT_PUBLIC_SOCKET_URL || '';
         const response = await fetch(`${apiUrl}/api/user/sessions?limit=50`, {
           headers: {
             Authorization: `Bearer ${token}`,

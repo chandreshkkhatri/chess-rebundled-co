@@ -1,6 +1,6 @@
 import { firestore } from '../lib/firebase-admin.js';
 import { Timestamp } from 'firebase-admin/firestore';
-import { PracticeSession, PracticeCompletedData, PracticeMoveResult, PracticeMode } from '../types/index.js';
+import { PracticeSession, PracticeCompletedData, PracticeMode } from '../types/index.js';
 
 // Firestore document types
 export interface FirestoreUser {
