@@ -58,6 +58,9 @@ interface PracticeState {
   voiceParsingMode: 'webspeech-haiku' | 'gemini-audio';
   geminiTranscription: string | null;
 
+  // Settings
+  autoSubmitEnabled: boolean;
+
   // Actions
   setConnected: (connected: boolean) => void;
   setPlayerName: (name: string) => void;
@@ -76,6 +79,7 @@ interface PracticeState {
   clearAIParseState: () => void;
   setVoiceParsingMode: (mode: 'webspeech-haiku' | 'gemini-audio') => void;
   setGeminiTranscription: (transcription: string | null) => void;
+  setAutoSubmitEnabled: (enabled: boolean) => void;
   reset: () => void;
 }
 
@@ -107,6 +111,7 @@ const initialState = {
     ? 'gemini-audio'
     : 'webspeech-haiku') as 'webspeech-haiku' | 'gemini-audio',
   geminiTranscription: null as string | null,
+  autoSubmitEnabled: false,
 };
 
 export const usePracticeStore = create<PracticeState>()(
@@ -186,6 +191,8 @@ export const usePracticeStore = create<PracticeState>()(
 
       setGeminiTranscription: (transcription) => set({ geminiTranscription: transcription }),
 
+      setAutoSubmitEnabled: (enabled) => set({ autoSubmitEnabled: enabled }),
+
       reset: () => set(initialState),
     }),
     {
@@ -205,11 +212,12 @@ export const usePracticeStore = create<PracticeState>()(
           sessionStorage.removeItem(name);
         },
       },
-      // Only persist player name and voice mode - session state should not survive page refreshes
+      // Only persist player name, voice mode, and settings - session state should not survive page refreshes
       partialize: (state) =>
         ({
           playerName: state.playerName,
           voiceParsingMode: state.voiceParsingMode,
+          autoSubmitEnabled: state.autoSubmitEnabled,
         }) as unknown as PracticeState,
     }
   )

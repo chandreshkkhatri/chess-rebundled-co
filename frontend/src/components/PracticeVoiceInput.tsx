@@ -42,6 +42,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     voiceParsingMode,
     currentPosition,
     currentExpectedMove,
+    autoSubmitEnabled,
   } = usePracticeStore();
   const { parseMoveWithAI, parseAudioMoveWithGemini } = usePracticeSocket();
   const isActive = status === 'playing' && !disabled;
@@ -127,8 +128,8 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
         reasoning: confidence >= LOCAL_PARSE_CONFIDENCE_THRESHOLD ? 'Parsed locally' : 'Local preview (refining...)',
       });
 
-      // Auto-submit for high confidence legal moves
-      if (confidence >= AUTO_SUBMIT_CONFIDENCE_THRESHOLD && isLegalMove(parsedMove)) {
+      // Auto-submit for high confidence legal moves (if enabled)
+      if (autoSubmitEnabled && confidence >= AUTO_SUBMIT_CONFIDENCE_THRESHOLD && isLegalMove(parsedMove)) {
         setSelectedMove(parsedMove);
         // Small delay to show the selection visually before submitting
         setTimeout(() => {
@@ -142,7 +143,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
         parseMoveWithAI(sessionId, parsedMove);
       }
     }
-  }, [parseMoveWithAI, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, voiceParsingMode, selectedMove, isLegalMove, onMoveSubmit]);
+  }, [parseMoveWithAI, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, voiceParsingMode, selectedMove, isLegalMove, onMoveSubmit, autoSubmitEnabled]);
 
   // Handle audio ready from Gemini voice (Gemini mode)
   // Block new requests while already parsing to prevent race conditions
@@ -160,8 +161,9 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     if (aiParseResult?.parsedMove && !isSubmitting && isActive) {
       setSelectedMove(aiParseResult.parsedMove);
 
-      // Auto-submit for high confidence legal moves from AI parsing
+      // Auto-submit for high confidence legal moves from AI parsing (if enabled)
       if (
+        autoSubmitEnabled &&
         aiParseResult.confidence >= AUTO_SUBMIT_CONFIDENCE_THRESHOLD &&
         isLegalMove(aiParseResult.parsedMove)
       ) {
@@ -172,7 +174,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
         return () => clearTimeout(timeoutId);
       }
     }
-  }, [aiParseResult, isSubmitting, isActive, isLegalMove, onMoveSubmit]);
+  }, [aiParseResult, isSubmitting, isActive, isLegalMove, onMoveSubmit, autoSubmitEnabled]);
 
   // Web Speech API hook
   const { isSupported: isWebSpeechSupported, isListening: isWebSpeechListening, parsedPreview, error: webSpeechError, startListening: startWebSpeechListening, stopListening: stopWebSpeechListening } =

@@ -1,6 +1,7 @@
 'use client';
 
 import { PracticeCompletedData } from '@/types';
+import { MoveHistory } from './MoveHistory';
 
 // Utility functions extracted outside component to prevent recreation
 function formatTime(ms: number): string {
@@ -61,33 +62,16 @@ export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
       {/* Move Review */}
       <div className="mb-6">
         <h3 className="font-semibold text-gray-700 mb-2">Move Review</h3>
-        <div className="max-h-40 overflow-y-auto bg-gray-50 rounded-lg p-2">
-          {data.moveResults.map((result, idx) => (
-            <div
-              key={idx}
-              className={`text-sm py-1 px-2 rounded mb-1 flex items-center justify-between ${
-                result.isCorrect ? 'bg-green-100' : 'bg-red-100'
-              }`}
-            >
-              <span className="font-mono">
-                <span className="text-gray-500 mr-2">
-                  {Math.floor(idx / 2) + 1}
-                  {idx % 2 === 0 ? '.' : '...'}
-                </span>
-                {result.isCorrect ? (
-                  result.expectedMove
-                ) : (
-                  <>
-                    <span className="line-through text-red-600">{result.submittedMove}</span>
-                    <span className="text-gray-600 ml-1">({result.expectedMove})</span>
-                  </>
-                )}
-              </span>
-              <span className={result.isCorrect ? 'text-green-600' : 'text-red-600'}>
-                {result.isCorrect ? '✓' : '✗'}
-              </span>
-            </div>
-          ))}
+        <div className="bg-gray-50 rounded-lg p-2">
+          <MoveHistory
+            moves={data.moveResults}
+            mode="both-sides"
+            playerColor={null}
+            variant="full"
+            theme="light"
+            maxHeight="max-h-40"
+            autoScroll={false}
+          />
         </div>
       </div>
 
