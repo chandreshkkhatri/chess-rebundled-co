@@ -3,6 +3,7 @@ import { PracticeService } from '../services/practiceService.js';
 import { parseChessMoveWithAI, AIParsedMove } from '../services/aiMoveParser.js';
 import { parseChessMoveFromAudio } from '../services/geminiAudioParser.js';
 import { ClientToServerEvents, ServerToClientEvents } from '../types/index.js';
+import { saveCompletedSession, ensureUserExists } from '../services/firestoreService.js';
 import crypto from 'crypto';
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -82,6 +83,18 @@ export class GameHandler {
     data: { gameId?: string; playerName: string; mode?: 'both-sides' | 'one-side'; playerColor?: 'white' | 'black' }
   ): Promise<void> {
     try {
+      // Get uid from socket auth data
+      const uid = socket.data.uid;
+      const isAnonymous = socket.data.isAnonymous;
+      const email = socket.data.email;
+
+      // Ensure user exists in Firestore (if authenticated) - non-blocking
+      if (uid) {
+        ensureUserExists(uid, email ?? null, isAnonymous ?? true).catch((err) => {
+          console.warn('[GameHandler] Failed to ensure user exists:', err);
+        });
+      }
+
       // If no gameId provided, use random game selection
       if (!data.gameId) {
         return this.handleStartPracticeRandom(socket, {
@@ -96,7 +109,8 @@ export class GameHandler {
         data.playerName,
         data.gameId,
         data.mode || 'both-sides',
-        data.playerColor || null
+        data.playerColor || null,
+        uid
       );
 
       if (!startData) {
@@ -116,11 +130,24 @@ export class GameHandler {
     data: { playerName: string; mode?: 'both-sides' | 'one-side'; playerColor?: 'white' | 'black' }
   ): Promise<void> {
     try {
+      // Get uid from socket auth data
+      const uid = socket.data.uid;
+      const isAnonymous = socket.data.isAnonymous;
+      const email = socket.data.email;
+
+      // Ensure user exists in Firestore (if authenticated) - non-blocking
+      if (uid) {
+        ensureUserExists(uid, email ?? null, isAnonymous ?? true).catch((err) => {
+          console.warn('[GameHandler] Failed to ensure user exists:', err);
+        });
+      }
+
       const startData = await this.practiceService.startSessionWithRandomGame(
         socket.id,
         data.playerName,
         data.mode || 'both-sides',
-        data.playerColor || null
+        data.playerColor || null,
+        uid
       );
 
       if (!startData) {
@@ -135,10 +162,10 @@ export class GameHandler {
     }
   }
 
-  private handleSubmitPracticeMove(
+  private async handleSubmitPracticeMove(
     socket: GameSocket,
     data: { sessionId: string; move: string }
-  ): void {
+  ): Promise<void> {
     try {
       // Update socket ID if reconnected
       const session = this.practiceService.getSession(data.sessionId);
@@ -157,6 +184,14 @@ export class GameHandler {
       const isComplete = this.practiceService.isSessionComplete(data.sessionId);
       const completedData = isComplete ? this.practiceService.completeSession(data.sessionId) : null;
       const nextMoveData = !isComplete ? this.practiceService.getNextMoveData(data.sessionId) : null;
+
+      // Save to Firestore if session completed and user is authenticated
+      if (completedData && session?.uid) {
+        // Save asynchronously - don't block the response
+        saveCompletedSession(session.uid, session, completedData).catch((err) => {
+          console.error('[GameHandler] Failed to save session to Firestore:', err);
+        });
+      }
 
       // Emit combined response (single round-trip instead of 2)
       socket.emit('practice-move-response', {

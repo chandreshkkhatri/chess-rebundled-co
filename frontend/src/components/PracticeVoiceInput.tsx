@@ -12,9 +12,33 @@ import { generateDistractors } from '@/lib/distractorGenerator';
 // Debug flag - disabled for production builds
 const DEBUG_AUDIO = process.env.NODE_ENV !== 'production';
 
+// Convert technical error messages to user-friendly text
+function getFriendlyErrorMessage(error: string): string {
+  const lowerError = error.toLowerCase();
+  if (lowerError.includes('not_found') || lowerError.includes('not found')) {
+    return 'Voice processing is temporarily unavailable. Please try again.';
+  }
+  if (lowerError.includes('quota') || lowerError.includes('rate limit') || lowerError.includes('too many')) {
+    return 'Too many requests. Please wait a moment and try again.';
+  }
+  if (lowerError.includes('network') || lowerError.includes('connection')) {
+    return 'Network error. Please check your connection.';
+  }
+  if (lowerError.includes('audio') && lowerError.includes('format')) {
+    return 'Audio format not supported. Please try again.';
+  }
+  if (lowerError.includes('timeout')) {
+    return 'Request timed out. Please try again.';
+  }
+  return 'Unable to process voice input. Please try again or type your move.';
+}
+
 // Confidence threshold for local parsing (skip Haiku if above this)
 // Lowered from 0.85 to 0.70 to skip AI for more moves (d/b files get 0.7 confidence)
 const LOCAL_PARSE_CONFIDENCE_THRESHOLD = 0.70;
+
+// Confidence threshold for auto-submit (automatically submit if above this AND move is legal)
+const AUTO_SUBMIT_CONFIDENCE_THRESHOLD = 0.85;
 
 // Cooldown to prevent rapid re-triggering from continuous speech recognition
 const RESULT_COOLDOWN_MS = 500;
@@ -36,9 +60,11 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     aiParseError,
     isAIParsing,
     clearAIParseState,
+    clearLastMoveResult,
     voiceParsingMode,
     currentPosition,
     currentExpectedMove,
+    autoSubmitEnabled,
   } = usePracticeStore();
   const { parseMoveWithAI, parseAudioMoveWithGemini } = usePracticeSocket();
   const isActive = status === 'playing' && !disabled;
@@ -76,6 +102,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
   // Handle selecting a move option (from tap)
   const handleSelectOption = useCallback((move: string) => {
     if (!isSubmitting && isActive) {
+      clearLastMoveResult(); // Clear stale feedback from previous move
       setSelectedMove(move);
       // Set a simple AI parse result so the UI shows it properly
       usePracticeStore.getState().setAIParseResult({
@@ -86,7 +113,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
         reasoning: 'Selected from options',
       });
     }
-  }, [isSubmitting, isActive]);
+  }, [isSubmitting, isActive, clearLastMoveResult]);
 
   // Handle voice result - hook now passes parsed notation (e.g. "e4") directly
   // Block new requests while already parsing to prevent race conditions
@@ -112,6 +139,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
 
       // Clear previous state
       clearAIParseState();
+      clearLastMoveResult(); // Clear stale feedback from previous move
       setSelectedMove(null);
 
       // Always surface a local parse immediately so the UI feels responsive.
@@ -124,35 +152,61 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
         reasoning: confidence >= LOCAL_PARSE_CONFIDENCE_THRESHOLD ? 'Parsed locally' : 'Local preview (refining...)',
       });
 
+      // Auto-submit for high confidence legal moves (if enabled)
+      if (autoSubmitEnabled && confidence >= AUTO_SUBMIT_CONFIDENCE_THRESHOLD && isLegalMove(parsedMove)) {
+        setSelectedMove(parsedMove);
+        // Small delay to show the selection visually before submitting
+        setTimeout(() => {
+          onMoveSubmit(parsedMove, confidence);
+        }, 150);
+        return;
+      }
+
       if (confidence < LOCAL_PARSE_CONFIDENCE_THRESHOLD) {
         // Low confidence - call Haiku for refinement
         parseMoveWithAI(sessionId, parsedMove);
       }
     }
-  }, [parseMoveWithAI, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, voiceParsingMode, selectedMove, isLegalMove]);
+  }, [parseMoveWithAI, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, clearLastMoveResult, voiceParsingMode, selectedMove, isLegalMove, onMoveSubmit, autoSubmitEnabled]);
 
   // Handle audio ready from Gemini voice (Gemini mode)
   // Block new requests while already parsing to prevent race conditions
   const handleAudioReady = useCallback((audioBase64: string, mimeType: string) => {
     if (!isSubmitting && !isAIParsing && isActive && sessionId && voiceParsingMode === 'gemini-audio') {
       clearAIParseState();
+      clearLastMoveResult(); // Clear stale feedback from previous move
       setSelectedMove(null);
       parseAudioMoveWithGemini(sessionId, audioBase64, mimeType);
     }
-  }, [parseAudioMoveWithGemini, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, voiceParsingMode]);
+  }, [parseAudioMoveWithGemini, isSubmitting, isAIParsing, isActive, sessionId, clearAIParseState, clearLastMoveResult, voiceParsingMode]);
 
   // Auto-select parsed move when AI result comes in (but not during submission)
+  // Also auto-submit for high confidence results (covers Gemini mode and Haiku refinements)
   useEffect(() => {
-    if (aiParseResult?.parsedMove && !isSubmitting) {
+    if (aiParseResult?.parsedMove && !isSubmitting && isActive) {
       setSelectedMove(aiParseResult.parsedMove);
+
+      // Auto-submit for high confidence legal moves from AI parsing (if enabled)
+      if (
+        autoSubmitEnabled &&
+        aiParseResult.confidence >= AUTO_SUBMIT_CONFIDENCE_THRESHOLD &&
+        isLegalMove(aiParseResult.parsedMove)
+      ) {
+        // Small delay to show the selection visually before submitting
+        const timeoutId = setTimeout(() => {
+          onMoveSubmit(aiParseResult.parsedMove, aiParseResult.confidence);
+        }, 150);
+        return () => clearTimeout(timeoutId);
+      }
     }
-  }, [aiParseResult, isSubmitting]);
+  }, [aiParseResult, isSubmitting, isActive, isLegalMove, onMoveSubmit, autoSubmitEnabled]);
 
   // Web Speech API hook
   const { isSupported: isWebSpeechSupported, isListening: isWebSpeechListening, parsedPreview, error: webSpeechError, startListening: startWebSpeechListening, stopListening: stopWebSpeechListening } =
     useVoiceRecognition({
       continuous: true,
       onResult: handleVoiceResult,
+      legalMoves,
     });
 
   // Gemini Voice hook
@@ -250,7 +304,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
             <span className="text-yellow-400 text-xs font-mono uppercase tracking-widest">Processing</span>
           </div>
         ) : aiParseError ? (
-          <div className="text-red-400 text-sm text-center px-4">{aiParseError}</div>
+          <div className="text-red-400 text-sm text-center px-4">{getFriendlyErrorMessage(aiParseError)}</div>
         ) : aiParseResult ? (
           <div className="text-center w-full">
             {/* Main result displayed in button now, show alternatives here */}
@@ -305,6 +359,9 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
                   {move}
                 </button>
               ))}
+            </div>
+            <div className="text-[9px] text-slate-500 text-center mt-1">
+              Tip: Say &quot;delta&quot; for d, &quot;bravo&quot; for b
             </div>
           </div>
         )}

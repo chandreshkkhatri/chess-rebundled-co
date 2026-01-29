@@ -1,14 +1,12 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
-import { getSocket, connectSocket } from '@/lib/socket';
+import { getSocket, connectSocket, setAuthToken } from '@/lib/socket';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { trackEvent } from '@/lib/analytics';
+import { subscribeToAuthState, getIdToken } from '@/lib/firebase';
 import {
-  PracticeMoveResult,
   PracticeStartedData,
-  PracticeNextMoveData,
-  PracticeCompletedData,
   PracticeMode,
   AIParsedMoveResult,
   PracticeMoveResponseData,
@@ -21,11 +19,30 @@ let listenersAttached = false;
 // Track submit timeout for safety reset (Bug 3 fix)
 let submitTimeoutId: NodeJS.Timeout | null = null;
 
+// Track if auth subscription is set up
+let authSubscribed = false;
+
 export function usePracticeSocket() {
   const {
     setConnected,
     setSubmitting,
   } = usePracticeStore();
+
+  // Subscribe to auth state changes and update socket token
+  useEffect(() => {
+    if (!authSubscribed) {
+      authSubscribed = true;
+
+      subscribeToAuthState(async (user) => {
+        if (user) {
+          const token = await getIdToken();
+          setAuthToken(token);
+        } else {
+          setAuthToken(null);
+        }
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const socket = getSocket();
@@ -37,10 +54,7 @@ export function usePracticeSocket() {
 
       // Remove any stale listeners first (safety cleanup from previous hot reloads)
       socket.off('practice-started');
-      socket.off('practice-move-result');
       socket.off('practice-move-response');
-      socket.off('practice-next-move');
-      socket.off('practice-completed');
       socket.off('practice-error');
       socket.off('move-parsed');
       socket.off('parse-error');
@@ -91,16 +105,9 @@ export function usePracticeSocket() {
         });
       });
 
-      socket.on('practice-move-result', (result: PracticeMoveResult) => {
-        // Bug 3 fix: Clear submit timeout on successful response
-        if (submitTimeoutId) {
-          clearTimeout(submitTimeoutId);
-          submitTimeoutId = null;
-        }
-        usePracticeStore.getState().setMoveResult(result);
-      });
-
       // Combined response event (reduces latency by handling result + next move in one emission)
+      // Note: We only listen to practice-move-response, not the legacy practice-move-result
+      // to avoid duplicate entries in moveResults
       socket.on('practice-move-response', (data: PracticeMoveResponseData) => {
         // Clear submit timeout on successful response
         if (submitTimeoutId) {
@@ -137,30 +144,8 @@ export function usePracticeSocket() {
         }
       });
 
-      socket.on('practice-next-move', (data: PracticeNextMoveData) => {
-        usePracticeStore.getState().updatePosition({
-          position: data.position,
-          currentMoveIndex: data.currentMoveIndex,
-          currentSide: data.currentSide,
-          expectedMove: data.expectedMove,
-          opponentMove: data.opponentMove,
-        });
-      });
-
-      socket.on('practice-completed', (data: PracticeCompletedData) => {
-        usePracticeStore.getState().setCompleted(data);
-
-        // Track session completed
-        trackEvent('practice_session_completed', {
-          gameId: data.game.id,
-          gameTitle: data.game.title,
-          correctMoves: data.correctMoves,
-          incorrectMoves: data.totalMoves - data.correctMoves,
-          totalMoves: data.totalMoves,
-          accuracy: Math.round(data.accuracy * 100),
-          mode: usePracticeStore.getState().mode,
-        });
-      });
+      // Note: We don't listen to legacy practice-next-move and practice-completed
+      // events since practice-move-response already handles them
 
       socket.on('practice-error', (data: { message: string }) => {
         // Bug 3 fix: Clear submit timeout and reset submitting on error

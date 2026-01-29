@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import { initializeSocket } from './socket/index.js';
 import { connectToDatabase } from './services/database.js';
 import { seedGamesIfEmpty, getAllGames } from './services/gameRepository.js';
+import { userRoutes } from './routes/userRoutes.js';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -36,22 +37,21 @@ async function main() {
     return await getAllGames();
   });
 
-  // Initialize Fastify (required for routes to work)
-  await fastify.ready();
+  // Register user routes (profile, history)
+  await fastify.register(userRoutes);
 
-  // Get HTTP server from Fastify
+  // Get HTTP server from Fastify BEFORE ready()
   const httpServer = fastify.server;
 
-  // Initialize Socket.io
+  // Initialize Socket.io BEFORE Fastify finalizes routing
+  // This ensures socket.io can handle /socket.io requests
   initializeSocket(httpServer);
 
-  // Start the server
+  // Start the server using fastify.listen()
   try {
-    // We need to use the raw HTTP server for socket.io
-    httpServer.listen(PORT, HOST, () => {
-      console.log(`Server running at http://${HOST}:${PORT}`);
-      console.log(`Socket.io ready for connections`);
-    });
+    await fastify.listen({ port: PORT, host: HOST });
+    console.log(`Server running at http://${HOST}:${PORT}`);
+    console.log(`Socket.io ready for connections`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

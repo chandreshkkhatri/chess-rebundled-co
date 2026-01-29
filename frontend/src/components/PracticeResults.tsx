@@ -1,6 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { PracticeCompletedData } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { MoveHistory } from './MoveHistory';
 
 // Utility functions extracted outside component to prevent recreation
 function formatTime(ms: number): string {
@@ -24,6 +27,9 @@ interface PracticeResultsProps {
 }
 
 export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
+  const { user, isAnonymous } = useAuth();
+  const isAuthenticated = user && !isAnonymous;
+
   const accuracyPercent = (data.accuracy * 100).toFixed(1);
   const avgTimePerMove = (data.averageTimePerMove / 1000).toFixed(1);
   const performance = getPerformanceMessage(data.accuracy);
@@ -61,33 +67,16 @@ export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
       {/* Move Review */}
       <div className="mb-6">
         <h3 className="font-semibold text-gray-700 mb-2">Move Review</h3>
-        <div className="max-h-40 overflow-y-auto bg-gray-50 rounded-lg p-2">
-          {data.moveResults.map((result, idx) => (
-            <div
-              key={idx}
-              className={`text-sm py-1 px-2 rounded mb-1 flex items-center justify-between ${
-                result.isCorrect ? 'bg-green-100' : 'bg-red-100'
-              }`}
-            >
-              <span className="font-mono">
-                <span className="text-gray-500 mr-2">
-                  {Math.floor(idx / 2) + 1}
-                  {idx % 2 === 0 ? '.' : '...'}
-                </span>
-                {result.isCorrect ? (
-                  result.expectedMove
-                ) : (
-                  <>
-                    <span className="line-through text-red-600">{result.submittedMove}</span>
-                    <span className="text-gray-600 ml-1">({result.expectedMove})</span>
-                  </>
-                )}
-              </span>
-              <span className={result.isCorrect ? 'text-green-600' : 'text-red-600'}>
-                {result.isCorrect ? '✓' : '✗'}
-              </span>
-            </div>
-          ))}
+        <div className="bg-gray-50 rounded-lg p-2">
+          <MoveHistory
+            moves={data.moveResults}
+            mode="both-sides"
+            playerColor={null}
+            variant="full"
+            theme="light"
+            maxHeight="max-h-40"
+            autoScroll={false}
+          />
         </div>
       </div>
 
@@ -114,6 +103,28 @@ export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
           {data.game.event}, {data.game.year}
         </p>
       </div>
+
+      {/* Auto-save confirmation for authenticated users */}
+      {isAuthenticated ? (
+        <div className="text-center mb-4">
+          <div className="inline-flex items-center gap-1.5 text-sm text-green-600 bg-green-50 px-3 py-1.5 rounded-full">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Saved to your history
+          </div>
+          <Link
+            href="/history"
+            className="block mt-2 text-sm text-purple-600 hover:text-purple-700 underline"
+          >
+            View all sessions
+          </Link>
+        </div>
+      ) : (
+        <p className="text-center text-xs text-gray-400 mb-3">
+          Sign in to save your progress
+        </p>
+      )}
 
       <button
         onClick={onPlayAgain}

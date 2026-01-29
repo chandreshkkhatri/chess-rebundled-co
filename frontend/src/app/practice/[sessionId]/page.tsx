@@ -4,9 +4,12 @@ import { useEffect, useCallback, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { usePracticeStore } from '@/stores/practiceStore';
+import { useAuth } from '@/contexts/AuthContext';
 import { ChessBoard } from '@/components/ChessBoard';
 import { PracticeVoiceInput } from '@/components/PracticeVoiceInput';
 import { PracticeResults } from '@/components/PracticeResults';
+import { MoveHistory } from '@/components/MoveHistory';
+import { SettingsModal } from '@/components/SettingsModal';
 import { DiscordIcon } from '@/components/icons/DiscordIcon';
 
 // Debug flag - matches PracticeVoiceInput
@@ -20,8 +23,10 @@ export default function PracticeGamePage() {
   const [showGameInfo, setShowGameInfo] = useState(false);
   const [showMoveHistory, setShowMoveHistory] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const { submitPracticeMove, abandonPractice } = usePracticeSocket();
+  const { user, isAnonymous } = useAuth();
   const {
     status,
     currentPosition,
@@ -40,10 +45,25 @@ export default function PracticeGamePage() {
     error,
     setError,
     isStarting,
+    playerName,
   } = usePracticeStore();
 
   // Calculate correct moves so far (memoized to avoid recalculating on every render)
   const correctMoves = useMemo(() => moveResults.filter((r) => r.isCorrect).length, [moveResults]);
+
+  // Calculate live accuracy percentage
+  const liveAccuracy = useMemo(() => {
+    if (moveResults.length === 0) return 100;
+    return Math.round((correctMoves / moveResults.length) * 100);
+  }, [correctMoves, moveResults.length]);
+
+  // Determine the display name for the player
+  const displayName = useMemo(() => {
+    if (user && !isAnonymous) {
+      return playerName || user.displayName || 'You';
+    }
+    return playerName || 'You';
+  }, [user, isAnonymous, playerName]);
 
   // Board orientation: in one-side mode, use player's color; otherwise follow current side
   const boardOrientation = mode === 'one-side' && playerColor ? playerColor : currentSide;
@@ -165,6 +185,20 @@ export default function PracticeGamePage() {
                 )}
               </div>
             </div>
+            {/* Live accuracy - only show after first move */}
+            {moveResults.length > 0 && (
+              <div
+                className={`text-xs font-medium px-2 py-0.5 rounded ${
+                  liveAccuracy >= 80
+                    ? 'bg-green-600/20 text-green-400'
+                    : liveAccuracy >= 60
+                    ? 'bg-yellow-600/20 text-yellow-400'
+                    : 'bg-red-600/20 text-red-400'
+                }`}
+              >
+                {liveAccuracy}%
+              </div>
+            )}
             {/* Progress indicator */}
             <div className="flex items-center gap-1.5">
               <span className="text-slate-400 text-xs">{currentMoveIndex}/{totalMoves}</span>
@@ -175,28 +209,31 @@ export default function PracticeGamePage() {
                 />
               </div>
             </div>
-            {/* Side indicator with "You" */}
-            {mode === 'one-side' && playerColor ? (
-              <div
-                className={`text-xs font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${
-                  playerColor === 'white'
-                    ? 'bg-white text-slate-800'
-                    : 'bg-slate-600 text-white'
-                }`}
-              >
-                {playerColor === 'white' ? '⬜' : '⬛'} You
-              </div>
-            ) : (
-              <div
-                className={`text-xs font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${
-                  currentSide === 'white'
-                    ? 'bg-white text-slate-800'
-                    : 'bg-slate-600 text-white'
-                }`}
-              >
-                {currentSide === 'white' ? '⬜' : '⬛'} You
-              </div>
-            )}
+            {/* Player indicator with name and avatar */}
+            <div
+              className={`text-xs font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${
+                (mode === 'one-side' && playerColor ? playerColor : currentSide) === 'white'
+                  ? 'bg-white text-slate-800'
+                  : 'bg-slate-600 text-white'
+              }`}
+            >
+              {(mode === 'one-side' && playerColor ? playerColor : currentSide) === 'white' ? '⬜' : '⬛'}
+              {user && !isAnonymous && user.photoURL ? (
+                <img src={user.photoURL} alt="" className="w-4 h-4 rounded-full" />
+              ) : null}
+              <span className="max-w-[60px] truncate">{displayName}</span>
+            </div>
+            {/* Settings - desktop only */}
+            <button
+              onClick={() => setShowSettings(true)}
+              className="hidden lg:flex items-center text-slate-400 hover:text-white transition-colors"
+              title="Settings"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
             {/* Discord link - desktop only */}
             <a
               href="https://discord.gg/ySGBwu9xvk"
@@ -214,16 +251,28 @@ export default function PracticeGamePage() {
         <div className="flex flex-row gap-1 lg:gap-3 flex-1 min-h-0 overflow-hidden">
           {/* Mobile left sidebar */}
           <div className="flex lg:hidden flex-col items-center justify-between py-2 px-1 bg-slate-800/50 rounded-lg flex-shrink-0">
-            {/* Top: Discord */}
-            <a
-              href="https://discord.gg/ySGBwu9xvk"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-1.5 text-slate-400 hover:text-indigo-400 transition-colors"
-              title="Join Discord"
-            >
-              <DiscordIcon className="w-5 h-5" />
-            </a>
+            {/* Top group */}
+            <div className="flex flex-col items-center gap-1">
+              <a
+                href="https://discord.gg/ySGBwu9xvk"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 text-slate-400 hover:text-indigo-400 transition-colors"
+                title="Join Discord"
+              >
+                <DiscordIcon className="w-5 h-5" />
+              </a>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="p-1.5 text-slate-400 hover:text-white transition-colors"
+                title="Settings"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+            </div>
 
             {/* Bottom group */}
             <div className="flex flex-col items-center gap-1">
@@ -320,35 +369,14 @@ export default function PracticeGamePage() {
               <h3 className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
                 Moves
               </h3>
-              <div className="overflow-y-auto lg:max-h-32">
-                {moveResults.length === 0 ? (
-                  <p className="text-slate-500 text-xs">No moves</p>
-                ) : (
-                  <div className="space-y-0.5">
-                    {moveResults.map((result, idx) => (
-                      <div
-                        key={idx}
-                        className={`text-xs font-mono py-0.5 px-1 rounded ${
-                          result.isCorrect
-                            ? 'bg-green-900/30 text-green-300'
-                            : 'bg-red-900/30 text-red-300'
-                        }`}
-                      >
-                        <span className="text-slate-500 mr-1">
-                          {Math.floor(result.moveIndex / 2) + 1}.
-                        </span>
-                        {result.isCorrect ? (
-                          <span>{result.expectedMove} ✓</span>
-                        ) : (
-                          <span>
-                            <span className="line-through">{result.submittedMove}</span>
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <MoveHistory
+                moves={moveResults}
+                mode={mode}
+                playerColor={playerColor}
+                variant="compact"
+                theme="dark"
+                maxHeight="max-h-32"
+              />
             </div>
           </div>
           </div>
@@ -373,39 +401,20 @@ export default function PracticeGamePage() {
                   ✕
                 </button>
               </div>
-              <div className="flex-1 overflow-y-auto">
-                {moveResults.length === 0 ? (
-                  <p className="text-slate-500 text-sm">No moves yet</p>
-                ) : (
-                  <div className="space-y-1">
-                    {moveResults.map((result, idx) => (
-                      <div
-                        key={idx}
-                        className={`text-sm font-mono py-1 px-2 rounded ${
-                          result.isCorrect
-                            ? 'bg-green-900/30 text-green-300'
-                            : 'bg-red-900/30 text-red-300'
-                        }`}
-                      >
-                        <span className="text-slate-500 mr-2">
-                          {Math.floor(result.moveIndex / 2) + 1}.
-                        </span>
-                        {result.isCorrect ? (
-                          <span>{result.expectedMove} ✓</span>
-                        ) : (
-                          <span>
-                            <span className="line-through">{result.submittedMove}</span>
-                            <span className="text-slate-400 ml-1">({result.expectedMove})</span>
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <MoveHistory
+                moves={moveResults}
+                mode={mode}
+                playerColor={playerColor}
+                variant="full"
+                theme="dark"
+                className="flex-1"
+              />
             </div>
           </div>
         )}
+
+        {/* Settings Modal */}
+        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       </div>
     </main>
   );

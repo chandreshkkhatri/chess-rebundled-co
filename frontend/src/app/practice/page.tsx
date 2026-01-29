@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { usePracticeStore } from '@/stores/practiceStore';
+import { useAuth } from '@/contexts/AuthContext';
 import { PracticeMode } from '@/types';
 
 export default function PracticeSelectPage() {
@@ -17,6 +18,7 @@ export default function PracticeSelectPage() {
   const startTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { startPracticeRandom } = usePracticeSocket();
+  const { user, isAnonymous, getIdToken } = useAuth();
   const {
     isConnected,
     sessionId,
@@ -30,14 +32,20 @@ export default function PracticeSelectPage() {
     reset,
   } = usePracticeStore();
 
-  // Load stored player name on mount
+  // Load player name: prioritize authenticated user's displayName, then stored name
   useEffect(() => {
-    if (storedPlayerName) {
+    // For authenticated (non-anonymous) users, use their profile displayName
+    if (user && !isAnonymous && user.displayName) {
+      setPlayerName(user.displayName);
+      storeSetPlayerName(user.displayName);
+      setHasEnteredName(true);
+      setShowModeSelection(true);
+    } else if (storedPlayerName) {
       setPlayerName(storedPlayerName);
       setHasEnteredName(true);
-      setShowModeSelection(true);  // Also show mode selection when name is restored
+      setShowModeSelection(true);
     }
-  }, [storedPlayerName]);
+  }, [user, isAnonymous, storedPlayerName, storeSetPlayerName]);
 
   // Always reset to idle on mount - user is on /practice so any existing session is stale
   useEffect(() => {
@@ -121,12 +129,34 @@ export default function PracticeSelectPage() {
     };
   }, []);
 
-  const handleEnterName = () => {
+  const handleEnterName = async () => {
     if (!playerName.trim()) {
       alert('Please enter your name');
       return;
     }
-    storeSetPlayerName(playerName);
+    const name = playerName.trim();
+    storeSetPlayerName(name);
+
+    // For authenticated users, also save to their profile
+    if (user && !isAnonymous) {
+      try {
+        const token = await getIdToken();
+        if (token) {
+          fetch('/api/user/profile', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ displayName: name }),
+          }).catch((e) => console.error('Failed to save name to profile:', e));
+        }
+      } catch (e) {
+        // Non-blocking, just log
+        console.error('Failed to save name to profile:', e);
+      }
+    }
+
     setHasEnteredName(true);
     setShowModeSelection(true);
   };
@@ -199,6 +229,11 @@ export default function PracticeSelectPage() {
               <li>3. Speak the moves using voice input</li>
               <li>4. Track your accuracy and improve!</li>
             </ol>
+            <div className="mt-3 p-2 bg-slate-700/50 rounded text-xs text-slate-300 max-w-sm mx-auto">
+              <span className="text-yellow-400 font-semibold">Tip:</span> Use phonetic alphabet for clearer recognition:
+              <span className="text-blue-300"> &quot;delta 4&quot;</span> for d4,
+              <span className="text-blue-300"> &quot;bravo 3&quot;</span> for b3
+            </div>
           </div>
         </div>
       </main>
@@ -256,10 +291,18 @@ export default function PracticeSelectPage() {
           </div>
 
           <div className="bg-white rounded-2xl shadow-xl p-6">
+            {/* Connection status */}
+            {!isConnected && (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-700">Connecting to server...</p>
+              </div>
+            )}
+
             <div className="space-y-4 mb-6">
               <button
                 onClick={() => handleSelectMode('both-sides')}
-                className="w-full flex items-center p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
+                disabled={!isConnected}
+                className="w-full flex items-center p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white"
               >
                 <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
                   <span className="text-2xl">&#9812;&#9818;</span>
@@ -272,7 +315,8 @@ export default function PracticeSelectPage() {
 
               <button
                 onClick={() => handleSelectMode('one-side')}
-                className="w-full flex items-center p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
+                disabled={!isConnected}
+                className="w-full flex items-center p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white"
               >
                 <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
                   <span className="text-2xl">&#9812;</span>

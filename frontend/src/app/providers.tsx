@@ -4,6 +4,8 @@ import posthog from 'posthog-js';
 import { PostHogProvider as PHProvider, usePostHog } from '@posthog/react';
 import { useEffect, Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { LoginModalProvider } from '@/contexts/LoginModalContext';
 
 function PostHogPageView() {
   const pathname = usePathname();
@@ -23,7 +25,7 @@ function PostHogPageView() {
   return null;
 }
 
-export function PostHogProvider({ children }: { children: React.ReactNode }) {
+function PostHogProviderInner({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_POSTHOG_KEY) {
       posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
@@ -51,5 +53,16 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       </Suspense>
       {children}
     </PHProvider>
+  );
+}
+
+// Combined provider that wraps Auth, LoginModal, and PostHog
+export function PostHogProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthProvider>
+      <LoginModalProvider>
+        <PostHogProviderInner>{children}</PostHogProviderInner>
+      </LoginModalProvider>
+    </AuthProvider>
   );
 }

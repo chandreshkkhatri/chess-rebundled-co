@@ -32,6 +32,7 @@ export type PracticeMode = 'both-sides' | 'one-side';
 export interface PracticeSession {
   id: string;
   socketId: string;
+  uid?: string; // Firebase user ID (for session persistence)
   playerName: string;
   historicalGame: HistoricalGame;
   currentMoveIndex: number;

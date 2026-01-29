@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
+import { useAuth } from '@/contexts/AuthContext';
+import { Header } from '@/components/Header';
 
 export default function Home() {
   const router = useRouter();
@@ -12,29 +14,54 @@ export default function Home() {
   // Initialize socket connection
   usePracticeSocket();
 
+  const { user, isAnonymous, getIdToken } = useAuth();
   const { isConnected, playerName: storedPlayerName, setPlayerName: storeSetPlayerName } = usePracticeStore();
 
-  // Load stored player name on mount
+  // Load player name: prioritize authenticated user's displayName, then stored name
   useEffect(() => {
-    if (storedPlayerName) {
+    if (user && !isAnonymous && user.displayName) {
+      setPlayerName(user.displayName);
+    } else if (storedPlayerName) {
       setPlayerName(storedPlayerName);
     }
-  }, [storedPlayerName]);
+  }, [user, isAnonymous, storedPlayerName]);
 
-  const handleStartPractice = () => {
-    if (playerName.trim()) {
-      storeSetPlayerName(playerName.trim());
+  const handleStartPractice = async () => {
+    const name = playerName.trim();
+    if (name) {
+      storeSetPlayerName(name);
+
+      // For authenticated users, also save to their profile
+      if (user && !isAnonymous) {
+        try {
+          const token = await getIdToken();
+          if (token) {
+            fetch('/api/user/profile', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ displayName: name }),
+            }).catch((e) => console.error('Failed to save name to profile:', e));
+          }
+        } catch (e) {
+          console.error('Failed to save name to profile:', e);
+        }
+      }
     }
     router.push('/practice');
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Chess Rebundled</h1>
-          <p className="text-slate-400">Test your chess memory with famous historical games</p>
-        </div>
+    <>
+      <Header />
+      <main className="min-h-screen flex items-center justify-center p-4 pt-20">
+        <div className="max-w-md w-full">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-white mb-2">Chess Rebundled</h1>
+            <p className="text-slate-400">Learn chess notation by speaking moves from famous games</p>
+          </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-6">
           <div className="mb-6">
@@ -85,5 +112,6 @@ export default function Home() {
         </div>
       </div>
     </main>
+    </>
   );
 }
