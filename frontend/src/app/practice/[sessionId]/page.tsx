@@ -35,6 +35,7 @@ export default function PracticeGamePage() {
     selectedGame,
     currentExpectedMove,
     completedData,
+    gamificationResult,
     totalMoves,
     moveResults,
     reset,
@@ -114,7 +115,7 @@ export default function PracticeGamePage() {
   if (status === 'completed' && completedData) {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
-        <PracticeResults data={completedData} onPlayAgain={handlePlayAgain} />
+        <PracticeResults data={completedData} gamification={gamificationResult ?? undefined} onPlayAgain={handlePlayAgain} />
       </main>
     );
   }

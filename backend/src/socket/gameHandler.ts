@@ -3,7 +3,7 @@ import { PracticeService } from '../services/practiceService.js';
 import { parseChessMoveWithAI, AIParsedMove } from '../services/aiMoveParser.js';
 import { parseChessMoveFromAudio } from '../services/geminiAudioParser.js';
 import { ClientToServerEvents, ServerToClientEvents } from '../types/index.js';
-import { saveCompletedSession, ensureUserExists } from '../services/firestoreService.js';
+import { saveCompletedSession, ensureUserExists, processGamification } from '../services/firestoreService.js';
 import crypto from 'crypto';
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -185,12 +185,22 @@ export class GameHandler {
       const completedData = isComplete ? this.practiceService.completeSession(data.sessionId) : null;
       const nextMoveData = !isComplete ? this.practiceService.getNextMoveData(data.sessionId) : null;
 
-      // Save to Firestore if session completed and user is authenticated
+      // Save to Firestore and process gamification if session completed and user is authenticated
+      let gamificationResult = null;
       if (completedData && session?.uid) {
-        // Save asynchronously - don't block the response
-        saveCompletedSession(session.uid, session, completedData).catch((err) => {
-          console.error('[GameHandler] Failed to save session to Firestore:', err);
-        });
+        // Get user's timezone from socket handshake (if provided)
+        const timezone = socket.handshake.query.timezone as string | undefined;
+
+        // Process gamification and save session
+        try {
+          const [savedSessionId, gamification] = await Promise.all([
+            saveCompletedSession(session.uid, session, completedData),
+            processGamification(session.uid, session, completedData, timezone),
+          ]);
+          gamificationResult = gamification;
+        } catch (err) {
+          console.error('[GameHandler] Failed to save session/gamification to Firestore:', err);
+        }
       }
 
       // Emit combined response (single round-trip instead of 2)
@@ -198,6 +208,7 @@ export class GameHandler {
         result,
         nextMove: nextMoveData || undefined,
         completed: completedData || undefined,
+        gamification: gamificationResult || undefined,
       });
 
       // Also emit legacy events for backward compatibility

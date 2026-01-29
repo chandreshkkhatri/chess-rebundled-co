@@ -10,6 +10,7 @@ import {
   AIParsedMoveResult,
   PracticeStartedData,
   PracticeNextMoveData,
+  GamificationResult,
 } from '@/types';
 
 interface PracticeState {
@@ -39,6 +40,7 @@ interface PracticeState {
   moveResults: PracticeMoveResult[];
   lastMoveResult: PracticeMoveResult | null;
   completedData: PracticeCompletedData | null;
+  gamificationResult: GamificationResult | null;
 
   // Submission lock
   isSubmitting: boolean;
@@ -69,7 +71,7 @@ interface PracticeState {
   updatePosition: (data: PracticeNextMoveData) => void;
   setPendingOpponentMove: (move: MoveDetails | null) => void;
   setMoveResult: (result: PracticeMoveResult) => void;
-  setCompleted: (data: PracticeCompletedData) => void;
+  setCompleted: (data: PracticeCompletedData, gamification?: GamificationResult) => void;
   setSubmitting: (isSubmitting: boolean) => void;
   setStarting: (isStarting: boolean) => void;
   setError: (error: string | null) => void;
@@ -99,6 +101,7 @@ const initialState = {
   moveResults: [] as PracticeMoveResult[],
   lastMoveResult: null as PracticeMoveResult | null,
   completedData: null as PracticeCompletedData | null,
+  gamificationResult: null as GamificationResult | null,
   isSubmitting: false,
   isStarting: false,
   error: null as string | null,
@@ -166,10 +169,11 @@ export const usePracticeStore = create<PracticeState>()(
           lastMoveResult: result,
         })),
 
-      setCompleted: (data) =>
+      setCompleted: (data, gamification) =>
         set({
           status: 'completed',
           completedData: data,
+          gamificationResult: gamification || null,
           currentExpectedMove: null,
           isSubmitting: false,
         }),
