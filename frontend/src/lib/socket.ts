@@ -1,6 +1,8 @@
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+// When NEXT_PUBLIC_SOCKET_URL is empty or '/', socket.io connects to same origin
+// This works with Next.js rewrites that proxy /socket.io/* to backend
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || '';
 
 let socket: Socket | null = null;
 let currentAuthToken: string | null = null;
@@ -15,6 +17,12 @@ export function getSocket(): Socket {
       auth: () => ({
         token: currentAuthToken,
       }),
+      // Extra headers to bypass ngrok browser warning for API requests
+      extraHeaders: {
+        'ngrok-skip-browser-warning': '1',
+      },
+      // Ensure credentials are sent with requests
+      withCredentials: true,
     });
   }
   return socket;
