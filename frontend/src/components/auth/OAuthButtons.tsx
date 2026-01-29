@@ -16,12 +16,12 @@ export function OAuthButtons({
   const prefix = isUpgrade ? 'Link' : 'Continue with';
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {/* Google */}
       <button
         onClick={onGoogle}
         disabled={disabled}
-        className="w-full flex items-center justify-center gap-3 px-4 py-2.5 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-lg border border-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-xl border border-gray-200 shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm active:scale-[0.98]"
       >
         <svg className="w-5 h-5" viewBox="0 0 24 24">
           <path
@@ -48,7 +48,7 @@ export function OAuthButtons({
       <button
         onClick={onGithub}
         disabled={disabled}
-        className="w-full flex items-center justify-center gap-3 px-4 py-2.5 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-xl shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm active:scale-[0.98]"
       >
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
           <path

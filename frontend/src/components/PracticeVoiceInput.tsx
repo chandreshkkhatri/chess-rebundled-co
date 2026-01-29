@@ -12,6 +12,27 @@ import { generateDistractors } from '@/lib/distractorGenerator';
 // Debug flag - disabled for production builds
 const DEBUG_AUDIO = process.env.NODE_ENV !== 'production';
 
+// Convert technical error messages to user-friendly text
+function getFriendlyErrorMessage(error: string): string {
+  const lowerError = error.toLowerCase();
+  if (lowerError.includes('not_found') || lowerError.includes('not found')) {
+    return 'Voice processing is temporarily unavailable. Please try again.';
+  }
+  if (lowerError.includes('quota') || lowerError.includes('rate limit') || lowerError.includes('too many')) {
+    return 'Too many requests. Please wait a moment and try again.';
+  }
+  if (lowerError.includes('network') || lowerError.includes('connection')) {
+    return 'Network error. Please check your connection.';
+  }
+  if (lowerError.includes('audio') && lowerError.includes('format')) {
+    return 'Audio format not supported. Please try again.';
+  }
+  if (lowerError.includes('timeout')) {
+    return 'Request timed out. Please try again.';
+  }
+  return 'Unable to process voice input. Please try again or type your move.';
+}
+
 // Confidence threshold for local parsing (skip Haiku if above this)
 // Lowered from 0.85 to 0.70 to skip AI for more moves (d/b files get 0.7 confidence)
 const LOCAL_PARSE_CONFIDENCE_THRESHOLD = 0.70;
@@ -279,7 +300,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
             <span className="text-yellow-400 text-xs font-mono uppercase tracking-widest">Processing</span>
           </div>
         ) : aiParseError ? (
-          <div className="text-red-400 text-sm text-center px-4">{aiParseError}</div>
+          <div className="text-red-400 text-sm text-center px-4">{getFriendlyErrorMessage(aiParseError)}</div>
         ) : aiParseResult ? (
           <div className="text-center w-full">
             {/* Main result displayed in button now, show alternatives here */}

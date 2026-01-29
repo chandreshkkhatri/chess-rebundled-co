@@ -12,6 +12,7 @@ import {
   EmailAuthProvider,
   signOut,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   User,
   Auth,
 } from 'firebase/auth';
@@ -109,6 +110,10 @@ export async function upgradeAnonymousWithGithub(): Promise<User> {
 
 export async function logout(): Promise<void> {
   await signOut(auth);
+}
+
+export async function resetPassword(email: string): Promise<void> {
+  await sendPasswordResetEmail(auth, email);
 }
 
 // Get current user's ID token for API calls

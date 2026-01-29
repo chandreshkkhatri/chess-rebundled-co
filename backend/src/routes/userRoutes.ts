@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { verifyIdToken } from '../lib/firebase-admin.js';
-import { getUserProfile, getUserSessions, getSession } from '../services/firestoreService.js';
+import { getUserProfile, getUserSessions, getSession, updateUserDisplayName } from '../services/firestoreService.js';
 
 // Auth middleware for Fastify
 async function authenticateRequest(
@@ -66,6 +66,31 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
       preferences: profile.preferences,
     };
   });
+
+  // Update user profile (display name)
+  fastify.put<{ Body: { displayName?: string } }>(
+    '/api/user/profile',
+    async (request, reply) => {
+      const auth = await authenticateRequest(request, reply);
+      if (!auth) return;
+
+      const { displayName } = request.body || {};
+
+      if (!displayName || typeof displayName !== 'string') {
+        reply.code(400).send({ error: 'displayName is required' });
+        return;
+      }
+
+      const sanitizedName = displayName.trim().slice(0, 20);
+      if (!sanitizedName) {
+        reply.code(400).send({ error: 'displayName cannot be empty' });
+        return;
+      }
+
+      await updateUserDisplayName(auth.uid, sanitizedName);
+      return { success: true, displayName: sanitizedName };
+    }
+  );
 
   // Get user's practice history
   fastify.get<{ Querystring: { limit?: string } }>(

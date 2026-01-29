@@ -14,12 +14,14 @@ import {
   upgradeAnonymousWithGithub,
   logout,
   getIdToken,
+  resetPassword,
 } from '@/lib/firebase';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAnonymous: boolean;
+  isLoggedOut: boolean;
   error: string | null;
 
   // Auth actions
@@ -34,6 +36,9 @@ interface AuthContextType {
   upgradeWithGoogle: () => Promise<void>;
   upgradeWithGithub: () => Promise<void>;
 
+  // Password reset
+  resetPassword: (email: string) => Promise<void>;
+
   // Other
   logout: () => Promise<void>;
   getIdToken: () => Promise<string | null>;
@@ -45,6 +50,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoggedOut, setIsLoggedOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Subscribe to auth state on mount
@@ -57,16 +63,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  // Auto sign-in as guest if no user after initial load
+  // Auto sign-in as guest if no user after initial load (unless user explicitly logged out)
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (!isLoading && !user && !isLoggedOut) {
       // Automatically sign in anonymously
       signInAsGuest().catch((err) => {
         console.error('Failed to sign in anonymously:', err);
         setError('Failed to initialize session');
       });
     }
-  }, [isLoading, user]);
+  }, [isLoading, user, isLoggedOut]);
 
   const handleError = useCallback((err: unknown, defaultMessage: string) => {
     const message = err instanceof Error ? err.message : defaultMessage;
@@ -86,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleSignInWithEmail = useCallback(async (email: string, password: string) => {
     try {
       setError(null);
+      setIsLoggedOut(false);
       await signInWithEmail(email, password);
     } catch (err) {
       handleError(err, 'Failed to sign in');
@@ -104,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleSignInWithGoogle = useCallback(async () => {
     try {
       setError(null);
+      setIsLoggedOut(false);
       await signInWithGoogle();
     } catch (err) {
       handleError(err, 'Failed to sign in with Google');
@@ -113,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleSignInWithGithub = useCallback(async () => {
     try {
       setError(null);
+      setIsLoggedOut(false);
       await signInWithGithub();
     } catch (err) {
       handleError(err, 'Failed to sign in with GitHub');
@@ -150,10 +159,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       await logout();
-      // After logout, auto sign-in as guest
-      await signInAsGuest();
+      setIsLoggedOut(true); // Stay logged out, don't auto sign-in as guest
     } catch (err) {
       handleError(err, 'Failed to sign out');
+    }
+  }, [handleError]);
+
+  const handleResetPassword = useCallback(async (email: string) => {
+    try {
+      setError(null);
+      await resetPassword(email);
+    } catch (err) {
+      handleError(err, 'Failed to send password reset email');
     }
   }, [handleError]);
 
@@ -165,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     isLoading,
     isAnonymous: user?.isAnonymous ?? false,
+    isLoggedOut,
     error,
 
     signInAsGuest: handleSignInAsGuest,
@@ -176,6 +194,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     upgradeWithEmail: handleUpgradeWithEmail,
     upgradeWithGoogle: handleUpgradeWithGoogle,
     upgradeWithGithub: handleUpgradeWithGithub,
+
+    resetPassword: handleResetPassword,
 
     logout: handleLogout,
     getIdToken,

@@ -5,6 +5,7 @@ import { PostHogProvider as PHProvider, usePostHog } from '@posthog/react';
 import { useEffect, Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { LoginModalProvider } from '@/contexts/LoginModalContext';
 
 function PostHogPageView() {
   const pathname = usePathname();
@@ -55,11 +56,13 @@ function PostHogProviderInner({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Combined provider that wraps Auth and PostHog
+// Combined provider that wraps Auth, LoginModal, and PostHog
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <PostHogProviderInner>{children}</PostHogProviderInner>
+      <LoginModalProvider>
+        <PostHogProviderInner>{children}</PostHogProviderInner>
+      </LoginModalProvider>
     </AuthProvider>
   );
 }

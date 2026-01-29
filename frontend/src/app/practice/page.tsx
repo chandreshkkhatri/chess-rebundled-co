@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { usePracticeStore } from '@/stores/practiceStore';
+import { useAuth } from '@/contexts/AuthContext';
 import { PracticeMode } from '@/types';
 
 export default function PracticeSelectPage() {
@@ -17,6 +18,7 @@ export default function PracticeSelectPage() {
   const startTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { startPracticeRandom } = usePracticeSocket();
+  const { user, isAnonymous, getIdToken } = useAuth();
   const {
     isConnected,
     sessionId,
@@ -30,14 +32,20 @@ export default function PracticeSelectPage() {
     reset,
   } = usePracticeStore();
 
-  // Load stored player name on mount
+  // Load player name: prioritize authenticated user's displayName, then stored name
   useEffect(() => {
-    if (storedPlayerName) {
+    // For authenticated (non-anonymous) users, use their profile displayName
+    if (user && !isAnonymous && user.displayName) {
+      setPlayerName(user.displayName);
+      storeSetPlayerName(user.displayName);
+      setHasEnteredName(true);
+      setShowModeSelection(true);
+    } else if (storedPlayerName) {
       setPlayerName(storedPlayerName);
       setHasEnteredName(true);
-      setShowModeSelection(true);  // Also show mode selection when name is restored
+      setShowModeSelection(true);
     }
-  }, [storedPlayerName]);
+  }, [user, isAnonymous, storedPlayerName, storeSetPlayerName]);
 
   // Always reset to idle on mount - user is on /practice so any existing session is stale
   useEffect(() => {
@@ -121,12 +129,34 @@ export default function PracticeSelectPage() {
     };
   }, []);
 
-  const handleEnterName = () => {
+  const handleEnterName = async () => {
     if (!playerName.trim()) {
       alert('Please enter your name');
       return;
     }
-    storeSetPlayerName(playerName);
+    const name = playerName.trim();
+    storeSetPlayerName(name);
+
+    // For authenticated users, also save to their profile
+    if (user && !isAnonymous) {
+      try {
+        const token = await getIdToken();
+        if (token) {
+          fetch('/api/user/profile', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ displayName: name }),
+          }).catch((e) => console.error('Failed to save name to profile:', e));
+        }
+      } catch (e) {
+        // Non-blocking, just log
+        console.error('Failed to save name to profile:', e);
+      }
+    }
+
     setHasEnteredName(true);
     setShowModeSelection(true);
   };

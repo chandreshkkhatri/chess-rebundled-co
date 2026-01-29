@@ -209,6 +209,20 @@ export async function getUserProfile(uid: string): Promise<FirestoreUser | null>
 }
 
 /**
+ * Update user's display name.
+ */
+export async function updateUserDisplayName(uid: string, displayName: string): Promise<void> {
+  if (!firestore) {
+    console.warn('[Firestore] Firestore not initialized, skipping display name update');
+    return;
+  }
+
+  const userRef = firestore.collection('users').doc(uid);
+  await userRef.update({ displayName });
+  console.log(`[Firestore] Updated display name for user ${uid}`);
+}
+
+/**
  * Get recent sessions for a user.
  */
 export async function getUserSessions(

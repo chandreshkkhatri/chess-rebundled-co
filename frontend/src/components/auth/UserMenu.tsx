@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { LoginModal } from './LoginModal';
 
 export function UserMenu() {
+  const router = useRouter();
+  const pathname = usePathname();
   const { user, isAnonymous, isLoading, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -28,18 +29,20 @@ export function UserMenu() {
     );
   }
 
-  // Anonymous user - show sign in button
+  // Anonymous user or not logged in - show sign in button
   if (isAnonymous || !user) {
+    const handleSignIn = () => {
+      const redirect = encodeURIComponent(pathname);
+      router.push(`/login?redirect=${redirect}`);
+    };
+
     return (
-      <>
-        <button
-          onClick={() => setShowLoginModal(true)}
-          className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
-        >
-          Sign In
-        </button>
-        <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />
-      </>
+      <button
+        onClick={handleSignIn}
+        className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
+      >
+        Sign In
+      </button>
     );
   }
 
@@ -49,12 +52,11 @@ export function UserMenu() {
   const initials = displayName.charAt(0).toUpperCase();
 
   return (
-    <>
-      <div className="relative" ref={menuRef}>
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-2 p-1 rounded-lg hover:bg-slate-700/50 transition-colors"
-        >
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 p-1 rounded-lg hover:bg-slate-700/50 transition-colors"
+      >
           {avatarUrl ? (
             <img
               src={avatarUrl}
@@ -128,9 +130,6 @@ export function UserMenu() {
             </div>
           </div>
         )}
-      </div>
-
-      <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />
-    </>
+    </div>
   );
 }
