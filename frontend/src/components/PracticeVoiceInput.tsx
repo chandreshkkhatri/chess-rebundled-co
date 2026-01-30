@@ -99,21 +99,15 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     return generateDistractors(currentExpectedMove.san, { count: 10, includeCorrect: true, shuffle: true });
   }, [currentExpectedMove?.san]);
 
-  // Handle selecting a move option (from tap)
+  // Handle selecting a move option (from tap) - directly submits for single-click UX
   const handleSelectOption = useCallback((move: string) => {
     if (!isSubmitting && isActive) {
       clearLastMoveResult(); // Clear stale feedback from previous move
       setSelectedMove(move);
-      // Set a simple AI parse result so the UI shows it properly
-      usePracticeStore.getState().setAIParseResult({
-        parsedMove: move,
-        transcript: move,
-        confidence: 1.0,
-        alternatives: [],
-        reasoning: 'Selected from options',
-      });
+      // Directly submit - no need for two clicks
+      onMoveSubmit(move, 1.0); // Tapped selections have 100% confidence
     }
-  }, [isSubmitting, isActive, clearLastMoveResult]);
+  }, [isSubmitting, isActive, clearLastMoveResult, onMoveSubmit]);
 
   // Handle voice result - hook now passes parsed notation (e.g. "e4") directly
   // Block new requests while already parsing to prevent race conditions
@@ -339,7 +333,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
         ) : null}
 
         {/* Move options grid - always visible when playing and we have options */}
-        {isActive && moveOptions.length > 0 && !isAIParsing && (
+        {isActive && moveOptions.length > 0 && (
           <div className="w-full mt-2">
             <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5 text-center">
               Tap or speak a move
