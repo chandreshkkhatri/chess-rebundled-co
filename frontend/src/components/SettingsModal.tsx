@@ -41,6 +41,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             </div>
             <button
               onClick={() => setAutoSubmitEnabled(!autoSubmitEnabled)}
+              role="switch"
+              aria-checked={autoSubmitEnabled}
+              aria-label="Auto-submit moves"
               className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
                 autoSubmitEnabled ? 'bg-purple-500' : 'bg-slate-600'
               }`}

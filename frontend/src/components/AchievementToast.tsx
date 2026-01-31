@@ -72,14 +72,17 @@ export function AchievementToast({ achievement, onClose, autoHideDuration = 5000
         ${isVisible && !isLeaving ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
       `}
     >
-      <div
+      <button
+        type="button"
+        onClick={() => setIsLeaving(true)}
+        aria-label={`Dismiss achievement: ${achievement.name}`}
         className={`
+          w-full text-left
           bg-gradient-to-r ${styles.bg}
           border-2 ${styles.border}
           rounded-xl p-4 shadow-lg ${styles.glow}
-          cursor-pointer
+          cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/50
         `}
-        onClick={() => setIsLeaving(true)}
       >
         <div className="flex items-start gap-3">
           <div className="text-3xl">
@@ -103,7 +106,7 @@ export function AchievementToast({ achievement, onClose, autoHideDuration = 5000
             </div>
           </div>
         </div>
-      </div>
+      </button>
     </div>
   );
 }

@@ -20,11 +20,13 @@ const friendlyErrors: Record<string, string> = {
   'auth/wrong-password': 'Incorrect password',
   'auth/email-already-in-use': 'An account with this email already exists',
   'auth/credential-already-in-use': 'This account is already linked to another user. Please sign out and sign in directly with this account.',
+  'auth/account-exists-with-different-credential': 'An account already exists with the same email but different sign-in method. Try signing in with a different provider.',
   'auth/weak-password': 'Password must be at least 6 characters',
   'auth/popup-closed-by-user': 'Sign-in was cancelled',
   'auth/network-request-failed': 'Network error. Please check your connection.',
   'auth/too-many-requests': 'Too many attempts. Please try again later.',
   'auth/invalid-email': 'Please enter a valid email address',
+  'auth/operation-not-allowed': 'This sign-in method is not enabled. Please contact support.',
 };
 
 function getFriendlyError(error: string): string {

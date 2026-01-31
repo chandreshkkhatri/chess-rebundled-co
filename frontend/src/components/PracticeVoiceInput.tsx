@@ -73,6 +73,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
   const [selectedMove, setSelectedMove] = useState<string | null>(null);
 
   const autoListenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSubmitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastProcessedRef = useRef<{ move: string; timestamp: number } | null>(null);
 
   // Memoize legal moves from current position to check if parsed preview is valid
@@ -149,8 +150,13 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
       // Auto-submit for high confidence legal moves (if enabled)
       if (autoSubmitEnabled && confidence >= AUTO_SUBMIT_CONFIDENCE_THRESHOLD && isLegalMove(parsedMove)) {
         setSelectedMove(parsedMove);
+        // Cancel any pending auto-submit to prevent race conditions
+        if (autoSubmitTimeoutRef.current) {
+          clearTimeout(autoSubmitTimeoutRef.current);
+        }
         // Small delay to show the selection visually before submitting
-        setTimeout(() => {
+        autoSubmitTimeoutRef.current = setTimeout(() => {
+          autoSubmitTimeoutRef.current = null;
           onMoveSubmit(parsedMove, confidence);
         }, 150);
         return;
@@ -186,11 +192,21 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
         aiParseResult.confidence >= AUTO_SUBMIT_CONFIDENCE_THRESHOLD &&
         isLegalMove(aiParseResult.parsedMove)
       ) {
+        // Cancel any pending auto-submit to prevent race conditions
+        if (autoSubmitTimeoutRef.current) {
+          clearTimeout(autoSubmitTimeoutRef.current);
+        }
         // Small delay to show the selection visually before submitting
-        const timeoutId = setTimeout(() => {
+        autoSubmitTimeoutRef.current = setTimeout(() => {
+          autoSubmitTimeoutRef.current = null;
           onMoveSubmit(aiParseResult.parsedMove, aiParseResult.confidence);
         }, 150);
-        return () => clearTimeout(timeoutId);
+        return () => {
+          if (autoSubmitTimeoutRef.current) {
+            clearTimeout(autoSubmitTimeoutRef.current);
+            autoSubmitTimeoutRef.current = null;
+          }
+        };
       }
     }
   }, [aiParseResult, isSubmitting, isActive, isLegalMove, onMoveSubmit, autoSubmitEnabled]);
@@ -250,6 +266,11 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
       setSelectedMove(null);
       clearAIParseState();
       lastProcessedRef.current = null;
+      // Cancel any pending auto-submit since submission completed
+      if (autoSubmitTimeoutRef.current) {
+        clearTimeout(autoSubmitTimeoutRef.current);
+        autoSubmitTimeoutRef.current = null;
+      }
     }
   }, [lastMoveResult, clearAIParseState]);
 
