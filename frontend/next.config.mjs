@@ -8,6 +8,20 @@ const withPWA = withPWAInit({
 
 const nextConfig = {
   reactStrictMode: true,
+  async headers() {
+    return [
+      {
+        // Allow Firebase Auth popups to communicate with the opener window
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin-allow-popups',
+          },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     // Only proxy socket.io to local backend in development
     // In production, socket.io connects directly via NEXT_PUBLIC_SOCKET_URL
