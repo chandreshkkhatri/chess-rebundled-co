@@ -254,20 +254,68 @@ export const usePracticeStore = create<PracticeState>()(
       reset: () => set(initialState),
     }),
     {
-      name: 'chess-practice-v2', // Versioned to invalidate old full-state storage
+      name: 'chess-practice-v3', // Versioned for hybrid storage migration
       storage: {
+        // Hybrid storage: localStorage for preferences, sessionStorage for session state
         getItem: (name) => {
           if (typeof window === 'undefined') return null;
-          const str = sessionStorage.getItem(name);
-          return str ? JSON.parse(str) : null;
+          try {
+            // Merge preferences from localStorage and session from sessionStorage
+            const prefsStr = localStorage.getItem(`${name}-prefs`);
+            const sessionStr = sessionStorage.getItem(`${name}-session`);
+
+            const prefs = prefsStr ? JSON.parse(prefsStr) : {};
+            const session = sessionStr ? JSON.parse(sessionStr) : {};
+
+            // Return merged state if either exists
+            if (prefsStr || sessionStr) {
+              return {
+                state: { ...prefs.state, ...session.state },
+                version: prefs.version || session.version || 0,
+              };
+            }
+            return null;
+          } catch {
+            return null;
+          }
         },
         setItem: (name, value) => {
           if (typeof window === 'undefined') return;
-          sessionStorage.setItem(name, JSON.stringify(value));
+          try {
+            const { state, version } = value as { state: Record<string, unknown>; version: number };
+
+            // Split into preferences (localStorage) and session (sessionStorage)
+            const prefs = {
+              state: {
+                playerName: state.playerName,
+                voiceParsingMode: state.voiceParsingMode,
+                autoSubmitEnabled: state.autoSubmitEnabled,
+                inputMode: state.inputMode,
+              },
+              version,
+            };
+
+            const session = {
+              state: {
+                sessionId: state.sessionId,
+              },
+              version,
+            };
+
+            localStorage.setItem(`${name}-prefs`, JSON.stringify(prefs));
+            sessionStorage.setItem(`${name}-session`, JSON.stringify(session));
+          } catch {
+            // Silently fail if storage is full or unavailable
+          }
         },
         removeItem: (name) => {
           if (typeof window === 'undefined') return;
-          sessionStorage.removeItem(name);
+          try {
+            localStorage.removeItem(`${name}-prefs`);
+            sessionStorage.removeItem(`${name}-session`);
+          } catch {
+            // Silently fail
+          }
         },
       },
       // Persist player name, voice mode, settings, and sessionId for resume functionality
