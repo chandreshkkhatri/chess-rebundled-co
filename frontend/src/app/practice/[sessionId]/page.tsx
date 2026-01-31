@@ -28,6 +28,7 @@ export default function PracticeGamePage() {
   const [showSettings, setShowSettings] = useState(false);
   const [isResuming, setIsResuming] = useState(false);
   const [resumeAttempted, setResumeAttempted] = useState(false);
+  const [isHeaderCompact, setIsHeaderCompact] = useState(false);
 
   const { submitPracticeMove, abandonPractice, resumeSession } = usePracticeSocket();
   const { user, isAnonymous } = useAuth();
@@ -230,7 +231,8 @@ export default function PracticeGamePage() {
             >
               ←
             </button>
-            <div className="flex-1 flex items-center justify-center gap-1 min-w-0">
+            {/* Game title - hidden on mobile when compact */}
+            <div className={`flex-1 flex items-center justify-center gap-1 min-w-0 ${isHeaderCompact ? 'hidden' : 'flex'} sm:flex`}>
               <span className="text-white font-medium text-sm truncate">
                 {selectedGame.white.shortName} vs {selectedGame.black.shortName}
               </span>
@@ -249,6 +251,14 @@ export default function PracticeGamePage() {
                 )}
               </div>
             </div>
+            {/* Compact mode toggle - mobile only */}
+            <button
+              onClick={() => setIsHeaderCompact(!isHeaderCompact)}
+              className="sm:hidden p-1 text-slate-400 hover:text-white transition-colors"
+              title={isHeaderCompact ? 'Show full header' : 'Compact header'}
+            >
+              {isHeaderCompact ? '⊕' : '⊖'}
+            </button>
             {/* Live accuracy - only show after first move */}
             {moveResults.length > 0 && (
               <div
@@ -267,10 +277,10 @@ export default function PracticeGamePage() {
             <div className="hidden sm:block">
               <LiveGamificationBadge />
             </div>
-            {/* Progress indicator */}
-            <div className="flex items-center gap-1.5">
+            {/* Progress indicator - wider on mobile in compact mode */}
+            <div className={`flex items-center gap-1.5 ${isHeaderCompact ? 'flex-1' : ''} sm:flex-initial`}>
               <span className="text-slate-400 text-xs">{currentMoveIndex}/{totalMoves}</span>
-              <div className="w-10 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+              <div className={`h-1.5 bg-slate-700 rounded-full overflow-hidden ${isHeaderCompact ? 'flex-1' : 'w-10'} sm:w-10`}>
                 <div
                   className="h-full bg-purple-500 transition-all"
                   style={{ width: `${totalMoves > 0 ? (currentMoveIndex / totalMoves) * 100 : 0}%` }}
@@ -289,7 +299,8 @@ export default function PracticeGamePage() {
               {user && !isAnonymous && user.photoURL ? (
                 <img src={user.photoURL} alt="" className="w-4 h-4 rounded-full" />
               ) : null}
-              <span className="max-w-[60px] truncate">{displayName}</span>
+              {/* Hide name on mobile when compact */}
+              <span className={`max-w-[60px] truncate ${isHeaderCompact ? 'hidden' : 'inline'} sm:inline`}>{displayName}</span>
             </div>
             {/* Settings - desktop only */}
             <button
