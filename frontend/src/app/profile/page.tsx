@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/Header';
+import { XPProgressBar } from '@/components/XPProgressBar';
+import { StreakIndicator } from '@/components/StreakIndicator';
+import { UserGamification } from '@/types';
 
 interface UserProfile {
   displayName?: string;
@@ -18,6 +21,7 @@ interface UserProfile {
     overallAccuracy: number;
     lastPlayedAt?: string;
   };
+  gamification?: UserGamification;
 }
 
 export default function ProfilePage() {
@@ -132,6 +136,57 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+
+          {/* Level & XP Progress */}
+          {profile?.gamification && (
+            <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
+              <XPProgressBar
+                totalXp={profile.gamification.totalXp}
+                level={profile.gamification.level}
+                xpToNextLevel={profile.gamification.xpToNextLevel}
+              />
+            </div>
+          )}
+
+          {/* Streak */}
+          {profile?.gamification && (
+            <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
+              <h2 className="text-lg font-semibold text-white mb-4">Daily Streak</h2>
+              <StreakIndicator
+                currentStreak={profile.gamification.streaks.currentStreak}
+                longestStreak={profile.gamification.streaks.longestStreak}
+                streakFreezes={profile.gamification.streaks.streakFreezes}
+              />
+            </div>
+          )}
+
+          {/* Achievements Preview */}
+          {profile?.gamification && profile.gamification.achievements.unlocked.length > 0 && (
+            <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-white">Achievements</h2>
+                <span className="text-slate-400 text-sm">
+                  {profile.gamification.achievements.unlocked.length} unlocked
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {profile.gamification.achievements.unlocked.slice(0, 6).map((achievementId) => (
+                  <div
+                    key={achievementId}
+                    className="bg-slate-700/50 px-3 py-1.5 rounded-full text-sm text-slate-300"
+                    title={achievementId}
+                  >
+                    {achievementId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  </div>
+                ))}
+                {profile.gamification.achievements.unlocked.length > 6 && (
+                  <div className="bg-slate-700/50 px-3 py-1.5 rounded-full text-sm text-slate-400">
+                    +{profile.gamification.achievements.unlocked.length - 6} more
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Stats */}
           <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">

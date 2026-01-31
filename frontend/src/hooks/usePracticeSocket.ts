@@ -122,7 +122,7 @@ export function usePracticeSocket() {
 
         // Handle next move or completion
         if (data.completed) {
-          store.setCompleted(data.completed);
+          store.setCompleted(data.completed, data.gamification);
           // Track session completed
           trackEvent('practice_session_completed', {
             gameId: data.completed.game.id,
@@ -132,6 +132,9 @@ export function usePracticeSocket() {
             totalMoves: data.completed.totalMoves,
             accuracy: Math.round(data.completed.accuracy * 100),
             mode: store.mode,
+            xpEarned: data.gamification?.xp.totalXp,
+            leveledUp: data.gamification?.xp.leveledUp,
+            newAchievements: data.gamification?.newAchievements.length,
           });
         } else if (data.nextMove) {
           store.updatePosition({

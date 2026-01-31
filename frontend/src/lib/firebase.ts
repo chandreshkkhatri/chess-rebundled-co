@@ -28,11 +28,9 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Validate required Firebase config
-const requiredEnvVars = ['NEXT_PUBLIC_FIREBASE_API_KEY', 'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN', 'NEXT_PUBLIC_FIREBASE_PROJECT_ID'];
-const missingEnvVars = requiredEnvVars.filter((key) => !process.env[key]);
-if (missingEnvVars.length > 0 && typeof window !== 'undefined') {
-  console.error(`[Firebase] Missing required environment variables: ${missingEnvVars.join(', ')}`);
+// Validate required Firebase config (check config object, not process.env - Next.js only inlines static access)
+if (typeof window !== 'undefined' && (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId)) {
+  console.error('[Firebase] Missing required Firebase configuration. Check NEXT_PUBLIC_FIREBASE_* env vars.');
 }
 
 // Initialize Firebase (only once)

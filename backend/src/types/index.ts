@@ -1,3 +1,72 @@
+// Gamification Types
+export interface UserGamification {
+  // XP & Levels
+  totalXp: number;
+  level: number;
+  xpToNextLevel: number;
+
+  // Streaks
+  streaks: {
+    currentStreak: number;
+    longestStreak: number;
+    lastPlayedDate: string; // YYYY-MM-DD in user's timezone
+    streakFreezes: number;
+    timezone: string;
+  };
+
+  // Achievements
+  achievements: {
+    unlocked: string[]; // Achievement IDs
+    progress: Record<string, number>; // Progressive achievement tracking
+  };
+
+  // Tracking for bonuses
+  gamesCompleted: string[]; // Game IDs for "first completion" bonus
+  dailyXpDate: string | null; // For daily first session bonus (YYYY-MM-DD)
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  category: 'accuracy' | 'volume' | 'streak' | 'mastery' | 'milestone';
+  icon: string;
+  xpReward: number;
+  tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  isHidden: boolean;
+  criteria: {
+    type: string;
+    threshold?: number;
+    gameId?: string;
+    gameTitle?: string;
+  };
+}
+
+export interface XPCalculationResult {
+  baseXp: number;
+  bonuses: {
+    perfectSession: number;
+    highAccuracy: number;
+    firstGameCompletion: number;
+    dailyFirst: number;
+    streakMultiplier: number;
+  };
+  totalXp: number;
+  newTotalXp: number;
+  previousLevel: number;
+  newLevel: number;
+  leveledUp: boolean;
+}
+
+export interface GamificationResult {
+  xp: XPCalculationResult;
+  newAchievements: Achievement[];
+  streakUpdated: boolean;
+  newStreak: number;
+}
+
+export type LevelTier = 'Pawn' | 'Knight' | 'Bishop' | 'Rook' | 'Queen' | 'Grandmaster';
+
 // Game Types
 export interface HistoricalGame {
   id: string;
@@ -99,6 +168,7 @@ export interface PracticeMoveResponseData {
   result: PracticeMoveResult;
   nextMove?: PracticeNextMoveData;
   completed?: PracticeCompletedData;
+  gamification?: GamificationResult;
 }
 
 // Socket Event Types

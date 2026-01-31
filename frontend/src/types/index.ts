@@ -1,3 +1,59 @@
+// Gamification Types
+export interface UserGamification {
+  totalXp: number;
+  level: number;
+  xpToNextLevel: number;
+  streaks: {
+    currentStreak: number;
+    longestStreak: number;
+    lastPlayedDate: string;
+    streakFreezes: number;
+    timezone: string;
+  };
+  achievements: {
+    unlocked: string[];
+    progress: Record<string, number>;
+  };
+  gamesCompleted: string[];
+  dailyXpDate: string | null;
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  category: 'accuracy' | 'volume' | 'streak' | 'mastery' | 'milestone';
+  icon: string;
+  xpReward: number;
+  tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  isHidden: boolean;
+}
+
+export interface XPCalculationResult {
+  baseXp: number;
+  bonuses: {
+    perfectSession: number;
+    highAccuracy: number;
+    firstGameCompletion: number;
+    dailyFirst: number;
+    streakMultiplier: number;
+  };
+  totalXp: number;
+  newTotalXp: number;
+  previousLevel: number;
+  newLevel: number;
+  leveledUp: boolean;
+}
+
+export interface GamificationResult {
+  xp: XPCalculationResult;
+  newAchievements: Achievement[];
+  streakUpdated: boolean;
+  newStreak: number;
+}
+
+export type LevelTier = 'Pawn' | 'Knight' | 'Bishop' | 'Rook' | 'Queen' | 'Grandmaster';
+
 // Shared types between frontend and backend
 export interface HistoricalGame {
   id: string;
@@ -76,6 +132,7 @@ export interface PracticeMoveResponseData {
   result: PracticeMoveResult;
   nextMove?: PracticeNextMoveData;
   completed?: PracticeCompletedData;
+  gamification?: GamificationResult;
 }
 
 // AI Move Parsing Types
