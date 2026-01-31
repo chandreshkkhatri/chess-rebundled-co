@@ -6,18 +6,18 @@ import {
   HistoricalGame,
   MoveDetails,
   PracticeMode,
+  SessionResumedData,
 } from '../types/index.js';
 import { PgnService } from './pgnService.js';
 import { getRandomGame, getGameById as getGameByIdFromDb } from './gameRepository.js';
+import { sessionStore } from './redisSessionStore.js';
 
 export class PracticeService {
-  private sessions: Map<string, PracticeSession> = new Map();
   private pgnService: PgnService;
   private moveStartTimes: Map<string, number> = new Map();
-  // Performance optimizations
+  // Performance optimizations (ephemeral caches - safe to lose on restart)
   private positionCache: Map<string, string> = new Map(); // sessionId:moveIndex -> FEN
   private legalMovesCache: Map<string, string[]> = new Map(); // sessionId:moveIndex -> legal moves
-  private socketToSession: Map<string, string> = new Map(); // socketId -> sessionId
   private static readonly MAX_CACHE_SIZE = 1000;
 
   constructor() {
@@ -53,14 +53,14 @@ export class PracticeService {
     return this.createSession(socketId, playerName, game, mode, playerColor, uid);
   }
 
-  private createSession(
+  private async createSession(
     socketId: string,
     playerName: string,
     game: HistoricalGame,
     mode: PracticeMode = 'both-sides',
     playerColor: 'white' | 'black' | null = null,
     uid?: string
-  ): PracticeStartedData | null {
+  ): Promise<PracticeStartedData | null> {
     const sessionId = `practice-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     // For one-side mode, if playing as black, start at move index 1 (after white's first move)
@@ -80,12 +80,12 @@ export class PracticeService {
       playerColor,
     };
 
-    this.sessions.set(sessionId, session);
-    this.socketToSession.set(socketId, sessionId);
+    // Store session in Redis (or fallback to memory)
+    await sessionStore.set(sessionId, session);
     this.moveStartTimes.set(sessionId, Date.now());
 
-    const position = this.getCurrentPosition(sessionId);
-    const expectedMove = this.getCurrentExpectedMove(sessionId);
+    const position = await this.getCurrentPosition(sessionId, session);
+    const expectedMove = await this.getCurrentExpectedMove(sessionId, session);
 
     if (!expectedMove) return null;
 
@@ -110,12 +110,12 @@ export class PracticeService {
     };
   }
 
-  getSession(sessionId: string): PracticeSession | undefined {
-    return this.sessions.get(sessionId);
+  async getSession(sessionId: string): Promise<PracticeSession | undefined> {
+    return sessionStore.get(sessionId);
   }
 
-  getCurrentPosition(sessionId: string): string {
-    const session = this.sessions.get(sessionId);
+  async getCurrentPosition(sessionId: string, cachedSession?: PracticeSession): Promise<string> {
+    const session = cachedSession || await sessionStore.get(sessionId);
     if (!session) {
       return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
     }
@@ -143,8 +143,8 @@ export class PracticeService {
     return fen;
   }
 
-  getCurrentExpectedMove(sessionId: string): MoveDetails | null {
-    const session = this.sessions.get(sessionId);
+  async getCurrentExpectedMove(sessionId: string, cachedSession?: PracticeSession): Promise<MoveDetails | null> {
+    const session = cachedSession || await sessionStore.get(sessionId);
     if (
       !session ||
       session.currentMoveIndex >= session.historicalGame.moves.length
@@ -152,32 +152,34 @@ export class PracticeService {
       return null;
     }
 
-    const currentFen = this.getCurrentPosition(sessionId);
+    const currentFen = await this.getCurrentPosition(sessionId, session);
     const expectedMoveSan =
       session.historicalGame.moves[session.currentMoveIndex];
     return this.pgnService.getMoveDetails(currentFen, expectedMoveSan);
   }
 
-  getCurrentSide(sessionId: string): 'white' | 'black' {
-    const session = this.sessions.get(sessionId);
+  async getCurrentSide(sessionId: string): Promise<'white' | 'black'> {
+    const session = await sessionStore.get(sessionId);
     if (!session) return 'white';
     return session.currentMoveIndex % 2 === 0 ? 'white' : 'black';
   }
 
-  processMove(sessionId: string, submittedMove: string): PracticeMoveResult | null {
-    const session = this.sessions.get(sessionId);
+  async processMove(sessionId: string, submittedMove: string): Promise<PracticeMoveResult | null> {
+    const session = await sessionStore.get(sessionId);
     if (!session || session.status !== 'playing') return null;
 
     const moveStartTime = this.moveStartTimes.get(sessionId) || Date.now();
     const timeSpent = Date.now() - moveStartTime;
 
     const expectedMove = session.historicalGame.moves[session.currentMoveIndex];
-    const currentFen = this.getCurrentPosition(sessionId);
+    const currentFen = await this.getCurrentPosition(sessionId, session);
     const validation = this.pgnService.validateMove(
       submittedMove,
       expectedMove,
       currentFen
     );
+
+    const currentSide = session.currentMoveIndex % 2 === 0 ? 'white' : 'black';
 
     const result: PracticeMoveResult = {
       moveIndex: session.currentMoveIndex,
@@ -185,7 +187,7 @@ export class PracticeService {
       submittedMove: validation.normalizedMove,
       isCorrect: validation.matchesExpected,
       timeSpent,
-      side: this.getCurrentSide(sessionId),
+      side: currentSide,
     };
 
     session.moveResults.push(result);
@@ -198,26 +200,32 @@ export class PracticeService {
       session.currentMoveIndex++;
     }
 
+    // Save updated session to Redis
+    await sessionStore.set(sessionId, session);
+
     // Reset timer for next move
     this.moveStartTimes.set(sessionId, Date.now());
 
     return result;
   }
 
-  isSessionComplete(sessionId: string): boolean {
-    const session = this.sessions.get(sessionId);
+  async isSessionComplete(sessionId: string): Promise<boolean> {
+    const session = await sessionStore.get(sessionId);
     if (!session) return false;
     // Session is complete when currentMoveIndex is beyond the last move
     return session.currentMoveIndex >= session.historicalGame.moves.length;
   }
 
-  completeSession(sessionId: string): PracticeCompletedData | null {
-    const session = this.sessions.get(sessionId);
+  async completeSession(sessionId: string): Promise<PracticeCompletedData | null> {
+    const session = await sessionStore.get(sessionId);
     if (!session) return null;
 
     session.status = 'completed';
     const totalTimeMs = Date.now() - session.startedAt;
     const correctMoves = session.moveResults.filter((r) => r.isCorrect).length;
+
+    // Update session status in Redis
+    await sessionStore.set(sessionId, session);
 
     // Clean up timer tracking
     this.moveStartTimes.delete(sessionId);
@@ -241,20 +249,17 @@ export class PracticeService {
     };
   }
 
-  abandonSession(sessionId: string): void {
-    const session = this.sessions.get(sessionId);
+  async abandonSession(sessionId: string): Promise<void> {
+    const session = await sessionStore.get(sessionId);
     if (session) {
       session.status = 'abandoned';
+      await sessionStore.set(sessionId, session);
       this.moveStartTimes.delete(sessionId);
     }
   }
 
-  removeSession(sessionId: string): void {
-    const session = this.sessions.get(sessionId);
-    if (session) {
-      this.socketToSession.delete(session.socketId);
-    }
-    this.sessions.delete(sessionId);
+  async removeSession(sessionId: string): Promise<void> {
+    await sessionStore.delete(sessionId);
     this.moveStartTimes.delete(sessionId);
     // Clear caches for this session
     for (const key of this.positionCache.keys()) {
@@ -269,10 +274,10 @@ export class PracticeService {
     }
   }
 
-  removeSessionBySocketId(socketId: string): void {
-    const sessionId = this.socketToSession.get(socketId);
+  async removeSessionBySocketId(socketId: string): Promise<void> {
+    const sessionId = await sessionStore.getSessionIdBySocketId(socketId);
     if (sessionId) {
-      this.removeSession(sessionId);
+      await this.removeSession(sessionId);
     }
   }
 
@@ -280,12 +285,12 @@ export class PracticeService {
    * Remove only inactive sessions (completed/abandoned) for a socket.
    * Keeps active 'playing' sessions alive for potential reconnection.
    */
-  removeInactiveSessionsBySocketId(socketId: string): void {
-    const sessionId = this.socketToSession.get(socketId);
+  async removeInactiveSessionsBySocketId(socketId: string): Promise<void> {
+    const sessionId = await sessionStore.getSessionIdBySocketId(socketId);
     if (sessionId) {
-      const session = this.sessions.get(sessionId);
+      const session = await sessionStore.get(sessionId);
       if (session && session.status !== 'playing') {
-        this.removeSession(sessionId);
+        await this.removeSession(sessionId);
       }
     }
   }
@@ -293,20 +298,17 @@ export class PracticeService {
   /**
    * Update the socket ID for an existing session (for reconnection)
    */
-  updateSessionSocketId(sessionId: string, newSocketId: string): boolean {
-    const session = this.sessions.get(sessionId);
+  async updateSessionSocketId(sessionId: string, newSocketId: string): Promise<boolean> {
+    const session = await sessionStore.get(sessionId);
     if (session) {
-      // Update socket index
-      this.socketToSession.delete(session.socketId);
-      this.socketToSession.set(newSocketId, sessionId);
-      session.socketId = newSocketId;
-      return true;
+      const oldSocketId = session.socketId;
+      return sessionStore.updateSocketId(sessionId, oldSocketId, newSocketId);
     }
     return false;
   }
 
-  getLegalMoves(sessionId: string): string[] {
-    const session = this.sessions.get(sessionId);
+  async getLegalMoves(sessionId: string): Promise<string[]> {
+    const session = await sessionStore.get(sessionId);
     if (!session) return [];
 
     // Check cache first
@@ -317,7 +319,7 @@ export class PracticeService {
     }
 
     // Calculate and cache
-    const currentFen = this.getCurrentPosition(sessionId);
+    const currentFen = await this.getCurrentPosition(sessionId, session);
     const moves = this.pgnService.getLegalMoves(currentFen);
     this.legalMovesCache.set(cacheKey, moves);
 
@@ -330,20 +332,25 @@ export class PracticeService {
     return moves;
   }
 
-  getNextMoveData(sessionId: string): {
+  async getNextMoveData(sessionId: string): Promise<{
     position: string;
     currentMoveIndex: number;
     currentSide: 'white' | 'black';
     expectedMove: MoveDetails;
     opponentMove?: MoveDetails;
-  } | null {
-    const session = this.sessions.get(sessionId);
-    if (!session || this.isSessionComplete(sessionId)) return null;
+  } | null> {
+    const session = await sessionStore.get(sessionId);
+    if (!session) return null;
 
-    const position = this.getCurrentPosition(sessionId);
-    const expectedMove = this.getCurrentExpectedMove(sessionId);
+    const isComplete = session.currentMoveIndex >= session.historicalGame.moves.length;
+    if (isComplete) return null;
+
+    const position = await this.getCurrentPosition(sessionId, session);
+    const expectedMove = await this.getCurrentExpectedMove(sessionId, session);
 
     if (!expectedMove) return null;
+
+    const currentSide = session.currentMoveIndex % 2 === 0 ? 'white' : 'black';
 
     const result: {
       position: string;
@@ -354,7 +361,7 @@ export class PracticeService {
     } = {
       position,
       currentMoveIndex: session.currentMoveIndex,
-      currentSide: this.getCurrentSide(sessionId),
+      currentSide,
       expectedMove,
     };
 
@@ -377,5 +384,42 @@ export class PracticeService {
     }
 
     return result;
+  }
+
+  /**
+   * Get session data for resumption after page refresh.
+   * Returns null if session doesn't exist or is not in 'playing' status.
+   */
+  async getSessionResumeData(sessionId: string): Promise<SessionResumedData | null> {
+    const session = await sessionStore.get(sessionId);
+    if (!session || session.status !== 'playing') {
+      return null;
+    }
+
+    const position = await this.getCurrentPosition(sessionId, session);
+    const expectedMove = await this.getCurrentExpectedMove(sessionId, session);
+
+    if (!expectedMove) return null;
+
+    // Calculate total moves (same logic as createSession)
+    const game = session.historicalGame;
+    const totalMoves = session.mode === 'one-side' && session.playerColor
+      ? (session.playerColor === 'white'
+          ? Math.ceil(game.moves.length / 2)
+          : Math.floor(game.moves.length / 2))
+      : game.moves.length;
+
+    return {
+      sessionId: session.id,
+      game: session.historicalGame,
+      position,
+      currentMoveIndex: session.currentMoveIndex,
+      currentSide: session.currentMoveIndex % 2 === 0 ? 'white' : 'black',
+      expectedMove,
+      totalMoves,
+      mode: session.mode,
+      playerColor: session.playerColor,
+      moveResults: session.moveResults,
+    };
   }
 }

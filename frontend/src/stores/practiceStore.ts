@@ -11,6 +11,7 @@ import {
   PracticeStartedData,
   PracticeNextMoveData,
   GamificationResult,
+  SessionResumedData,
 } from '@/types';
 
 interface PracticeState {
@@ -83,6 +84,8 @@ interface PracticeState {
   setVoiceParsingMode: (mode: 'webspeech-haiku' | 'gemini-audio') => void;
   setGeminiTranscription: (transcription: string | null) => void;
   setAutoSubmitEnabled: (enabled: boolean) => void;
+  resumeSession: (data: SessionResumedData) => void;
+  clearSessionId: () => void;
   reset: () => void;
 }
 
@@ -200,6 +203,32 @@ export const usePracticeStore = create<PracticeState>()(
 
       setAutoSubmitEnabled: (enabled) => set({ autoSubmitEnabled: enabled }),
 
+      resumeSession: (data) =>
+        set({
+          sessionId: data.sessionId,
+          selectedGame: data.game,
+          status: 'playing',
+          currentPosition: data.position,
+          currentMoveIndex: data.currentMoveIndex,
+          currentSide: data.currentSide,
+          currentExpectedMove: data.expectedMove,
+          totalMoves: data.totalMoves,
+          moveResults: data.moveResults,
+          lastMoveResult: data.moveResults.length > 0
+            ? data.moveResults[data.moveResults.length - 1]
+            : null,
+          completedData: null,
+          gamificationResult: null,
+          isSubmitting: false,
+          isStarting: false,
+          error: null,
+          mode: data.mode,
+          playerColor: data.playerColor,
+          pendingOpponentMove: null,
+        }),
+
+      clearSessionId: () => set({ sessionId: null }),
+
       reset: () => set(initialState),
     }),
     {
@@ -219,12 +248,13 @@ export const usePracticeStore = create<PracticeState>()(
           sessionStorage.removeItem(name);
         },
       },
-      // Only persist player name, voice mode, and settings - session state should not survive page refreshes
+      // Persist player name, voice mode, settings, and sessionId for resume functionality
       partialize: (state) =>
         ({
           playerName: state.playerName,
           voiceParsingMode: state.voiceParsingMode,
           autoSubmitEnabled: state.autoSubmitEnabled,
+          sessionId: state.sessionId,
         }) as unknown as PracticeState,
     }
   )

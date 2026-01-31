@@ -5,6 +5,7 @@ import { initializeSocket } from './socket/index.js';
 import { connectToDatabase } from './services/database.js';
 import { seedGamesIfEmpty, getAllGames } from './services/gameRepository.js';
 import { userRoutes } from './routes/userRoutes.js';
+import { connectRedis, disconnectRedis } from './lib/redis.js';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -12,6 +13,14 @@ const HOST = process.env.HOST || '0.0.0.0';
 async function main() {
   // Connect to MongoDB
   await connectToDatabase();
+
+  // Connect to Redis (optional - falls back to in-memory if unavailable)
+  const redisConnected = await connectRedis();
+  if (redisConnected) {
+    console.log('[Server] Redis connected - sessions will be persisted');
+  } else {
+    console.log('[Server] Redis not available - using in-memory session storage');
+  }
 
   // Seed games if database is empty
   await seedGamesIfEmpty();
@@ -56,6 +65,17 @@ async function main() {
     fastify.log.error(err);
     process.exit(1);
   }
+
+  // Graceful shutdown
+  const shutdown = async () => {
+    console.log('[Server] Shutting down gracefully...');
+    await disconnectRedis();
+    await fastify.close();
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
 
 main();

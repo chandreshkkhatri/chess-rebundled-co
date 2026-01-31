@@ -171,6 +171,20 @@ export interface PracticeMoveResponseData {
   gamification?: GamificationResult;
 }
 
+// Session resume data (for restoring session after page refresh)
+export interface SessionResumedData {
+  sessionId: string;
+  game: HistoricalGame;
+  position: string;
+  currentMoveIndex: number;
+  currentSide: 'white' | 'black';
+  expectedMove: MoveDetails;
+  totalMoves: number;
+  mode: PracticeMode;
+  playerColor: 'white' | 'black' | null;
+  moveResults: PracticeMoveResult[];
+}
+
 // Socket Event Types
 export interface ServerToClientEvents {
   // Practice mode events
@@ -181,6 +195,9 @@ export interface ServerToClientEvents {
   'practice-completed': (data: PracticeCompletedData) => void;
   'practice-move-response': (data: PracticeMoveResponseData) => void; // Combined event
   'practice-error': (data: { message: string }) => void;
+  // Session resume events
+  'session-resumed': (data: SessionResumedData) => void;
+  'session-not-found': (data: { sessionId: string; reason: string }) => void;
   // AI move parsing events (Web Speech + Haiku)
   'move-parsed': (data: AIParsedMoveResult) => void;
   'parse-error': (data: { message: string }) => void;
@@ -196,6 +213,8 @@ export interface ClientToServerEvents {
   'start-practice-random': (data: { playerName: string; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
   'submit-practice-move': (data: { sessionId: string; move: string }) => void;
   'abandon-practice': (data: { sessionId: string }) => void;
+  // Session resume
+  'resume-session': (data: { sessionId: string }) => void;
   // AI move parsing events (Web Speech + Haiku)
   'parse-move-with-ai': (data: { sessionId: string; transcript: string }) => void;
   // Gemini audio parsing events

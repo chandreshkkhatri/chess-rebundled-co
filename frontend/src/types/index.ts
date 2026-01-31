@@ -135,6 +135,20 @@ export interface PracticeMoveResponseData {
   gamification?: GamificationResult;
 }
 
+// Session resume data (for restoring session after page refresh)
+export interface SessionResumedData {
+  sessionId: string;
+  game: HistoricalGame;
+  position: string;
+  currentMoveIndex: number;
+  currentSide: 'white' | 'black';
+  expectedMove: MoveDetails;
+  totalMoves: number;
+  mode: PracticeMode;
+  playerColor: 'white' | 'black' | null;
+  moveResults: PracticeMoveResult[];
+}
+
 // AI Move Parsing Types
 export interface AIParsedMoveResult {
   transcript: string;

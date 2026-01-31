@@ -24,8 +24,10 @@ export default function PracticeGamePage() {
   const [showMoveHistory, setShowMoveHistory] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [isResuming, setIsResuming] = useState(false);
+  const [resumeAttempted, setResumeAttempted] = useState(false);
 
-  const { submitPracticeMove, abandonPractice } = usePracticeSocket();
+  const { submitPracticeMove, abandonPractice, resumeSession } = usePracticeSocket();
   const { user, isAnonymous } = useAuth();
   const {
     status,
@@ -47,6 +49,8 @@ export default function PracticeGamePage() {
     setError,
     isStarting,
     playerName,
+    isConnected,
+    sessionId: storedSessionId,
   } = usePracticeStore();
 
   // Calculate correct moves so far (memoized to avoid recalculating on every render)
@@ -100,16 +104,55 @@ export default function PracticeGamePage() {
     router.push('/practice');
   }, [reset, router]);
 
-  // Redirect if no session
-  // Bug 4 fix: Don't redirect while starting or if already playing/completed
+  // Attempt to resume session on mount if we have a stored sessionId that matches the URL
   useEffect(() => {
-    if (isStarting || status === 'playing' || status === 'completed') {
+    // Only attempt resume if:
+    // 1. We haven't already attempted
+    // 2. Status is idle (no active session in state)
+    // 3. Socket is connected
+    // 4. The stored sessionId matches the URL sessionId (page refresh scenario)
+    if (
+      !resumeAttempted &&
+      status === 'idle' &&
+      isConnected &&
+      !isStarting &&
+      storedSessionId === sessionId
+    ) {
+      setResumeAttempted(true);
+      setIsResuming(true);
+      const success = resumeSession(sessionId);
+      if (!success) {
+        // Socket not connected, will not retry
+        setIsResuming(false);
+      }
+    }
+  }, [resumeAttempted, status, isConnected, isStarting, storedSessionId, sessionId, resumeSession]);
+
+  // Handle resume result
+  useEffect(() => {
+    if (isResuming) {
+      // Session resumed successfully
+      if (status === 'playing') {
+        setIsResuming(false);
+      }
+      // Session resume failed (error was set)
+      if (error) {
+        setIsResuming(false);
+      }
+    }
+  }, [isResuming, status, error]);
+
+  // Redirect if no session
+  // Bug 4 fix: Don't redirect while starting, resuming, or if already playing/completed
+  useEffect(() => {
+    if (isStarting || isResuming || status === 'playing' || status === 'completed') {
       return;
     }
-    if (status === 'idle' || status === 'selecting') {
+    // Only redirect if we've attempted resume and it failed, or if there's no stored session
+    if ((status === 'idle' || status === 'selecting') && (resumeAttempted || storedSessionId !== sessionId)) {
       router.push('/practice');
     }
-  }, [status, isStarting, router]);
+  }, [status, isStarting, isResuming, resumeAttempted, storedSessionId, sessionId, router]);
 
   // Show results when completed
   if (status === 'completed' && completedData) {
@@ -148,7 +191,9 @@ export default function PracticeGamePage() {
       <main className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center">
           <div className="animate-spin h-8 w-8 border-2 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-slate-400">Loading...</p>
+          <p className="text-slate-400">
+            {isResuming ? 'Resuming session...' : 'Loading...'}
+          </p>
         </div>
       </main>
     );

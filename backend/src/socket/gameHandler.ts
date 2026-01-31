@@ -66,16 +66,17 @@ export class GameHandler {
     socket.on('start-practice-random', (data) => this.handleStartPracticeRandom(socket, data));
     socket.on('submit-practice-move', (data) => this.handleSubmitPracticeMove(socket, data));
     socket.on('abandon-practice', (data) => this.handleAbandonPractice(socket, data));
+    socket.on('resume-session', (data) => this.handleResumeSession(socket, data));
     socket.on('parse-move-with-ai', (data) => this.handleParseMoveWithAI(socket, data));
     socket.on('parse-audio-move-with-gemini', (data) => this.handleParseAudioMoveWithGemini(socket, data));
 
     socket.on('disconnect', () => this.handleDisconnect(socket));
   }
 
-  private handleDisconnect(socket: GameSocket): void {
+  private async handleDisconnect(socket: GameSocket): Promise<void> {
     // Don't remove active practice sessions - allow reconnection
     // Only remove sessions that are completed or abandoned
-    this.practiceService.removeInactiveSessionsBySocketId(socket.id);
+    await this.practiceService.removeInactiveSessionsBySocketId(socket.id);
   }
 
   private async handleStartPractice(
@@ -168,12 +169,12 @@ export class GameHandler {
   ): Promise<void> {
     try {
       // Update socket ID if reconnected
-      const session = this.practiceService.getSession(data.sessionId);
+      const session = await this.practiceService.getSession(data.sessionId);
       if (session && session.socketId !== socket.id) {
-        this.practiceService.updateSessionSocketId(data.sessionId, socket.id);
+        await this.practiceService.updateSessionSocketId(data.sessionId, socket.id);
       }
 
-      const result = this.practiceService.processMove(data.sessionId, data.move);
+      const result = await this.practiceService.processMove(data.sessionId, data.move);
 
       if (!result) {
         socket.emit('practice-error', { message: 'Could not process move' });
@@ -181,9 +182,9 @@ export class GameHandler {
       }
 
       // Check if session is complete and prepare response data
-      const isComplete = this.practiceService.isSessionComplete(data.sessionId);
-      const completedData = isComplete ? this.practiceService.completeSession(data.sessionId) : null;
-      const nextMoveData = !isComplete ? this.practiceService.getNextMoveData(data.sessionId) : null;
+      const isComplete = await this.practiceService.isSessionComplete(data.sessionId);
+      const completedData = isComplete ? await this.practiceService.completeSession(data.sessionId) : null;
+      const nextMoveData = !isComplete ? await this.practiceService.getNextMoveData(data.sessionId) : null;
 
       // Save to Firestore and process gamification if session completed and user is authenticated
       let gamificationResult = null;
@@ -224,18 +225,57 @@ export class GameHandler {
     }
   }
 
-  private handleAbandonPractice(
+  private async handleAbandonPractice(
     socket: GameSocket,
     data: { sessionId: string }
-  ): void {
-    this.practiceService.abandonSession(data.sessionId);
+  ): Promise<void> {
+    await this.practiceService.abandonSession(data.sessionId);
+  }
+
+  private async handleResumeSession(
+    socket: GameSocket,
+    data: { sessionId: string }
+  ): Promise<void> {
+    const session = await this.practiceService.getSession(data.sessionId);
+
+    if (!session) {
+      socket.emit('session-not-found', {
+        sessionId: data.sessionId,
+        reason: 'Session not found or expired',
+      });
+      return;
+    }
+
+    if (session.status !== 'playing') {
+      socket.emit('session-not-found', {
+        sessionId: data.sessionId,
+        reason: 'Session is no longer active',
+      });
+      return;
+    }
+
+    // Update socket ID for reconnection
+    await this.practiceService.updateSessionSocketId(data.sessionId, socket.id);
+
+    const resumeData = await this.practiceService.getSessionResumeData(data.sessionId);
+
+    if (!resumeData) {
+      socket.emit('session-not-found', {
+        sessionId: data.sessionId,
+        reason: 'Could not restore session state',
+      });
+      return;
+    }
+
+    console.log(`[GameHandler] Session ${data.sessionId} resumed for socket ${socket.id}`);
+    socket.emit('session-resumed', resumeData);
   }
 
   private async handleParseMoveWithAI(
     socket: GameSocket,
     data: { sessionId: string; transcript: string }
   ): Promise<void> {
-    const session = this.practiceService.getSession(data.sessionId);
+    const session = await this.practiceService.getSession(data.sessionId);
     if (!session) {
       socket.emit('parse-error', { message: 'Session not found' });
       return;
@@ -243,11 +283,11 @@ export class GameHandler {
 
     // Update socket ID if reconnected
     if (session.socketId !== socket.id) {
-      this.practiceService.updateSessionSocketId(data.sessionId, socket.id);
+      await this.practiceService.updateSessionSocketId(data.sessionId, socket.id);
     }
 
-    const currentFen = this.practiceService.getCurrentPosition(data.sessionId);
-    const legalMoves = this.practiceService.getLegalMoves(data.sessionId);
+    const currentFen = await this.practiceService.getCurrentPosition(data.sessionId);
+    const legalMoves = await this.practiceService.getLegalMoves(data.sessionId);
 
     try {
       // Check cache first for AI parsing results
@@ -283,7 +323,7 @@ export class GameHandler {
     socket: GameSocket,
     data: { sessionId: string; audioBase64: string; mimeType: string }
   ): Promise<void> {
-    const session = this.practiceService.getSession(data.sessionId);
+    const session = await this.practiceService.getSession(data.sessionId);
     if (!session) {
       socket.emit('audio-parse-error', { message: 'Session not found' });
       return;
@@ -291,11 +331,11 @@ export class GameHandler {
 
     // Update socket ID if reconnected
     if (session.socketId !== socket.id) {
-      this.practiceService.updateSessionSocketId(data.sessionId, socket.id);
+      await this.practiceService.updateSessionSocketId(data.sessionId, socket.id);
     }
 
-    const currentFen = this.practiceService.getCurrentPosition(data.sessionId);
-    const legalMoves = this.practiceService.getLegalMoves(data.sessionId);
+    const currentFen = await this.practiceService.getCurrentPosition(data.sessionId);
+    const legalMoves = await this.practiceService.getLegalMoves(data.sessionId);
 
     try {
       const parsed = await parseChessMoveFromAudio(
