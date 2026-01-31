@@ -14,6 +14,8 @@ export default function PracticeSelectPage() {
   const [selectedMode, setSelectedMode] = useState<PracticeMode | null>(null);
   const [selectedColor, setSelectedColor] = useState<'white' | 'black' | null>(null);
   const [showModeSelection, setShowModeSelection] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
   const hasStartedRef = useRef(false);
   const startTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -130,14 +132,17 @@ export default function PracticeSelectPage() {
   }, []);
 
   const handleEnterName = async () => {
-    if (!playerName.trim()) {
-      alert('Please enter your name');
+    const name = playerName.trim();
+    if (!name) {
+      setNameError('Please enter your name');
       return;
     }
-    const name = playerName.trim();
+
+    setNameError(null);
+    setIsSubmitting(true);
     storeSetPlayerName(name);
 
-    // For authenticated users, also save to their profile
+    // For authenticated users, also save to their profile (non-blocking)
     if (user && !isAnonymous) {
       try {
         const token = await getIdToken();
@@ -157,6 +162,7 @@ export default function PracticeSelectPage() {
       }
     }
 
+    setIsSubmitting(false);
     setHasEnteredName(true);
     setShowModeSelection(true);
   };
@@ -188,33 +194,42 @@ export default function PracticeSelectPage() {
             <p className="text-slate-400">Practice identifying moves at your own pace</p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-xl p-6">
+          <div className="bg-slate-800 rounded-2xl shadow-xl p-6">
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
                 Your Name
               </label>
               <input
                 type="text"
                 value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleEnterName()}
+                onChange={(e) => {
+                  setPlayerName(e.target.value);
+                  if (nameError) setNameError(null);
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && !isSubmitting && handleEnterName()}
                 placeholder="Enter your name"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                className={`w-full px-4 py-3 border rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none placeholder-slate-400 ${
+                  nameError ? 'border-red-500' : 'border-slate-600'
+                }`}
                 maxLength={20}
+                disabled={isSubmitting}
               />
+              {nameError && (
+                <p className="mt-2 text-sm text-red-400">{nameError}</p>
+              )}
             </div>
 
             <button
               onClick={handleEnterName}
-              disabled={!isConnected}
-              className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-gray-300"
+              disabled={!isConnected || isSubmitting}
+              className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
             >
-              {isConnected ? 'Continue' : 'Connecting...'}
+              {!isConnected ? 'Connecting...' : isSubmitting ? 'Saving...' : 'Continue'}
             </button>
 
             <button
               onClick={() => router.push('/')}
-              className="w-full mt-3 py-3 px-6 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-lg transition-all"
+              className="w-full mt-3 py-3 px-6 bg-slate-700 hover:bg-slate-600 text-slate-300 font-medium rounded-lg transition-all"
             >
               Back to Home
             </button>
@@ -250,27 +265,27 @@ export default function PracticeSelectPage() {
             <p className="text-slate-400">Play as White or Black</p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-xl p-6">
+          <div className="bg-slate-800 rounded-2xl shadow-xl p-6">
             <div className="grid grid-cols-2 gap-4 mb-6">
               <button
                 onClick={() => handleSelectColor('white')}
-                className="flex flex-col items-center justify-center p-6 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all"
+                className="flex flex-col items-center justify-center p-6 border-2 border-slate-600 rounded-xl hover:border-purple-500 hover:bg-purple-900/30 transition-all"
               >
                 <span className="text-5xl mb-2">&#9812;</span>
-                <span className="font-medium text-gray-700">White</span>
+                <span className="font-medium text-slate-200">White</span>
               </button>
               <button
                 onClick={() => handleSelectColor('black')}
-                className="flex flex-col items-center justify-center p-6 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all"
+                className="flex flex-col items-center justify-center p-6 border-2 border-slate-600 rounded-xl hover:border-purple-500 hover:bg-purple-900/30 transition-all"
               >
                 <span className="text-5xl mb-2">&#9818;</span>
-                <span className="font-medium text-gray-700">Black</span>
+                <span className="font-medium text-slate-200">Black</span>
               </button>
             </div>
 
             <button
               onClick={() => setSelectedMode(null)}
-              className="w-full py-3 px-6 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-lg transition-all"
+              className="w-full py-3 px-6 bg-slate-700 hover:bg-slate-600 text-slate-300 font-medium rounded-lg transition-all"
             >
               Back to Mode Selection
             </button>
@@ -290,11 +305,11 @@ export default function PracticeSelectPage() {
             <p className="text-slate-400">Hi {playerName}! How would you like to practice?</p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-xl p-6">
+          <div className="bg-slate-800 rounded-2xl shadow-xl p-6">
             {/* Connection status */}
             {!isConnected && (
-              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-sm text-yellow-700">Connecting to server...</p>
+              <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-700 rounded-lg">
+                <p className="text-sm text-yellow-400">Connecting to server...</p>
               </div>
             )}
 
@@ -302,28 +317,28 @@ export default function PracticeSelectPage() {
               <button
                 onClick={() => handleSelectMode('both-sides')}
                 disabled={!isConnected}
-                className="w-full flex items-center p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white"
+                className="w-full flex items-center p-4 border-2 border-slate-600 rounded-xl hover:border-purple-500 hover:bg-purple-900/30 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-slate-600 disabled:hover:bg-transparent"
               >
-                <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-purple-900/50 rounded-lg flex items-center justify-center mr-4">
                   <span className="text-2xl">&#9812;&#9818;</span>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-800">Both Sides</h3>
-                  <p className="text-sm text-gray-500">Identify all moves for White and Black</p>
+                  <h3 className="font-semibold text-slate-100">Both Sides</h3>
+                  <p className="text-sm text-slate-400">Identify all moves for White and Black</p>
                 </div>
               </button>
 
               <button
                 onClick={() => handleSelectMode('one-side')}
                 disabled={!isConnected}
-                className="w-full flex items-center p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white"
+                className="w-full flex items-center p-4 border-2 border-slate-600 rounded-xl hover:border-purple-500 hover:bg-purple-900/30 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-slate-600 disabled:hover:bg-transparent"
               >
-                <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-purple-900/50 rounded-lg flex items-center justify-center mr-4">
                   <span className="text-2xl">&#9812;</span>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-800">One Side</h3>
-                  <p className="text-sm text-gray-500">Play as White or Black only</p>
+                  <h3 className="font-semibold text-slate-100">One Side</h3>
+                  <p className="text-sm text-slate-400">Play as White or Black only</p>
                 </div>
               </button>
             </div>
@@ -333,7 +348,7 @@ export default function PracticeSelectPage() {
                 setHasEnteredName(false);
                 setShowModeSelection(false);
               }}
-              className="w-full py-3 px-6 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-lg transition-all"
+              className="w-full py-3 px-6 bg-slate-700 hover:bg-slate-600 text-slate-300 font-medium rounded-lg transition-all"
             >
               Back
             </button>

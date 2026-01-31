@@ -63,9 +63,9 @@ export default function Home() {
             <p className="text-slate-400">Learn chess notation by speaking moves from famous games</p>
           </div>
 
-        <div className="bg-white rounded-2xl shadow-xl p-6">
+        <div className="bg-slate-800 rounded-2xl shadow-xl p-6">
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Your Name
             </label>
             <input
@@ -74,7 +74,7 @@ export default function Home() {
               onChange={(e) => setPlayerName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleStartPractice()}
               placeholder="Enter your name"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+              className="w-full px-4 py-3 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none placeholder-slate-400"
               maxLength={20}
             />
           </div>
@@ -82,29 +82,29 @@ export default function Home() {
           <button
             onClick={handleStartPractice}
             disabled={!isConnected}
-            className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-gray-300"
+            className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
           >
             {isConnected ? 'Start Practice' : 'Connecting...'}
           </button>
 
           {/* Features overview */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 text-center">Features</h3>
-            <ul className="text-sm text-gray-600 space-y-2">
+          <div className="mt-6 pt-6 border-t border-slate-700">
+            <h3 className="text-sm font-semibold text-slate-300 mb-3 text-center">Features</h3>
+            <ul className="text-sm text-slate-400 space-y-2">
               <li className="flex items-center gap-2">
-                <span className="text-purple-500">&#9679;</span>
+                <span className="text-purple-400">&#9679;</span>
                 Famous historical chess games
               </li>
               <li className="flex items-center gap-2">
-                <span className="text-purple-500">&#9679;</span>
+                <span className="text-purple-400">&#9679;</span>
                 Voice input with AI-powered move parsing
               </li>
               <li className="flex items-center gap-2">
-                <span className="text-purple-500">&#9679;</span>
+                <span className="text-purple-400">&#9679;</span>
                 Play as both sides or choose a color
               </li>
               <li className="flex items-center gap-2">
-                <span className="text-purple-500">&#9679;</span>
+                <span className="text-purple-400">&#9679;</span>
                 Track your accuracy and progress
               </li>
             </ul>

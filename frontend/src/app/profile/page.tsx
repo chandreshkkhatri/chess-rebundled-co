@@ -195,27 +195,27 @@ export default function ProfilePage() {
             {error ? (
               <p className="text-red-400">{error}</p>
             ) : profile?.stats ? (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-slate-700/50 rounded-xl p-4">
-                  <p className="text-3xl font-bold text-white">
+                  <p className="text-2xl sm:text-3xl font-bold text-white">
                     {profile.stats.totalSessions}
                   </p>
                   <p className="text-slate-400 text-sm">Total Sessions</p>
                 </div>
                 <div className="bg-slate-700/50 rounded-xl p-4">
-                  <p className="text-3xl font-bold text-white">
+                  <p className="text-2xl sm:text-3xl font-bold text-white">
                     {profile.stats.totalMoves}
                   </p>
                   <p className="text-slate-400 text-sm">Total Moves</p>
                 </div>
                 <div className="bg-slate-700/50 rounded-xl p-4">
-                  <p className="text-3xl font-bold text-green-400">
+                  <p className="text-2xl sm:text-3xl font-bold text-green-400">
                     {profile.stats.correctMoves}
                   </p>
                   <p className="text-slate-400 text-sm">Correct Moves</p>
                 </div>
                 <div className="bg-slate-700/50 rounded-xl p-4">
-                  <p className="text-3xl font-bold text-purple-400">
+                  <p className="text-2xl sm:text-3xl font-bold text-purple-400">
                     {(profile.stats.overallAccuracy * 100).toFixed(1)}%
                   </p>
                   <p className="text-slate-400 text-sm">Overall Accuracy</p>

@@ -94,9 +94,11 @@ export default function PracticeGamePage() {
   );
 
   const handleAbandon = useCallback(() => {
-    abandonPractice(sessionId);
-    reset();
-    router.push('/practice');
+    if (window.confirm('Abandon this practice session? Your progress will be lost.')) {
+      abandonPractice(sessionId);
+      reset();
+      router.push('/practice');
+    }
   }, [sessionId, abandonPractice, reset, router]);
 
   const handlePlayAgain = useCallback(() => {
@@ -219,7 +221,7 @@ export default function PracticeGamePage() {
               <div className="relative">
                 <button
                   onClick={() => setShowGameInfo(!showGameInfo)}
-                  className="w-5 h-5 flex items-center justify-center rounded-full border border-slate-500 text-slate-400 hover:border-slate-300 hover:text-white transition-colors text-xs"
+                  className="w-8 h-8 flex items-center justify-center rounded-full border border-slate-500 text-slate-400 hover:border-slate-300 hover:text-white transition-colors text-xs"
                   title="Game info"
                 >
                   i
@@ -272,7 +274,7 @@ export default function PracticeGamePage() {
             {/* Settings - desktop only */}
             <button
               onClick={() => setShowSettings(true)}
-              className="hidden lg:flex items-center text-slate-400 hover:text-white transition-colors"
+              className="hidden lg:flex items-center justify-center w-8 h-8 text-slate-400 hover:text-white transition-colors"
               title="Settings"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -285,7 +287,7 @@ export default function PracticeGamePage() {
               href="https://discord.gg/ySGBwu9xvk"
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden lg:flex items-center text-slate-400 hover:text-indigo-400 transition-colors"
+              className="hidden lg:flex items-center justify-center w-8 h-8 text-slate-400 hover:text-indigo-400 transition-colors"
               title="Join our Discord"
             >
               <DiscordIcon className="w-5 h-5" />
@@ -435,7 +437,7 @@ export default function PracticeGamePage() {
             onClick={() => setShowMoveHistory(false)}
           >
             <div
-              className="bg-slate-800 rounded-lg p-3 max-w-sm w-full mx-4 max-h-[60vh] flex flex-col"
+              className="bg-slate-800 rounded-lg p-3 max-w-sm w-full mx-4 max-h-[80vh] sm:max-h-[60vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex justify-between items-center mb-2">
