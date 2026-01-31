@@ -65,12 +65,23 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     currentPosition,
     currentExpectedMove,
     autoSubmitEnabled,
+    inputMode,
   } = usePracticeStore();
+
+  // Determine which features are enabled based on input mode
+  const voiceEnabled = inputMode === 'voice-tap';
+  const tapGridEnabled = inputMode === 'voice-tap' || inputMode === 'tap-only';
+  const textOnlyMode = inputMode === 'text-only';
   const { parseMoveWithAI, parseAudioMoveWithGemini } = usePracticeSocket();
   const isActive = status === 'playing' && !disabled;
 
   // Selected move (from AI result or alternatives)
   const [selectedMove, setSelectedMove] = useState<string | null>(null);
+
+  // Text input fallback state
+  const [textInput, setTextInput] = useState('');
+  const [showTextInput, setShowTextInput] = useState(false);
+  const textInputRef = useRef<HTMLInputElement>(null);
 
   const autoListenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoSubmitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -244,14 +255,28 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     setSelectedMove(null);
   }, [voiceParsingMode, stopGeminiListening, stopWebSpeechListening, clearAIParseState]);
 
-  // Auto-start listening when active and not submitting/parsing
+  // Auto-start listening when active and not submitting/parsing (only in voice mode)
   // Keeps listening even when there's a transcript, so speaking again replaces the previous result
   useEffect(() => {
-    if (isActive && !isListening && !isSubmitting && !isAIParsing) {
+    if (voiceEnabled && isActive && !isListening && !isSubmitting && !isAIParsing) {
       // Start listening immediately (removed 50ms delay for faster response)
       startListening();
     }
-  }, [isActive, isListening, isSubmitting, isAIParsing, startListening]);
+  }, [voiceEnabled, isActive, isListening, isSubmitting, isAIParsing, startListening]);
+
+  // Stop listening when input mode changes away from voice
+  useEffect(() => {
+    if (!voiceEnabled && isListening) {
+      stopListening();
+    }
+  }, [voiceEnabled, isListening, stopListening]);
+
+  // In text-only mode, auto-show text input
+  useEffect(() => {
+    if (textOnlyMode && isActive) {
+      setShowTextInput(true);
+    }
+  }, [textOnlyMode, isActive]);
 
   // Stop listening when submitting or parsing
   useEffect(() => {
@@ -264,6 +289,8 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
   useEffect(() => {
     if (lastMoveResult) {
       setSelectedMove(null);
+      setTextInput('');
+      setShowTextInput(false);
       clearAIParseState();
       lastProcessedRef.current = null;
       // Cancel any pending auto-submit since submission completed
@@ -284,26 +311,92 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
 
   const handleReset = useCallback(() => {
     setSelectedMove(null);
+    setTextInput('');
     clearAIParseState();
     lastProcessedRef.current = null;
     if (autoListenTimeoutRef.current) {
       clearTimeout(autoListenTimeoutRef.current);
       autoListenTimeoutRef.current = null;
     }
-    if (!isListening && isActive) {
+    if (voiceEnabled && !isListening && isActive) {
       startListening();
     }
-  }, [startListening, isListening, isActive, clearAIParseState]);
+  }, [voiceEnabled, startListening, isListening, isActive, clearAIParseState]);
 
   const handleSelectAlternative = useCallback((move: string) => {
     setSelectedMove(move);
   }, []);
 
-  if (!isSupported) {
+  // Handle text input submission
+  const handleTextSubmit = useCallback(() => {
+    if (!textInput.trim() || !isActive || isSubmitting) return;
+
+    const input = textInput.trim();
+    clearLastMoveResult(); // Clear stale feedback from previous move
+
+    // First check for exact match (case-insensitive)
+    const exactMatch = legalMoves.find(
+      m => m.toLowerCase() === input.toLowerCase() ||
+           m.replace(/[+#]/g, '').toLowerCase() === input.toLowerCase()
+    );
+
+    if (exactMatch) {
+      setTextInput('');
+      setSelectedMove(exactMatch);
+      onMoveSubmit(exactMatch, 1.0);
+      return;
+    }
+
+    // Try fuzzy matching - find moves that start with input or contain it
+    const partialMatches = legalMoves.filter(m =>
+      m.toLowerCase().startsWith(input.toLowerCase()) ||
+      m.replace(/[+#]/g, '').toLowerCase().startsWith(input.toLowerCase())
+    );
+
+    if (partialMatches.length === 1) {
+      setTextInput('');
+      setSelectedMove(partialMatches[0]);
+      onMoveSubmit(partialMatches[0], 0.95);
+      return;
+    }
+
+    // If we have multiple matches, select the first one but don't auto-submit
+    if (partialMatches.length > 1) {
+      setSelectedMove(partialMatches[0]);
+      setTextInput('');
+    }
+  }, [textInput, isActive, isSubmitting, legalMoves, clearLastMoveResult, onMoveSubmit]);
+
+  // Handle text input key down
+  const handleTextKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleTextSubmit();
+    } else if (e.key === 'Escape') {
+      setShowTextInput(false);
+      setTextInput('');
+    }
+  }, [handleTextSubmit]);
+
+  // Get text input suggestions based on current input
+  const textSuggestions = useMemo(() => {
+    if (!textInput.trim() || !legalMoves.length) return [];
+    const input = textInput.trim().toLowerCase();
+    return legalMoves
+      .filter(m =>
+        m.toLowerCase().startsWith(input) ||
+        m.replace(/[+#]/g, '').toLowerCase().startsWith(input)
+      )
+      .slice(0, 5);
+  }, [textInput, legalMoves]);
+
+  // Only show voice-not-supported warning when voice mode is enabled but not supported
+  // If user chose tap-only or text-only mode, they don't need voice support
+  if (voiceEnabled && !isSupported) {
     return (
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2">
-        <div className="text-yellow-800 text-xs">
-          Voice recognition not supported. Use Chrome.
+      <div className="bg-yellow-900/50 border border-yellow-700 rounded-lg p-2">
+        <div className="text-yellow-200 text-xs">
+          Voice recognition not supported in this browser. Use Chrome for voice input, or change to &quot;Tap Only&quot; or &quot;Text Only&quot; mode in Settings.
         </div>
       </div>
     );
@@ -353,11 +446,11 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
           </div>
         ) : null}
 
-        {/* Move options grid - always visible when playing and we have options */}
-        {isActive && moveOptions.length > 0 && (
+        {/* Move options grid - visible when tap mode enabled */}
+        {tapGridEnabled && isActive && moveOptions.length > 0 && (
           <div className="w-full mt-2">
             <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5 text-center">
-              Tap or speak a move
+              {voiceEnabled ? 'Tap or speak a move' : 'Tap a move'}
             </div>
             <div className="grid grid-cols-3 min-[400px]:grid-cols-4 sm:grid-cols-5 gap-1">
               {moveOptions.map((move) => (
@@ -365,7 +458,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
                   key={move}
                   onClick={() => handleSelectOption(move)}
                   disabled={isSubmitting}
-                  className={`py-2 px-1 rounded font-mono text-sm transition-all border ${
+                  className={`py-2 px-1 rounded font-mono text-sm transition-all border min-h-[44px] ${
                     selectedMove === move
                       ? 'bg-green-600/30 border-green-500 text-green-300 ring-2 ring-green-500/50'
                       : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500 active:scale-95'
@@ -375,9 +468,83 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
                 </button>
               ))}
             </div>
-            <div className="text-[9px] text-slate-500 text-center mt-1">
-              Tip: Say &quot;delta&quot; for d, &quot;bravo&quot; for b
-            </div>
+            {voiceEnabled && (
+              <div className="text-[9px] text-slate-500 text-center mt-1">
+                Tip: Say &quot;delta&quot; for d, &quot;bravo&quot; for b
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Text input - always visible in text-only mode, toggleable otherwise */}
+        {isActive && (
+          <div className={textOnlyMode ? 'mt-4' : 'mt-2'}>
+            {(showTextInput || textOnlyMode) ? (
+              <div className="relative">
+                {textOnlyMode && (
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5 text-center">
+                    Type your move
+                  </div>
+                )}
+                <input
+                  ref={textInputRef}
+                  type="text"
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  onKeyDown={handleTextKeyDown}
+                  placeholder="Type move (e.g., e4, Nf3)"
+                  disabled={isSubmitting}
+                  autoFocus={!textOnlyMode || !selectedMove}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50"
+                />
+                {/* Suggestions dropdown */}
+                {textSuggestions.length > 0 && textInput.trim() && (
+                  <div className="absolute z-10 w-full mt-1 bg-slate-700 border border-slate-600 rounded-lg shadow-lg overflow-hidden">
+                    {textSuggestions.map((move) => (
+                      <button
+                        key={move}
+                        onClick={() => {
+                          setTextInput('');
+                          setSelectedMove(move);
+                          onMoveSubmit(move, 1.0);
+                        }}
+                        className="w-full px-3 py-2 text-left text-white font-mono text-sm hover:bg-slate-600 transition-colors"
+                      >
+                        {move}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* Close button - only show when text input is optional */}
+                {!textOnlyMode && (
+                  <button
+                    onClick={() => {
+                      setShowTextInput(false);
+                      setTextInput('');
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
+                    aria-label="Close text input"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setShowTextInput(true);
+                  setTimeout(() => textInputRef.current?.focus(), 0);
+                }}
+                className="w-full py-1.5 text-slate-400 hover:text-slate-300 text-xs flex items-center justify-center gap-1 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Type move instead
+              </button>
+            )}
           </div>
         )}
 
@@ -424,18 +591,18 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
             ? 'bg-yellow-600 text-white cursor-wait animate-pulse'
             : selectedMove && isActive
               ? 'bg-green-600 hover:bg-green-500 text-white shadow-green-500/20 transform active:scale-95'
-              : isWebSpeechListening && parsedPreview && isLegalMove(parsedPreview)
+              : voiceEnabled && isWebSpeechListening && parsedPreview && isLegalMove(parsedPreview)
                 ? 'bg-blue-600/70 text-white/90 animate-pulse border border-blue-400'
                 : 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'
             }`}
         >
-          {/* Listening indicator - red dot */}
-          {(isListening || isGeminiRecording) && (
+          {/* Listening indicator - red dot (only in voice mode) */}
+          {voiceEnabled && (isListening || isGeminiRecording) && (
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
           )}
           <span className="text-[10px] uppercase tracking-wider opacity-80">Submit</span>
           <span className="text-lg font-mono">
-            {isSubmitting ? '...' : selectedMove ? selectedMove : isWebSpeechListening && parsedPreview && isLegalMove(parsedPreview) ? parsedPreview : '—'}
+            {isSubmitting ? '...' : selectedMove ? selectedMove : (voiceEnabled && isWebSpeechListening && parsedPreview && isLegalMove(parsedPreview)) ? parsedPreview : '—'}
           </span>
         </button>
       </div>

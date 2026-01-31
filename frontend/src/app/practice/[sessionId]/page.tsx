@@ -11,6 +11,8 @@ import { PracticeResults } from '@/components/PracticeResults';
 import { MoveHistory } from '@/components/MoveHistory';
 import { SettingsModal } from '@/components/SettingsModal';
 import { DiscordIcon } from '@/components/icons/DiscordIcon';
+import { LiveGamificationBadge } from '@/components/LiveGamificationBadge';
+import { AchievementToastContainer } from '@/components/AchievementToast';
 
 // Debug flag - matches PracticeVoiceInput
 const DEBUG_AUDIO = process.env.NODE_ENV !== 'production';
@@ -51,6 +53,9 @@ export default function PracticeGamePage() {
     playerName,
     isConnected,
     sessionId: storedSessionId,
+    pendingAchievements,
+    queueAchievements,
+    dismissAchievement,
   } = usePracticeStore();
 
   // Calculate correct moves so far (memoized to avoid recalculating on every render)
@@ -143,6 +148,17 @@ export default function PracticeGamePage() {
       }
     }
   }, [isResuming, status, error]);
+
+  // Queue achievements when gamificationResult comes in with newAchievements
+  useEffect(() => {
+    if (gamificationResult?.newAchievements && gamificationResult.newAchievements.length > 0) {
+      // Delay slightly to not interrupt gameplay flow
+      const timeout = setTimeout(() => {
+        queueAchievements(gamificationResult.newAchievements);
+      }, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [gamificationResult, queueAchievements]);
 
   // Redirect if no session
   // Bug 4 fix: Don't redirect while starting, resuming, or if already playing/completed
@@ -247,6 +263,10 @@ export default function PracticeGamePage() {
                 {liveAccuracy}%
               </div>
             )}
+            {/* Gamification badge - authenticated users only */}
+            <div className="hidden sm:block">
+              <LiveGamificationBadge />
+            </div>
             {/* Progress indicator */}
             <div className="flex items-center gap-1.5">
               <span className="text-slate-400 text-xs">{currentMoveIndex}/{totalMoves}</span>
@@ -463,6 +483,12 @@ export default function PracticeGamePage() {
 
         {/* Settings Modal */}
         {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+
+        {/* Achievement Toasts */}
+        <AchievementToastContainer
+          achievements={pendingAchievements}
+          onDismiss={dismissAchievement}
+        />
       </div>
     </main>
   );
