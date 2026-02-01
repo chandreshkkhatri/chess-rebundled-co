@@ -66,6 +66,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     currentExpectedMove,
     autoSubmitEnabled,
     inputMode,
+    pendingOpponentMove,
   } = usePracticeStore();
 
   // Determine which features are enabled based on input mode
@@ -323,9 +324,6 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     }
   }, [voiceEnabled, startListening, isListening, isActive, clearAIParseState]);
 
-  const handleSelectAlternative = useCallback((move: string) => {
-    setSelectedMove(move);
-  }, []);
 
   // Handle text input submission
   const handleTextSubmit = useCallback(() => {
@@ -404,65 +402,52 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
 
   return (
     <div className="bg-slate-800 rounded-lg shadow-lg p-1.5 h-full flex flex-row gap-2 overflow-hidden">
-      {/* Main content area - left side */}
+      {/* Main content area - left side with fixed zones */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-        {isAIParsing ? (
-          <div className="flex flex-col items-center gap-2">
-            <div className="animate-spin h-8 w-8 border-4 border-yellow-500 border-t-transparent rounded-full"></div>
-            <span className="text-yellow-400 text-xs font-mono uppercase tracking-widest">Processing</span>
-          </div>
-        ) : aiParseError ? (
-          <div className="text-red-400 text-sm text-center px-4">{getFriendlyErrorMessage(aiParseError)}</div>
-        ) : aiParseResult ? (
-          <div className="text-center w-full">
-            {/* Main result displayed in button now, show alternatives here */}
-            {aiParseResult.confidence < 1 && (
-              <div className="text-xs text-slate-500 mb-2">
-                {(aiParseResult.confidence * 100).toFixed(0)}% confident
-                {aiParseResult.reasoning && ` • ${aiParseResult.reasoning}`}
-              </div>
-            )}
+        {/* ZONE 1: Status Bar (h-8) - Processing/Error/Confidence/Opponent Move */}
+        <div className="h-8 flex-shrink-0 flex items-center justify-center">
+          {disabled && pendingOpponentMove ? (
+            <div className="text-amber-200 text-xs font-medium">
+              Opponent played: <span className="font-mono">{pendingOpponentMove.san}</span>
+            </div>
+          ) : isAIParsing ? (
+            <div className="flex items-center gap-2">
+              <div className="animate-spin h-4 w-4 border-2 border-yellow-500 border-t-transparent rounded-full"></div>
+              <span className="text-yellow-400 text-xs font-mono uppercase tracking-widest">Processing</span>
+            </div>
+          ) : aiParseError ? (
+            <div className="text-red-400 text-xs text-center truncate px-2">{getFriendlyErrorMessage(aiParseError)}</div>
+          ) : aiParseResult && aiParseResult.confidence < 1 ? (
+            <div className="text-xs text-slate-500 truncate px-2">
+              {(aiParseResult.confidence * 100).toFixed(0)}% confident
+              {aiParseResult.reasoning && ` • ${aiParseResult.reasoning}`}
+            </div>
+          ) : error ? (
+            <div className="text-red-400 text-xs text-center truncate px-2">{error}</div>
+          ) : voiceEnabled && isListening ? (
+            <span className="text-slate-400 text-xs">Listening...</span>
+          ) : null}
+        </div>
 
-            {/* Alternatives */}
-            {aiParseResult.alternatives && aiParseResult.alternatives.length > 0 && (
-              <div className="mt-1">
-                <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Alternatives</div>
-                <div className="flex justify-center gap-2 flex-wrap">
-                  {aiParseResult.alternatives.map((alt) => (
-                    <button
-                      key={alt}
-                      onClick={() => handleSelectAlternative(alt)}
-                      className={`px-3 py-1.5 rounded font-mono text-sm transition-colors border ${selectedMove === alt
-                        ? 'bg-green-600/20 border-green-500 text-green-300'
-                        : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
-                        }`}
-                    >
-                      {alt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : null}
-
-        {/* Move options grid - visible when tap mode enabled */}
-        {tapGridEnabled && isActive && moveOptions.length > 0 && (
-          <div className="w-full mt-2">
+        {/* ZONE 2: Tap Grid (flex-1) - Always reserves space */}
+        <div className={`flex-1 min-h-0 overflow-y-auto ${tapGridEnabled && isActive ? '' : 'invisible'}`}>
+          <div className="w-full">
             <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5 text-center">
               {voiceEnabled ? 'Tap or speak a move' : 'Tap a move'}
             </div>
             <div className="grid grid-cols-3 min-[400px]:grid-cols-4 sm:grid-cols-5 gap-1">
-              {moveOptions.map((move) => (
+              {(moveOptions.length > 0 ? moveOptions : Array(10).fill('—')).map((move, idx) => (
                 <button
-                  key={move}
-                  onClick={() => handleSelectOption(move)}
-                  disabled={isSubmitting}
+                  key={moveOptions.length > 0 ? move : idx}
+                  onClick={() => move !== '—' && handleSelectOption(move)}
+                  disabled={isSubmitting || move === '—'}
                   className={`py-2 px-1 rounded font-mono text-sm transition-all border min-h-[44px] ${
-                    selectedMove === move
-                      ? 'bg-green-600/30 border-green-500 text-green-300 ring-2 ring-green-500/50'
-                      : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500 active:scale-95'
-                  } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    move === '—'
+                      ? 'bg-slate-800/30 border-slate-700 text-slate-600 cursor-default'
+                      : selectedMove === move
+                        ? 'bg-green-600/30 border-green-500 text-green-300 ring-2 ring-green-500/50'
+                        : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500 active:scale-95'
+                  } ${isSubmitting && move !== '—' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {move}
                 </button>
@@ -474,25 +459,20 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
               </div>
             )}
           </div>
-        )}
+        </div>
 
-        {/* Text input - always visible in text-only mode, toggleable otherwise */}
-        {isActive && (
-          <div className={textOnlyMode ? 'mt-4' : 'mt-2'}>
-            {(showTextInput || textOnlyMode) ? (
-              <div className="relative">
-                {textOnlyMode && (
-                  <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5 text-center">
-                    Type your move
-                  </div>
-                )}
+        {/* ZONE 3: Text Input (h-12) - Fixed height */}
+        <div className="h-12 flex-shrink-0 flex items-center">
+          {isActive ? (
+            (showTextInput || textOnlyMode) ? (
+              <div className="relative w-full">
                 <input
                   ref={textInputRef}
                   type="text"
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
                   onKeyDown={handleTextKeyDown}
-                  placeholder="Type move (e.g., e4, Nf3)"
+                  placeholder={textOnlyMode ? 'Type your move (e.g., e4, Nf3)' : 'Type move (e.g., e4, Nf3)'}
                   disabled={isSubmitting}
                   autoFocus={!textOnlyMode || !selectedMove}
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50"
@@ -537,39 +517,38 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
                   setShowTextInput(true);
                   setTimeout(() => textInputRef.current?.focus(), 0);
                 }}
-                className="w-full py-1.5 text-slate-400 hover:text-slate-300 text-xs flex items-center justify-center gap-1 transition-colors"
+                className="w-full py-2 text-slate-400 hover:text-slate-300 text-xs flex items-center justify-center gap-1 transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
                 Type move instead
               </button>
-            )}
-          </div>
-        )}
+            )
+          ) : (
+            <div className="invisible w-full h-full" />
+          )}
+        </div>
 
-        {/* Last move feedback - anchored bottom */}
-        {lastMoveResult && (
-          <div
-            className={`text-center py-1.5 px-2 rounded mt-auto text-xs font-bold uppercase tracking-wide flex-shrink-0 ${lastMoveResult.isCorrect
-              ? 'bg-green-900/40 text-green-400 border border-green-800'
-              : 'bg-red-900/40 text-red-400 border border-red-800'
-              }`}
-          >
-            {lastMoveResult.isCorrect ? (
-              <>{'\u2713'} Correct!</>
-            ) : (
-              <>{'\u2717'} Missed: {lastMoveResult.expectedMove}</>
-            )}
-          </div>
-        )}
-
-        {/* Error display */}
-        {error && (
-          <div className="mt-1 p-1.5 bg-red-900/80 border border-red-500 rounded flex-shrink-0">
-            <span className="text-red-100 font-bold text-center text-xs block">{error}</span>
-          </div>
-        )}
+        {/* ZONE 4: Feedback (h-8) - Fixed height */}
+        <div className="h-8 flex-shrink-0 flex items-center justify-center">
+          {lastMoveResult ? (
+            <div
+              className={`w-full text-center py-1 px-2 rounded text-xs font-bold uppercase tracking-wide ${lastMoveResult.isCorrect
+                ? 'bg-green-900/40 text-green-400 border border-green-800'
+                : 'bg-red-900/40 text-red-400 border border-red-800'
+                }`}
+            >
+              {lastMoveResult.isCorrect ? (
+                <>{'\u2713'} Correct!</>
+              ) : (
+                <>{'\u2717'} Missed: {lastMoveResult.expectedMove}</>
+              )}
+            </div>
+          ) : (
+            <div className="invisible w-full h-full" />
+          )}
+        </div>
       </div>
 
       {/* Action buttons - right side, stacked vertically */}

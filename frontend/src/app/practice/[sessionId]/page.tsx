@@ -424,15 +424,6 @@ export default function PracticeGamePage() {
 
           {/* Control area - voice input on mobile, sidebar on desktop */}
           <div className="flex flex-col gap-1 lg:gap-2 flex-1 min-h-0 lg:w-72 lg:flex-initial">
-            {/* Opponent move indicator */}
-            {showingOpponentMove && pendingOpponentMove && (
-              <div className="hidden lg:block bg-amber-900/50 border border-amber-600 rounded-lg p-2 text-center">
-                <p className="text-amber-200 text-sm font-medium">
-                  Opponent played: <span className="font-mono">{pendingOpponentMove.san}</span>
-                </p>
-              </div>
-            )}
-
             {/* Voice input - full width on mobile */}
             <div className="flex-1 lg:flex-initial min-w-0 min-h-0">
               <PracticeVoiceInput
