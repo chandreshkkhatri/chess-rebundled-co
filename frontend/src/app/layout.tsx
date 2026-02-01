@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { PWAInstallPrompt } from '@/components/PWAInstallPrompt';
-import { PostHogProvider } from './providers';
+import { Providers } from './providers';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -27,10 +27,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <PostHogProvider>
+        <Providers>
           <PWAInstallPrompt />
           {children}
-        </PostHogProvider>
+        </Providers>
       </body>
     </html>
   );

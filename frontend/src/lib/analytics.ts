@@ -1,4 +1,8 @@
-import posthog from 'posthog-js';
+import {
+  trackAnalyticsEvent,
+  identifyAnalyticsUser,
+  resetAnalyticsUser,
+} from './firebase';
 
 // Type-safe event names for analytics
 export type AnalyticsEvent =
@@ -79,21 +83,21 @@ export function trackEvent<T extends AnalyticsEvent>(
   if (typeof window === 'undefined') return;
 
   try {
-    posthog.capture(event, properties);
+    trackAnalyticsEvent(event, properties as unknown as Record<string, unknown>);
   } catch (error) {
-    // Silently fail if PostHog is not initialized
+    // Silently fail if Analytics is not initialized
     console.debug('Analytics event not sent:', event, error);
   }
 }
 
 /**
- * Identify a user (call when user sets their name)
+ * Identify a user (call when user signs in)
  */
 export function identifyUser(userId: string, properties?: Record<string, unknown>): void {
   if (typeof window === 'undefined') return;
 
   try {
-    posthog.identify(userId, properties);
+    identifyAnalyticsUser(userId, properties);
   } catch (error) {
     console.debug('User identification failed:', error);
   }
@@ -106,7 +110,7 @@ export function resetUser(): void {
   if (typeof window === 'undefined') return;
 
   try {
-    posthog.reset();
+    resetAnalyticsUser();
   } catch (error) {
     console.debug('User reset failed:', error);
   }

@@ -18,6 +18,14 @@ import {
   Auth,
 } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
+import {
+  getAnalytics,
+  logEvent,
+  setUserId,
+  setUserProperties,
+  Analytics,
+  isSupported,
+} from 'firebase/analytics';
 
 // Firebase configuration from environment variables
 const firebaseConfig = {
@@ -27,6 +35,7 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 // Validate required Firebase config (check config object, not process.env - Next.js only inlines static access)
@@ -38,6 +47,7 @@ if (typeof window !== 'undefined' && (!firebaseConfig.apiKey || !firebaseConfig.
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
+let analytics: Analytics | null = null;
 
 if (typeof window !== 'undefined') {
   if (!getApps().length) {
@@ -47,6 +57,13 @@ if (typeof window !== 'undefined') {
   }
   auth = getAuth(app);
   db = getFirestore(app);
+
+  // Initialize Analytics (only in browser and if supported)
+  isSupported().then((supported) => {
+    if (supported && firebaseConfig.measurementId) {
+      analytics = getAnalytics(app);
+    }
+  });
 }
 
 // OAuth Providers
@@ -141,5 +158,33 @@ export function subscribeToAuthState(callback: (user: User | null) => void): () 
   return onAuthStateChanged(auth, callback);
 }
 
-export { auth, db, app };
+// Analytics helper functions
+export function trackAnalyticsEvent(
+  eventName: string,
+  eventParams?: Record<string, unknown>
+): void {
+  if (analytics) {
+    logEvent(analytics, eventName, eventParams);
+  }
+}
+
+export function identifyAnalyticsUser(
+  userId: string,
+  userProperties?: Record<string, unknown>
+): void {
+  if (analytics) {
+    setUserId(analytics, userId);
+    if (userProperties) {
+      setUserProperties(analytics, userProperties);
+    }
+  }
+}
+
+export function resetAnalyticsUser(): void {
+  if (analytics) {
+    setUserId(analytics, '');
+  }
+}
+
+export { auth, db, app, analytics };
 export type { User };
