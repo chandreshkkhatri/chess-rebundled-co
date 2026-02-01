@@ -1,5 +1,6 @@
 'use client';
 
+import { Component, ReactNode } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { Arrow } from 'react-chessboard';
 
@@ -9,6 +10,40 @@ interface ChessBoardProps {
   lastMove?: { from: string; to: string };
 }
 
+// Error boundary to catch invalid FEN or other rendering errors
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class ChessBoardErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): ErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('[ChessBoard] Render error:', error.message);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full max-w-[min(100%,480px)] md:max-w-[min(100%,512px)] aspect-square bg-slate-700 rounded flex items-center justify-center">
+          <div className="text-center text-slate-400 p-4">
+            <p className="text-sm">Unable to display board</p>
+            <p className="text-xs mt-1">Invalid position data</p>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export function ChessBoard({ fen, orientation = 'white', lastMove }: ChessBoardProps) {
   // Convert lastMove to arrows format for react-chessboard
   const arrows: Arrow[] = lastMove
@@ -16,27 +51,29 @@ export function ChessBoard({ fen, orientation = 'white', lastMove }: ChessBoardP
     : [];
 
   return (
-    <div className="w-full max-w-[min(100%,480px)] md:max-w-[min(100%,512px)]">
-      <Chessboard
-        options={{
-          position: fen,
-          boardOrientation: orientation,
-          allowDragging: false,
-          arrows,
-          boardStyle: {
-            borderRadius: '4px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-          },
-          darkSquareStyle: { backgroundColor: '#769656' },
-          lightSquareStyle: { backgroundColor: '#eeeed2' },
-          squareStyles: lastMove
-            ? {
-                [lastMove.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' },
-                [lastMove.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' },
-              }
-            : {},
-        }}
-      />
-    </div>
+    <ChessBoardErrorBoundary>
+      <div className="w-full max-w-[min(100%,480px)] md:max-w-[min(100%,512px)]">
+        <Chessboard
+          options={{
+            position: fen,
+            boardOrientation: orientation,
+            allowDragging: false,
+            arrows,
+            boardStyle: {
+              borderRadius: '4px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            },
+            darkSquareStyle: { backgroundColor: '#769656' },
+            lightSquareStyle: { backgroundColor: '#eeeed2' },
+            squareStyles: lastMove
+              ? {
+                  [lastMove.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' },
+                  [lastMove.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' },
+                }
+              : {},
+          }}
+        />
+      </div>
+    </ChessBoardErrorBoundary>
   );
 }

@@ -9,23 +9,29 @@ const PERMANENT_DISMISSED_KEY = 'pwa-prompt-dismissed-until';
 const DISMISS_DURATION_DAYS = 30;
 
 function shouldShowPrompt(): boolean {
-  // Check session dismissal (clears on browser close)
-  if (sessionStorage.getItem(SESSION_DISMISSED_KEY)) {
-    return false;
-  }
-
-  // Check permanent dismissal with expiry
-  const dismissedUntil = localStorage.getItem(PERMANENT_DISMISSED_KEY);
-  if (dismissedUntil) {
-    const expiry = parseInt(dismissedUntil, 10);
-    if (Date.now() < expiry) {
+  try {
+    // Check session dismissal (clears on browser close)
+    if (sessionStorage.getItem(SESSION_DISMISSED_KEY)) {
       return false;
     }
-    // Expired, clean up
-    localStorage.removeItem(PERMANENT_DISMISSED_KEY);
-  }
 
-  return true;
+    // Check permanent dismissal with expiry
+    const dismissedUntil = localStorage.getItem(PERMANENT_DISMISSED_KEY);
+    if (dismissedUntil) {
+      const expiry = parseInt(dismissedUntil, 10);
+      if (Date.now() < expiry) {
+        return false;
+      }
+      // Expired, clean up
+      localStorage.removeItem(PERMANENT_DISMISSED_KEY);
+    }
+
+    return true;
+  } catch {
+    // Storage access failed (e.g., private browsing mode)
+    // Default to showing the prompt
+    return true;
+  }
 }
 
 export function PWAInstallPrompt() {
@@ -83,13 +89,21 @@ export function PWAInstallPrompt() {
   };
 
   const dismissForSession = () => {
-    sessionStorage.setItem(SESSION_DISMISSED_KEY, 'true');
+    try {
+      sessionStorage.setItem(SESSION_DISMISSED_KEY, 'true');
+    } catch {
+      // Storage access failed, just hide prompt for current session
+    }
     setShowPrompt(false);
   };
 
   const dismissPermanently = () => {
-    const expiryTime = Date.now() + (DISMISS_DURATION_DAYS * 24 * 60 * 60 * 1000);
-    localStorage.setItem(PERMANENT_DISMISSED_KEY, expiryTime.toString());
+    try {
+      const expiryTime = Date.now() + (DISMISS_DURATION_DAYS * 24 * 60 * 60 * 1000);
+      localStorage.setItem(PERMANENT_DISMISSED_KEY, expiryTime.toString());
+    } catch {
+      // Storage access failed, just hide prompt for current session
+    }
     setShowPrompt(false);
   };
 

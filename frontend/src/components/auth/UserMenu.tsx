@@ -11,7 +11,7 @@ export function UserMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close menu when clicking outside
+  // Close menu when clicking outside or pressing Escape
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -19,8 +19,18 @@ export function UserMenu() {
       }
     }
 
+    function handleEscapeKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    }
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
   }, []);
 
   if (isLoading) {
@@ -80,12 +90,12 @@ export function UserMenu() {
 
         {/* Dropdown Menu */}
         {isOpen && (
-          <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+          <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-2rem)] bg-slate-800 rounded-lg shadow-lg border border-slate-700 py-1 z-50">
             {/* User Info */}
-            <div className="px-4 py-3 border-b border-gray-100">
-              <p className="text-sm font-medium text-gray-900 truncate">{displayName}</p>
+            <div className="px-4 py-3 border-b border-slate-700">
+              <p className="text-sm font-medium text-slate-100 truncate">{displayName}</p>
               {user.email && (
-                <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                <p className="text-xs text-slate-400 truncate">{user.email}</p>
               )}
             </div>
 
@@ -93,7 +103,7 @@ export function UserMenu() {
             <div className="py-1">
               <a
                 href="/profile"
-                className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
                 onClick={() => setIsOpen(false)}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -103,7 +113,7 @@ export function UserMenu() {
               </a>
               <a
                 href="/history"
-                className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
                 onClick={() => setIsOpen(false)}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -114,13 +124,13 @@ export function UserMenu() {
             </div>
 
             {/* Sign Out */}
-            <div className="border-t border-gray-100 py-1">
+            <div className="border-t border-slate-700 py-1">
               <button
                 onClick={() => {
                   setIsOpen(false);
                   logout();
                 }}
-                className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-400 hover:bg-red-900/30"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

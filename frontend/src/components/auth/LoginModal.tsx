@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { AuthForm } from './AuthForm';
 
 interface LoginModalProps {
@@ -9,6 +10,16 @@ interface LoginModalProps {
 }
 
 export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
+  // Track when modal opens to reset form state
+  const [formKey, setFormKey] = useState(0);
+
+  // Increment key when modal opens to force AuthForm remount (clears form state)
+  useEffect(() => {
+    if (isOpen) {
+      setFormKey((k) => k + 1);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleSuccess = () => {
@@ -25,7 +36,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
       />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 my-4 overflow-hidden">
+      <div className="relative bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md mx-4 my-4 overflow-hidden">
         {/* Close button */}
         <button
           onClick={onClose}
@@ -36,7 +47,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
           </svg>
         </button>
 
-        <AuthForm onSuccess={handleSuccess} variant="modal" showHeader />
+        <AuthForm key={formKey} onSuccess={handleSuccess} variant="modal" showHeader />
       </div>
     </div>
   );

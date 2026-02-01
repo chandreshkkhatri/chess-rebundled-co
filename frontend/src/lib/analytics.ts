@@ -28,6 +28,9 @@ interface PracticeSessionCompletedProps {
   totalMoves: number;
   accuracy: number;
   mode: 'both-sides' | 'one-side';
+  xpEarned?: number;
+  leveledUp?: boolean;
+  newAchievements?: number;
 }
 
 interface MoveSubmittedProps {

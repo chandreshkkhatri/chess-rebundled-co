@@ -10,6 +10,9 @@ import {
   AIParsedMoveResult,
   PracticeStartedData,
   PracticeNextMoveData,
+  GamificationResult,
+  SessionResumedData,
+  Achievement,
 } from '@/types';
 
 interface PracticeState {
@@ -39,6 +42,7 @@ interface PracticeState {
   moveResults: PracticeMoveResult[];
   lastMoveResult: PracticeMoveResult | null;
   completedData: PracticeCompletedData | null;
+  gamificationResult: GamificationResult | null;
 
   // Submission lock
   isSubmitting: boolean;
@@ -60,6 +64,10 @@ interface PracticeState {
 
   // Settings
   autoSubmitEnabled: boolean;
+  inputMode: 'voice-tap' | 'tap-only' | 'text-only';
+
+  // Achievement toasts queue
+  pendingAchievements: Achievement[];
 
   // Actions
   setConnected: (connected: boolean) => void;
@@ -69,7 +77,7 @@ interface PracticeState {
   updatePosition: (data: PracticeNextMoveData) => void;
   setPendingOpponentMove: (move: MoveDetails | null) => void;
   setMoveResult: (result: PracticeMoveResult) => void;
-  setCompleted: (data: PracticeCompletedData) => void;
+  setCompleted: (data: PracticeCompletedData, gamification?: GamificationResult) => void;
   setSubmitting: (isSubmitting: boolean) => void;
   setStarting: (isStarting: boolean) => void;
   setError: (error: string | null) => void;
@@ -81,6 +89,11 @@ interface PracticeState {
   setVoiceParsingMode: (mode: 'webspeech-haiku' | 'gemini-audio') => void;
   setGeminiTranscription: (transcription: string | null) => void;
   setAutoSubmitEnabled: (enabled: boolean) => void;
+  setInputMode: (mode: 'voice-tap' | 'tap-only' | 'text-only') => void;
+  queueAchievements: (achievements: Achievement[]) => void;
+  dismissAchievement: (id: string) => void;
+  resumeSession: (data: SessionResumedData) => void;
+  clearSessionId: () => void;
   reset: () => void;
 }
 
@@ -99,6 +112,7 @@ const initialState = {
   moveResults: [] as PracticeMoveResult[],
   lastMoveResult: null as PracticeMoveResult | null,
   completedData: null as PracticeCompletedData | null,
+  gamificationResult: null as GamificationResult | null,
   isSubmitting: false,
   isStarting: false,
   error: null as string | null,
@@ -113,6 +127,8 @@ const initialState = {
     : 'webspeech-haiku') as 'webspeech-haiku' | 'gemini-audio',
   geminiTranscription: null as string | null,
   autoSubmitEnabled: false,
+  inputMode: 'voice-tap' as 'voice-tap' | 'tap-only' | 'text-only',
+  pendingAchievements: [] as Achievement[],
 };
 
 export const usePracticeStore = create<PracticeState>()(
@@ -166,10 +182,11 @@ export const usePracticeStore = create<PracticeState>()(
           lastMoveResult: result,
         })),
 
-      setCompleted: (data) =>
+      setCompleted: (data, gamification) =>
         set({
           status: 'completed',
           completedData: data,
+          gamificationResult: gamification || null,
           currentExpectedMove: null,
           isSubmitting: false,
         }),
@@ -196,31 +213,119 @@ export const usePracticeStore = create<PracticeState>()(
 
       setAutoSubmitEnabled: (enabled) => set({ autoSubmitEnabled: enabled }),
 
+      setInputMode: (mode) => set({ inputMode: mode }),
+
+      queueAchievements: (achievements) =>
+        set((state) => ({
+          pendingAchievements: [...state.pendingAchievements, ...achievements],
+        })),
+
+      dismissAchievement: (id) =>
+        set((state) => ({
+          pendingAchievements: state.pendingAchievements.filter((a) => a.id !== id),
+        })),
+
+      resumeSession: (data) =>
+        set({
+          sessionId: data.sessionId,
+          selectedGame: data.game,
+          status: 'playing',
+          currentPosition: data.position,
+          currentMoveIndex: data.currentMoveIndex,
+          currentSide: data.currentSide,
+          currentExpectedMove: data.expectedMove,
+          totalMoves: data.totalMoves,
+          moveResults: data.moveResults,
+          lastMoveResult: data.moveResults.length > 0
+            ? data.moveResults[data.moveResults.length - 1]
+            : null,
+          completedData: null,
+          gamificationResult: null,
+          isSubmitting: false,
+          isStarting: false,
+          error: null,
+          mode: data.mode,
+          playerColor: data.playerColor,
+          pendingOpponentMove: null,
+        }),
+
+      clearSessionId: () => set({ sessionId: null }),
+
       reset: () => set(initialState),
     }),
     {
-      name: 'chess-practice-v2', // Versioned to invalidate old full-state storage
+      name: 'chess-practice-v3', // Versioned for hybrid storage migration
       storage: {
+        // Hybrid storage: localStorage for preferences, sessionStorage for session state
         getItem: (name) => {
           if (typeof window === 'undefined') return null;
-          const str = sessionStorage.getItem(name);
-          return str ? JSON.parse(str) : null;
+          try {
+            // Merge preferences from localStorage and session from sessionStorage
+            const prefsStr = localStorage.getItem(`${name}-prefs`);
+            const sessionStr = sessionStorage.getItem(`${name}-session`);
+
+            const prefs = prefsStr ? JSON.parse(prefsStr) : {};
+            const session = sessionStr ? JSON.parse(sessionStr) : {};
+
+            // Return merged state if either exists
+            if (prefsStr || sessionStr) {
+              return {
+                state: { ...prefs.state, ...session.state },
+                version: prefs.version || session.version || 0,
+              };
+            }
+            return null;
+          } catch {
+            return null;
+          }
         },
         setItem: (name, value) => {
           if (typeof window === 'undefined') return;
-          sessionStorage.setItem(name, JSON.stringify(value));
+          try {
+            const { state, version } = value as { state: Record<string, unknown>; version: number };
+
+            // Split into preferences (localStorage) and session (sessionStorage)
+            const prefs = {
+              state: {
+                playerName: state.playerName,
+                voiceParsingMode: state.voiceParsingMode,
+                autoSubmitEnabled: state.autoSubmitEnabled,
+                inputMode: state.inputMode,
+              },
+              version,
+            };
+
+            const session = {
+              state: {
+                sessionId: state.sessionId,
+              },
+              version,
+            };
+
+            localStorage.setItem(`${name}-prefs`, JSON.stringify(prefs));
+            sessionStorage.setItem(`${name}-session`, JSON.stringify(session));
+          } catch {
+            // Silently fail if storage is full or unavailable
+          }
         },
         removeItem: (name) => {
           if (typeof window === 'undefined') return;
-          sessionStorage.removeItem(name);
+          try {
+            localStorage.removeItem(`${name}-prefs`);
+            sessionStorage.removeItem(`${name}-session`);
+          } catch {
+            // Silently fail
+          }
         },
       },
-      // Only persist player name, voice mode, and settings - session state should not survive page refreshes
+      // Persist player name, voice mode, settings, and sessionId for resume functionality
       partialize: (state) =>
         ({
           playerName: state.playerName,
           voiceParsingMode: state.voiceParsingMode,
           autoSubmitEnabled: state.autoSubmitEnabled,
+          inputMode: state.inputMode,
+          sessionId: state.sessionId,
         }) as unknown as PracticeState,
     }
   )

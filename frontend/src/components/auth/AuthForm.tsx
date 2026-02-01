@@ -20,11 +20,13 @@ const friendlyErrors: Record<string, string> = {
   'auth/wrong-password': 'Incorrect password',
   'auth/email-already-in-use': 'An account with this email already exists',
   'auth/credential-already-in-use': 'This account is already linked to another user. Please sign out and sign in directly with this account.',
+  'auth/account-exists-with-different-credential': 'An account already exists with the same email but different sign-in method. Try signing in with a different provider.',
   'auth/weak-password': 'Password must be at least 6 characters',
   'auth/popup-closed-by-user': 'Sign-in was cancelled',
   'auth/network-request-failed': 'Network error. Please check your connection.',
   'auth/too-many-requests': 'Too many attempts. Please try again later.',
   'auth/invalid-email': 'Please enter a valid email address',
+  'auth/operation-not-allowed': 'This sign-in method is not enabled. Please contact support.',
 };
 
 function getFriendlyError(error: string): string {
@@ -79,14 +81,17 @@ export function AuthForm({
     e.preventDefault();
     setLocalError(null);
 
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
     if (view === 'forgot-password') {
-      if (!email) {
+      if (!trimmedEmail) {
         setLocalError('Please enter your email address');
         return;
       }
       setIsSubmitting(true);
       try {
-        await resetPassword(email);
+        await resetPassword(trimmedEmail);
         setResetEmailSent(true);
       } catch {
         // Error handled by AuthContext
@@ -96,12 +101,12 @@ export function AuthForm({
       return;
     }
 
-    if (view === 'register' && password !== confirmPassword) {
+    if (view === 'register' && trimmedPassword !== confirmPassword.trim()) {
       setLocalError('Passwords do not match');
       return;
     }
 
-    if (password.length < 6) {
+    if (trimmedPassword.length < 6) {
       setLocalError('Password must be at least 6 characters');
       return;
     }
@@ -110,12 +115,12 @@ export function AuthForm({
 
     try {
       if (view === 'login') {
-        await signInWithEmail(email, password);
+        await signInWithEmail(trimmedEmail, trimmedPassword);
       } else {
         if (isAnonymous) {
-          await upgradeWithEmail(email, password);
+          await upgradeWithEmail(trimmedEmail, trimmedPassword);
         } else {
-          await registerWithEmail(email, password);
+          await registerWithEmail(trimmedEmail, trimmedPassword);
         }
       }
       resetForm();
@@ -190,13 +195,13 @@ export function AuthForm({
         <div className="p-6">
           {resetEmailSent ? (
             <div className="text-center py-4">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-16 h-16 bg-green-900/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Check your email</h3>
-              <p className="text-gray-600 text-sm mb-6">
+              <h3 className="text-lg font-semibold text-slate-100 mb-2">Check your email</h3>
+              <p className="text-slate-400 text-sm mb-6">
                 We sent a password reset link to <span className="font-medium">{email}</span>
               </p>
               <button
@@ -208,16 +213,16 @@ export function AuthForm({
             </div>
           ) : (
             <>
-              <p className="text-gray-600 text-sm mb-4">
+              <p className="text-slate-400 text-sm mb-4">
                 Enter your email address and we&apos;ll send you a link to reset your password.
               </p>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label htmlFor="reset-email" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="reset-email" className="block text-sm font-medium text-slate-300 mb-1">
                     Email
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                       </svg>
@@ -229,15 +234,15 @@ export function AuthForm({
                       onChange={(e) => setEmail(e.target.value)}
                       required
                       disabled={isSubmitting}
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none disabled:bg-gray-100"
+                      className="w-full pl-10 pr-4 py-2.5 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none disabled:bg-slate-600 placeholder-slate-400"
                       placeholder="you@example.com"
                     />
                   </div>
                 </div>
 
                 {error && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-600">{error}</p>
+                  <div className="p-3 bg-red-900/30 border border-red-800 rounded-lg">
+                    <p className="text-sm text-red-400">{error}</p>
                   </div>
                 )}
 
@@ -262,7 +267,7 @@ export function AuthForm({
                 <button
                   type="button"
                   onClick={handleBackToLogin}
-                  className="w-full text-gray-600 hover:text-gray-800 text-sm font-medium"
+                  className="w-full text-slate-400 hover:text-slate-200 text-sm font-medium"
                 >
                   Back to sign in
                 </button>
@@ -273,13 +278,13 @@ export function AuthForm({
       ) : (
         <>
           {/* Tabs */}
-          <div className="flex border-b">
+          <div className="flex border-b border-slate-700">
             <button
               onClick={() => setView('login')}
               className={`flex-1 py-3 text-sm font-medium transition-colors ${
                 view === 'login'
-                  ? 'text-purple-600 border-b-2 border-purple-600'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'text-purple-400 border-b-2 border-purple-400'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               Sign In
@@ -288,8 +293,8 @@ export function AuthForm({
               onClick={() => setView('register')}
               className={`flex-1 py-3 text-sm font-medium transition-colors ${
                 view === 'register'
-                  ? 'text-purple-600 border-b-2 border-purple-600'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'text-purple-400 border-b-2 border-purple-400'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               {isAnonymous ? 'Create Account' : 'Register'}
@@ -309,21 +314,21 @@ export function AuthForm({
             {/* Divider */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
+                <div className="w-full border-t border-slate-600" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="bg-white px-4 text-gray-500">or continue with email</span>
+                <span className="bg-slate-800 px-4 text-slate-400">or continue with email</span>
               </div>
             </div>
 
             {/* Email Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1">
                   Email
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                     </svg>
@@ -335,18 +340,18 @@ export function AuthForm({
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={isSubmitting}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none disabled:bg-gray-100"
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none disabled:bg-slate-600 placeholder-slate-400"
                     placeholder="you@example.com"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1">
                   Password
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
@@ -358,7 +363,7 @@ export function AuthForm({
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     disabled={isSubmitting}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none disabled:bg-gray-100"
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none disabled:bg-slate-600 placeholder-slate-400"
                     placeholder="••••••••"
                   />
                 </div>
@@ -375,11 +380,11 @@ export function AuthForm({
 
               {view === 'register' && (
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-300 mb-1">
                     Confirm Password
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                       </svg>
@@ -391,7 +396,7 @@ export function AuthForm({
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
                       disabled={isSubmitting}
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none disabled:bg-gray-100"
+                      className="w-full pl-10 pr-4 py-2.5 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none disabled:bg-slate-600 placeholder-slate-400"
                       placeholder="••••••••"
                     />
                   </div>
@@ -400,8 +405,8 @@ export function AuthForm({
 
               {/* Error Message */}
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-600">{error}</p>
+                <div className="p-3 bg-red-900/30 border border-red-800 rounded-lg">
+                  <p className="text-sm text-red-400">{error}</p>
                 </div>
               )}
 
@@ -429,7 +434,7 @@ export function AuthForm({
             </form>
 
             {isAnonymous && (
-              <p className="mt-4 text-xs text-center text-gray-500">
+              <p className="mt-4 text-xs text-center text-slate-400">
                 Your practice history will be saved to your new account
               </p>
             )}

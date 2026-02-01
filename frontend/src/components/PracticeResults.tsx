@@ -1,7 +1,7 @@
 'use client';
 
+import { PracticeCompletedData, GamificationResult } from '@/types';
 import Link from 'next/link';
-import { PracticeCompletedData } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { MoveHistory } from './MoveHistory';
 
@@ -21,12 +21,59 @@ function getPerformanceMessage(accuracy: number): { emoji: string; text: string 
   return { emoji: '💪', text: 'Keep practicing!' };
 }
 
+// Get contextual upgrade prompt for anonymous users
+function getContextualUpgradePrompt(
+  accuracy: number,
+  xpEarned: number,
+  hasAchievements: boolean,
+  achievementName?: string
+): { emoji: string; primary: string; secondary: string } | null {
+  // Priority 1: Achievement unlocked
+  if (hasAchievements && achievementName) {
+    return {
+      emoji: '🏅',
+      primary: `You earned "${achievementName}"!`,
+      secondary: 'Create an account to keep your achievements',
+    };
+  }
+
+  // Priority 2: High accuracy (90%+)
+  if (accuracy >= 0.9) {
+    return {
+      emoji: '🎯',
+      primary: 'Perfect performance!',
+      secondary: `Sign up to claim ${xpEarned} XP and track your mastery`,
+    };
+  }
+
+  // Priority 3: Good accuracy (70%+)
+  if (accuracy >= 0.7) {
+    return {
+      emoji: '📈',
+      primary: "You're improving!",
+      secondary: 'Create an account to track your progress over time',
+    };
+  }
+
+  // Priority 4: Any XP earned
+  if (xpEarned > 0) {
+    return {
+      emoji: '⭐',
+      primary: `You earned ${xpEarned} XP this session`,
+      secondary: 'Sign up to save your XP and level up',
+    };
+  }
+
+  return null;
+}
+
 interface PracticeResultsProps {
   data: PracticeCompletedData;
+  gamification?: GamificationResult;
   onPlayAgain: () => void;
 }
 
-export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
+export function PracticeResults({ data, gamification, onPlayAgain }: PracticeResultsProps) {
   const { user, isAnonymous } = useAuth();
   const isAuthenticated = user && !isAnonymous;
 
@@ -35,45 +82,132 @@ export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
   const performance = getPerformanceMessage(data.accuracy);
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-auto">
+    <div className="bg-slate-800 rounded-lg shadow-lg p-6 max-w-md w-full mx-auto">
       <div className="text-center mb-6">
         <div className="text-5xl mb-2">{performance.emoji}</div>
-        <h2 className="text-2xl font-bold text-gray-800">{performance.text}</h2>
-        <p className="text-gray-600 mt-1">{data.game.title}</p>
+        <h2 className="text-2xl font-bold text-slate-100">{performance.text}</h2>
+        <p className="text-slate-400 mt-1">{data.game.title}</p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <div className="bg-blue-50 rounded-lg p-4 text-center">
-          <div className="text-3xl font-bold text-blue-600">{accuracyPercent}%</div>
-          <div className="text-sm text-blue-700">Accuracy</div>
+      {/* XP Earned Section */}
+      {gamification && (
+        <div className="mb-6 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg p-4 text-white">
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-semibold">XP Earned</span>
+            <span className="text-2xl font-bold">+{gamification.xp.totalXp}</span>
+          </div>
+
+          {/* XP Breakdown */}
+          <div className="text-sm opacity-90 space-y-1">
+            <div className="flex justify-between">
+              <span>Base XP</span>
+              <span>+{gamification.xp.baseXp}</span>
+            </div>
+            {gamification.xp.bonuses.perfectSession > 0 && (
+              <div className="flex justify-between text-yellow-200">
+                <span>Perfect Session!</span>
+                <span>+{gamification.xp.bonuses.perfectSession}</span>
+              </div>
+            )}
+            {gamification.xp.bonuses.highAccuracy > 0 && (
+              <div className="flex justify-between text-green-200">
+                <span>High Accuracy Bonus</span>
+                <span>+{gamification.xp.bonuses.highAccuracy}</span>
+              </div>
+            )}
+            {gamification.xp.bonuses.firstGameCompletion > 0 && (
+              <div className="flex justify-between text-blue-200">
+                <span>First Completion Bonus</span>
+                <span>+{gamification.xp.bonuses.firstGameCompletion}</span>
+              </div>
+            )}
+            {gamification.xp.bonuses.dailyFirst > 0 && (
+              <div className="flex justify-between text-orange-200">
+                <span>Daily First Bonus</span>
+                <span>+{gamification.xp.bonuses.dailyFirst}</span>
+              </div>
+            )}
+            {gamification.xp.bonuses.streakMultiplier > 0 && (
+              <div className="flex justify-between text-pink-200">
+                <span>Streak Bonus</span>
+                <span>+{gamification.xp.bonuses.streakMultiplier}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Level Up */}
+          {gamification.xp.leveledUp && (
+            <div className="mt-3 pt-3 border-t border-white/20 text-center">
+              <span className="text-xl">🎉</span>
+              <span className="font-bold ml-2">Level Up! Now Level {gamification.xp.newLevel}</span>
+            </div>
+          )}
         </div>
-        <div className="bg-green-50 rounded-lg p-4 text-center">
-          <div className="text-3xl font-bold text-green-600">
+      )}
+
+      {/* Achievements Unlocked */}
+      {gamification && gamification.newAchievements.length > 0 && (
+        <div className="mb-6 bg-amber-900/30 rounded-lg p-4">
+          <h3 className="font-semibold text-amber-400 mb-2">Achievements Unlocked!</h3>
+          <div className="space-y-2">
+            {gamification.newAchievements.map((achievement) => (
+              <div
+                key={achievement.id}
+                className="flex items-center justify-between bg-slate-700 rounded-lg p-3 shadow-sm"
+              >
+                <div>
+                  <p className="font-medium text-slate-100">{achievement.name}</p>
+                  <p className="text-sm text-slate-400">{achievement.description}</p>
+                </div>
+                <span className="text-purple-400 font-medium">+{achievement.xpReward} XP</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Streak Update */}
+      {gamification && gamification.streakUpdated && gamification.newStreak > 0 && (
+        <div className="mb-6 bg-orange-900/30 rounded-lg p-4 text-center">
+          <span className="text-2xl">🔥</span>
+          <span className="ml-2 font-semibold text-orange-400">
+            {gamification.newStreak} Day Streak!
+          </span>
+        </div>
+      )}
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-6">
+        <div className="bg-blue-900/30 rounded-lg p-3 sm:p-4 text-center">
+          <div className="text-2xl sm:text-3xl font-bold text-blue-400">{accuracyPercent}%</div>
+          <div className="text-xs sm:text-sm text-blue-300">Accuracy</div>
+        </div>
+        <div className="bg-green-900/30 rounded-lg p-3 sm:p-4 text-center">
+          <div className="text-2xl sm:text-3xl font-bold text-green-400">
             {data.correctMoves}/{data.totalMoves}
           </div>
-          <div className="text-sm text-green-700">Correct</div>
+          <div className="text-xs sm:text-sm text-green-300">Correct</div>
         </div>
-        <div className="bg-purple-50 rounded-lg p-4 text-center">
-          <div className="text-3xl font-bold text-purple-600">{formatTime(data.totalTimeMs)}</div>
-          <div className="text-sm text-purple-700">Total Time</div>
+        <div className="bg-purple-900/30 rounded-lg p-3 sm:p-4 text-center">
+          <div className="text-2xl sm:text-3xl font-bold text-purple-400">{formatTime(data.totalTimeMs)}</div>
+          <div className="text-xs sm:text-sm text-purple-300">Total Time</div>
         </div>
-        <div className="bg-orange-50 rounded-lg p-4 text-center">
-          <div className="text-3xl font-bold text-orange-600">{avgTimePerMove}s</div>
-          <div className="text-sm text-orange-700">Avg/Move</div>
+        <div className="bg-orange-900/30 rounded-lg p-3 sm:p-4 text-center">
+          <div className="text-2xl sm:text-3xl font-bold text-orange-400">{avgTimePerMove}s</div>
+          <div className="text-xs sm:text-sm text-orange-300">Avg/Move</div>
         </div>
       </div>
 
       {/* Move Review */}
       <div className="mb-6">
-        <h3 className="font-semibold text-gray-700 mb-2">Move Review</h3>
-        <div className="bg-gray-50 rounded-lg p-2">
+        <h3 className="font-semibold text-slate-300 mb-2">Move Review</h3>
+        <div className="bg-slate-700 rounded-lg p-2">
           <MoveHistory
             moves={data.moveResults}
             mode="both-sides"
             playerColor={null}
             variant="full"
-            theme="light"
+            theme="dark"
             maxHeight="max-h-40"
             autoScroll={false}
           />
@@ -83,10 +217,10 @@ export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
       {/* Trivia */}
       {data.trivia.length > 0 && (
         <div className="mb-6">
-          <h3 className="font-semibold text-gray-700 mb-2">Did You Know? 💡</h3>
+          <h3 className="font-semibold text-slate-300 mb-2">Did You Know? 💡</h3>
           <div className="space-y-2">
             {data.trivia.slice(0, 2).map((fact, idx) => (
-              <div key={idx} className="text-sm text-gray-600 bg-yellow-50 p-3 rounded">
+              <div key={idx} className="text-sm text-slate-300 bg-yellow-900/30 p-3 rounded">
                 {fact}
               </div>
             ))}
@@ -95,7 +229,7 @@ export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
       )}
 
       {/* Game Info */}
-      <div className="text-center text-sm text-gray-500 mb-4">
+      <div className="text-center text-sm text-slate-400 mb-4">
         <p>
           {data.game.white.shortName} vs {data.game.black.shortName}
         </p>
@@ -104,10 +238,10 @@ export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
         </p>
       </div>
 
-      {/* Auto-save confirmation for authenticated users */}
+      {/* Auto-save confirmation for authenticated users, contextual prompt for anonymous */}
       {isAuthenticated ? (
         <div className="text-center mb-4">
-          <div className="inline-flex items-center gap-1.5 text-sm text-green-600 bg-green-50 px-3 py-1.5 rounded-full">
+          <div className="inline-flex items-center gap-1.5 text-sm text-green-400 bg-green-900/30 px-3 py-1.5 rounded-full">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
@@ -115,15 +249,40 @@ export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
           </div>
           <Link
             href="/history"
-            className="block mt-2 text-sm text-purple-600 hover:text-purple-700 underline"
+            className="block mt-2 text-sm text-purple-400 hover:text-purple-300 underline"
           >
             View all sessions
           </Link>
         </div>
       ) : (
-        <p className="text-center text-xs text-gray-400 mb-3">
-          Sign in to save your progress
-        </p>
+        (() => {
+          const xpEarned = gamification?.xp?.totalXp || 0;
+          const hasAchievements = (gamification?.newAchievements?.length || 0) > 0;
+          const achievementName = gamification?.newAchievements?.[0]?.name;
+          const prompt = getContextualUpgradePrompt(data.accuracy, xpEarned, hasAchievements, achievementName);
+
+          if (prompt) {
+            return (
+              <div className="mb-4 bg-gradient-to-r from-purple-900/40 to-indigo-900/40 rounded-lg p-4 text-center border border-purple-500/30">
+                <div className="text-2xl mb-1">{prompt.emoji}</div>
+                <p className="text-white font-medium mb-1">{prompt.primary}</p>
+                <p className="text-slate-300 text-sm mb-3">{prompt.secondary}</p>
+                <Link
+                  href="/login"
+                  className="inline-block px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Create Free Account
+                </Link>
+              </div>
+            );
+          }
+
+          return (
+            <p className="text-center text-xs text-slate-500 mb-3">
+              Sign in to save your progress
+            </p>
+          );
+        })()
       )}
 
       <button

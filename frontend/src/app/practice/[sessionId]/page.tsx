@@ -11,6 +11,8 @@ import { PracticeResults } from '@/components/PracticeResults';
 import { MoveHistory } from '@/components/MoveHistory';
 import { SettingsModal } from '@/components/SettingsModal';
 import { DiscordIcon } from '@/components/icons/DiscordIcon';
+import { LiveGamificationBadge } from '@/components/LiveGamificationBadge';
+import { AchievementToastContainer } from '@/components/AchievementToast';
 
 // Debug flag - matches PracticeVoiceInput
 const DEBUG_AUDIO = process.env.NODE_ENV !== 'production';
@@ -24,8 +26,11 @@ export default function PracticeGamePage() {
   const [showMoveHistory, setShowMoveHistory] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [isResuming, setIsResuming] = useState(false);
+  const [resumeAttempted, setResumeAttempted] = useState(false);
+  const [isHeaderCompact, setIsHeaderCompact] = useState(false);
 
-  const { submitPracticeMove, abandonPractice } = usePracticeSocket();
+  const { submitPracticeMove, abandonPractice, resumeSession } = usePracticeSocket();
   const { user, isAnonymous } = useAuth();
   const {
     status,
@@ -35,6 +40,7 @@ export default function PracticeGamePage() {
     selectedGame,
     currentExpectedMove,
     completedData,
+    gamificationResult,
     totalMoves,
     moveResults,
     reset,
@@ -46,6 +52,11 @@ export default function PracticeGamePage() {
     setError,
     isStarting,
     playerName,
+    isConnected,
+    sessionId: storedSessionId,
+    pendingAchievements,
+    queueAchievements,
+    dismissAchievement,
   } = usePracticeStore();
 
   // Calculate correct moves so far (memoized to avoid recalculating on every render)
@@ -89,9 +100,11 @@ export default function PracticeGamePage() {
   );
 
   const handleAbandon = useCallback(() => {
-    abandonPractice(sessionId);
-    reset();
-    router.push('/practice');
+    if (window.confirm('Abandon this practice session? Your progress will be lost.')) {
+      abandonPractice(sessionId);
+      reset();
+      router.push('/practice');
+    }
   }, [sessionId, abandonPractice, reset, router]);
 
   const handlePlayAgain = useCallback(() => {
@@ -99,22 +112,72 @@ export default function PracticeGamePage() {
     router.push('/practice');
   }, [reset, router]);
 
-  // Redirect if no session
-  // Bug 4 fix: Don't redirect while starting or if already playing/completed
+  // Attempt to resume session on mount if we have a stored sessionId that matches the URL
   useEffect(() => {
-    if (isStarting || status === 'playing' || status === 'completed') {
+    // Only attempt resume if:
+    // 1. We haven't already attempted
+    // 2. Status is idle (no active session in state)
+    // 3. Socket is connected
+    // 4. The stored sessionId matches the URL sessionId (page refresh scenario)
+    if (
+      !resumeAttempted &&
+      status === 'idle' &&
+      isConnected &&
+      !isStarting &&
+      storedSessionId === sessionId
+    ) {
+      setResumeAttempted(true);
+      setIsResuming(true);
+      const success = resumeSession(sessionId);
+      if (!success) {
+        // Socket not connected, will not retry
+        setIsResuming(false);
+      }
+    }
+  }, [resumeAttempted, status, isConnected, isStarting, storedSessionId, sessionId, resumeSession]);
+
+  // Handle resume result
+  useEffect(() => {
+    if (isResuming) {
+      // Session resumed successfully
+      if (status === 'playing') {
+        setIsResuming(false);
+      }
+      // Session resume failed (error was set)
+      if (error) {
+        setIsResuming(false);
+      }
+    }
+  }, [isResuming, status, error]);
+
+  // Queue achievements when gamificationResult comes in with newAchievements
+  useEffect(() => {
+    if (gamificationResult?.newAchievements && gamificationResult.newAchievements.length > 0) {
+      // Delay slightly to not interrupt gameplay flow
+      const timeout = setTimeout(() => {
+        queueAchievements(gamificationResult.newAchievements);
+      }, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [gamificationResult, queueAchievements]);
+
+  // Redirect if no session
+  // Bug 4 fix: Don't redirect while starting, resuming, or if already playing/completed
+  useEffect(() => {
+    if (isStarting || isResuming || status === 'playing' || status === 'completed') {
       return;
     }
-    if (status === 'idle' || status === 'selecting') {
+    // Only redirect if we've attempted resume and it failed, or if there's no stored session
+    if ((status === 'idle' || status === 'selecting') && (resumeAttempted || storedSessionId !== sessionId)) {
       router.push('/practice');
     }
-  }, [status, isStarting, router]);
+  }, [status, isStarting, isResuming, resumeAttempted, storedSessionId, sessionId, router]);
 
   // Show results when completed
   if (status === 'completed' && completedData) {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
-        <PracticeResults data={completedData} onPlayAgain={handlePlayAgain} />
+        <PracticeResults data={completedData} gamification={gamificationResult ?? undefined} onPlayAgain={handlePlayAgain} />
       </main>
     );
   }
@@ -147,7 +210,9 @@ export default function PracticeGamePage() {
       <main className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center">
           <div className="animate-spin h-8 w-8 border-2 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-slate-400">Loading...</p>
+          <p className="text-slate-400">
+            {isResuming ? 'Resuming session...' : 'Loading...'}
+          </p>
         </div>
       </main>
     );
@@ -166,14 +231,15 @@ export default function PracticeGamePage() {
             >
               ←
             </button>
-            <div className="flex-1 flex items-center justify-center gap-1 min-w-0">
+            {/* Game title - hidden on mobile when compact */}
+            <div className={`flex-1 flex items-center justify-center gap-1 min-w-0 ${isHeaderCompact ? 'hidden' : 'flex'} sm:flex`}>
               <span className="text-white font-medium text-sm truncate">
                 {selectedGame.white.shortName} vs {selectedGame.black.shortName}
               </span>
               <div className="relative">
                 <button
                   onClick={() => setShowGameInfo(!showGameInfo)}
-                  className="w-5 h-5 flex items-center justify-center rounded-full border border-slate-500 text-slate-400 hover:border-slate-300 hover:text-white transition-colors text-xs"
+                  className="w-8 h-8 flex items-center justify-center rounded-full border border-slate-500 text-slate-400 hover:border-slate-300 hover:text-white transition-colors text-xs"
                   title="Game info"
                 >
                   i
@@ -185,6 +251,14 @@ export default function PracticeGamePage() {
                 )}
               </div>
             </div>
+            {/* Compact mode toggle - mobile only */}
+            <button
+              onClick={() => setIsHeaderCompact(!isHeaderCompact)}
+              className="sm:hidden p-1 text-slate-400 hover:text-white transition-colors"
+              title={isHeaderCompact ? 'Show full header' : 'Compact header'}
+            >
+              {isHeaderCompact ? '⊕' : '⊖'}
+            </button>
             {/* Live accuracy - only show after first move */}
             {moveResults.length > 0 && (
               <div
@@ -199,10 +273,14 @@ export default function PracticeGamePage() {
                 {liveAccuracy}%
               </div>
             )}
-            {/* Progress indicator */}
-            <div className="flex items-center gap-1.5">
+            {/* Gamification badge - authenticated users only */}
+            <div className="hidden sm:block">
+              <LiveGamificationBadge />
+            </div>
+            {/* Progress indicator - wider on mobile in compact mode */}
+            <div className={`flex items-center gap-1.5 ${isHeaderCompact ? 'flex-1' : ''} sm:flex-initial`}>
               <span className="text-slate-400 text-xs">{currentMoveIndex}/{totalMoves}</span>
-              <div className="w-10 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+              <div className={`h-1.5 bg-slate-700 rounded-full overflow-hidden ${isHeaderCompact ? 'flex-1' : 'w-10'} sm:w-10`}>
                 <div
                   className="h-full bg-purple-500 transition-all"
                   style={{ width: `${totalMoves > 0 ? (currentMoveIndex / totalMoves) * 100 : 0}%` }}
@@ -221,12 +299,13 @@ export default function PracticeGamePage() {
               {user && !isAnonymous && user.photoURL ? (
                 <img src={user.photoURL} alt="" className="w-4 h-4 rounded-full" />
               ) : null}
-              <span className="max-w-[60px] truncate">{displayName}</span>
+              {/* Hide name on mobile when compact */}
+              <span className={`max-w-[60px] truncate ${isHeaderCompact ? 'hidden' : 'inline'} sm:inline`}>{displayName}</span>
             </div>
             {/* Settings - desktop only */}
             <button
               onClick={() => setShowSettings(true)}
-              className="hidden lg:flex items-center text-slate-400 hover:text-white transition-colors"
+              className="hidden lg:flex items-center justify-center w-8 h-8 text-slate-400 hover:text-white transition-colors"
               title="Settings"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -239,7 +318,7 @@ export default function PracticeGamePage() {
               href="https://discord.gg/ySGBwu9xvk"
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden lg:flex items-center text-slate-400 hover:text-indigo-400 transition-colors"
+              className="hidden lg:flex items-center justify-center w-8 h-8 text-slate-400 hover:text-indigo-400 transition-colors"
               title="Join our Discord"
             >
               <DiscordIcon className="w-5 h-5" />
@@ -345,15 +424,6 @@ export default function PracticeGamePage() {
 
           {/* Control area - voice input on mobile, sidebar on desktop */}
           <div className="flex flex-col gap-1 lg:gap-2 flex-1 min-h-0 lg:w-72 lg:flex-initial">
-            {/* Opponent move indicator */}
-            {showingOpponentMove && pendingOpponentMove && (
-              <div className="hidden lg:block bg-amber-900/50 border border-amber-600 rounded-lg p-2 text-center">
-                <p className="text-amber-200 text-sm font-medium">
-                  Opponent played: <span className="font-mono">{pendingOpponentMove.san}</span>
-                </p>
-              </div>
-            )}
-
             {/* Voice input - full width on mobile */}
             <div className="flex-1 lg:flex-initial min-w-0 min-h-0">
               <PracticeVoiceInput
@@ -389,7 +459,7 @@ export default function PracticeGamePage() {
             onClick={() => setShowMoveHistory(false)}
           >
             <div
-              className="bg-slate-800 rounded-lg p-3 max-w-sm w-full mx-4 max-h-[60vh] flex flex-col"
+              className="bg-slate-800 rounded-lg p-3 max-w-sm w-full mx-4 max-h-[80vh] sm:max-h-[60vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex justify-between items-center mb-2">
@@ -415,6 +485,12 @@ export default function PracticeGamePage() {
 
         {/* Settings Modal */}
         {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+
+        {/* Achievement Toasts */}
+        <AchievementToastContainer
+          achievements={pendingAchievements}
+          onDismiss={dismissAchievement}
+        />
       </div>
     </main>
   );

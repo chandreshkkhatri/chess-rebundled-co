@@ -10,6 +10,7 @@ import {
   PracticeMode,
   AIParsedMoveResult,
   PracticeMoveResponseData,
+  SessionResumedData,
 } from '@/types';
 
 // Track if listeners have been attached (module-level, survives remounts)
@@ -56,6 +57,8 @@ export function usePracticeSocket() {
       socket.off('practice-started');
       socket.off('practice-move-response');
       socket.off('practice-error');
+      socket.off('session-resumed');
+      socket.off('session-not-found');
       socket.off('move-parsed');
       socket.off('parse-error');
       socket.off('audio-move-parsed');
@@ -122,7 +125,7 @@ export function usePracticeSocket() {
 
         // Handle next move or completion
         if (data.completed) {
-          store.setCompleted(data.completed);
+          store.setCompleted(data.completed, data.gamification);
           // Track session completed
           trackEvent('practice_session_completed', {
             gameId: data.completed.game.id,
@@ -132,6 +135,9 @@ export function usePracticeSocket() {
             totalMoves: data.completed.totalMoves,
             accuracy: Math.round(data.completed.accuracy * 100),
             mode: store.mode,
+            xpEarned: data.gamification?.xp.totalXp,
+            leveledUp: data.gamification?.xp.leveledUp,
+            newAchievements: data.gamification?.newAchievements.length,
           });
         } else if (data.nextMove) {
           store.updatePosition({
@@ -157,6 +163,19 @@ export function usePracticeSocket() {
         const store = usePracticeStore.getState();
         store.setError(data.message);
         store.setSubmitting(false);
+      });
+
+      // Session resume events
+      socket.on('session-resumed', (data: SessionResumedData) => {
+        console.log('[Socket] Session resumed:', data.sessionId);
+        usePracticeStore.getState().resumeSession(data);
+      });
+
+      socket.on('session-not-found', (data: { sessionId: string; reason: string }) => {
+        console.log('[Socket] Session not found:', data.sessionId, data.reason);
+        const store = usePracticeStore.getState();
+        store.clearSessionId();
+        store.setError(`Session expired: ${data.reason}`);
       });
 
       // AI parsing events - use store instead of window events
@@ -271,6 +290,17 @@ export function usePracticeSocket() {
     socket.emit('parse-audio-move-with-gemini', { sessionId, audioBase64, mimeType });
   }, []);
 
+  const resumeSession = useCallback((sessionId: string): boolean => {
+    const socket = getSocket();
+    if (!socket.connected) {
+      console.log('[Socket] Cannot resume - not connected');
+      return false;
+    }
+    console.log('[Socket] Requesting session resume:', sessionId);
+    socket.emit('resume-session', { sessionId });
+    return true;
+  }, []);
+
   return {
     startPractice,
     startPracticeRandom,
@@ -278,5 +308,6 @@ export function usePracticeSocket() {
     abandonPractice,
     parseMoveWithAI,
     parseAudioMoveWithGemini,
+    resumeSession,
   };
 }

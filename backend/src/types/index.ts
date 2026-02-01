@@ -1,3 +1,72 @@
+// Gamification Types
+export interface UserGamification {
+  // XP & Levels
+  totalXp: number;
+  level: number;
+  xpToNextLevel: number;
+
+  // Streaks
+  streaks: {
+    currentStreak: number;
+    longestStreak: number;
+    lastPlayedDate: string; // YYYY-MM-DD in user's timezone
+    streakFreezes: number;
+    timezone: string;
+  };
+
+  // Achievements
+  achievements: {
+    unlocked: string[]; // Achievement IDs
+    progress: Record<string, number>; // Progressive achievement tracking
+  };
+
+  // Tracking for bonuses
+  gamesCompleted: string[]; // Game IDs for "first completion" bonus
+  dailyXpDate: string | null; // For daily first session bonus (YYYY-MM-DD)
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  category: 'accuracy' | 'volume' | 'streak' | 'mastery' | 'milestone';
+  icon: string;
+  xpReward: number;
+  tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  isHidden: boolean;
+  criteria: {
+    type: string;
+    threshold?: number;
+    gameId?: string;
+    gameTitle?: string;
+  };
+}
+
+export interface XPCalculationResult {
+  baseXp: number;
+  bonuses: {
+    perfectSession: number;
+    highAccuracy: number;
+    firstGameCompletion: number;
+    dailyFirst: number;
+    streakMultiplier: number;
+  };
+  totalXp: number;
+  newTotalXp: number;
+  previousLevel: number;
+  newLevel: number;
+  leveledUp: boolean;
+}
+
+export interface GamificationResult {
+  xp: XPCalculationResult;
+  newAchievements: Achievement[];
+  streakUpdated: boolean;
+  newStreak: number;
+}
+
+export type LevelTier = 'Pawn' | 'Knight' | 'Bishop' | 'Rook' | 'Queen' | 'Grandmaster';
+
 // Game Types
 export interface HistoricalGame {
   id: string;
@@ -99,6 +168,21 @@ export interface PracticeMoveResponseData {
   result: PracticeMoveResult;
   nextMove?: PracticeNextMoveData;
   completed?: PracticeCompletedData;
+  gamification?: GamificationResult;
+}
+
+// Session resume data (for restoring session after page refresh)
+export interface SessionResumedData {
+  sessionId: string;
+  game: HistoricalGame;
+  position: string;
+  currentMoveIndex: number;
+  currentSide: 'white' | 'black';
+  expectedMove: MoveDetails;
+  totalMoves: number;
+  mode: PracticeMode;
+  playerColor: 'white' | 'black' | null;
+  moveResults: PracticeMoveResult[];
 }
 
 // Socket Event Types
@@ -111,6 +195,9 @@ export interface ServerToClientEvents {
   'practice-completed': (data: PracticeCompletedData) => void;
   'practice-move-response': (data: PracticeMoveResponseData) => void; // Combined event
   'practice-error': (data: { message: string }) => void;
+  // Session resume events
+  'session-resumed': (data: SessionResumedData) => void;
+  'session-not-found': (data: { sessionId: string; reason: string }) => void;
   // AI move parsing events (Web Speech + Haiku)
   'move-parsed': (data: AIParsedMoveResult) => void;
   'parse-error': (data: { message: string }) => void;
@@ -126,6 +213,8 @@ export interface ClientToServerEvents {
   'start-practice-random': (data: { playerName: string; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
   'submit-practice-move': (data: { sessionId: string; move: string }) => void;
   'abandon-practice': (data: { sessionId: string }) => void;
+  // Session resume
+  'resume-session': (data: { sessionId: string }) => void;
   // AI move parsing events (Web Speech + Haiku)
   'parse-move-with-ai': (data: { sessionId: string; transcript: string }) => void;
   // Gemini audio parsing events
