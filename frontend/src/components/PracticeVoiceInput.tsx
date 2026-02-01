@@ -125,9 +125,8 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
   // Track wrong tap for feedback animation
   const [wrongTap, setWrongTap] = useState<string | null>(null);
 
-  // Text input fallback state
+  // Text input state (text-only mode)
   const [textInput, setTextInput] = useState('');
-  const [showTextInput, setShowTextInput] = useState(false);
   const textInputRef = useRef<HTMLInputElement>(null);
 
   const autoListenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -500,12 +499,6 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     }
   }, [voiceEnabled, isListening, stopListening]);
 
-  // In text-only mode, auto-show text input
-  useEffect(() => {
-    if (textOnlyMode && isActive) {
-      setShowTextInput(true);
-    }
-  }, [textOnlyMode, isActive]);
 
   // Stop listening when submitting or parsing
   useEffect(() => {
@@ -519,7 +512,6 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     if (lastMoveResult) {
       setSelectedMove(null);
       setTextInput('');
-      setShowTextInput(false);
       clearAIParseState();
       resetStages();
       lastProcessedRef.current = null;
@@ -606,7 +598,6 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
       e.preventDefault();
       handleTextSubmit();
     } else if (e.key === 'Escape') {
-      setShowTextInput(false);
       setTextInput('');
     }
   }, [handleTextSubmit]);
@@ -737,70 +728,40 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
           </div>
         </div>
 
-        {/* ZONE 3: Text Input (h-12) - Fixed height */}
+        {/* ZONE 3: Text Input (h-12) - Only visible in text-only mode */}
         <div className="h-12 flex-shrink-0 flex items-center">
-          {isActive ? (
-            (showTextInput || textOnlyMode) ? (
-              <div className="relative w-full">
-                <input
-                  ref={textInputRef}
-                  type="text"
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  onKeyDown={handleTextKeyDown}
-                  placeholder={textOnlyMode ? 'Type your move (e.g., e4, Nf3)' : 'Type move (e.g., e4, Nf3)'}
-                  disabled={isSubmitting}
-                  autoFocus={!textOnlyMode || !selectedMove}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50"
-                />
-                {/* Suggestions dropdown */}
-                {textSuggestions.length > 0 && textInput.trim() && (
-                  <div className="absolute z-10 w-full mt-1 bg-slate-700 border border-slate-600 rounded-lg shadow-lg overflow-hidden">
-                    {textSuggestions.map((move) => (
-                      <button
-                        key={move}
-                        onClick={() => {
-                          setTextInput('');
-                          setSelectedMove(move);
-                          onMoveSubmit(move, 1.0);
-                        }}
-                        className="w-full px-3 py-2 text-left text-white font-mono text-sm hover:bg-slate-600 transition-colors"
-                      >
-                        {move}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {/* Close button - only show when text input is optional */}
-                {!textOnlyMode && (
-                  <button
-                    onClick={() => {
-                      setShowTextInput(false);
-                      setTextInput('');
-                    }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
-                    aria-label="Close text input"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            ) : (
-              <button
-                onClick={() => {
-                  setShowTextInput(true);
-                  setTimeout(() => textInputRef.current?.focus(), 0);
-                }}
-                className="w-full py-2 text-slate-400 hover:text-slate-300 text-xs flex items-center justify-center gap-1 transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                Type move instead
-              </button>
-            )
+          {isActive && textOnlyMode ? (
+            <div className="relative w-full">
+              <input
+                ref={textInputRef}
+                type="text"
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                onKeyDown={handleTextKeyDown}
+                placeholder="Type your move (e.g., e4, Nf3)"
+                disabled={isSubmitting}
+                autoFocus={!selectedMove}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50"
+              />
+              {/* Suggestions dropdown */}
+              {textSuggestions.length > 0 && textInput.trim() && (
+                <div className="absolute z-10 w-full mt-1 bg-slate-700 border border-slate-600 rounded-lg shadow-lg overflow-hidden">
+                  {textSuggestions.map((move) => (
+                    <button
+                      key={move}
+                      onClick={() => {
+                        setTextInput('');
+                        setSelectedMove(move);
+                        onMoveSubmit(move, 1.0);
+                      }}
+                      className="w-full px-3 py-2 text-left text-white font-mono text-sm hover:bg-slate-600 transition-colors"
+                    >
+                      {move}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
             <div className="invisible w-full h-full" />
           )}

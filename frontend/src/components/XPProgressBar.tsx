@@ -1,6 +1,6 @@
 'use client';
 
-import { LevelTier } from '@/types';
+import { getLevelTier, getTierColor, getTierIcon } from '@/lib/gamificationUtils';
 
 interface XPProgressBarProps {
   totalXp: number;
@@ -16,37 +16,6 @@ const LEVEL_THRESHOLDS = [
   17400, 18900, 20500, 22200, 24000, 25900, 27900, 30000, 32200, 34500,
   37000, 39600, 42300, 45100, 48000, 51000, 54200, 57500, 61000, 65000,
 ];
-
-function getLevelTier(level: number): LevelTier {
-  if (level <= 5) return 'Pawn';
-  if (level <= 10) return 'Knight';
-  if (level <= 20) return 'Bishop';
-  if (level <= 35) return 'Rook';
-  if (level <= 50) return 'Queen';
-  return 'Grandmaster';
-}
-
-function getTierColor(tier: LevelTier): string {
-  switch (tier) {
-    case 'Pawn': return 'from-slate-400 to-slate-500';
-    case 'Knight': return 'from-amber-600 to-amber-700';
-    case 'Bishop': return 'from-slate-300 to-slate-400';
-    case 'Rook': return 'from-yellow-400 to-yellow-500';
-    case 'Queen': return 'from-purple-500 to-purple-600';
-    case 'Grandmaster': return 'from-red-500 to-orange-500';
-  }
-}
-
-function getTierIcon(tier: LevelTier): string {
-  switch (tier) {
-    case 'Pawn': return '\u265F';
-    case 'Knight': return '\u265E';
-    case 'Bishop': return '\u265D';
-    case 'Rook': return '\u265C';
-    case 'Queen': return '\u265B';
-    case 'Grandmaster': return '\u265A';
-  }
-}
 
 function getXpForLevel(level: number): number {
   if (level <= 0) return 0;

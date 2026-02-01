@@ -1,36 +1,12 @@
 'use client';
 
+import { getStreakEmoji, getStreakColor, getStreakMultiplier } from '@/lib/gamificationUtils';
+
 interface StreakIndicatorProps {
   currentStreak: number;
   longestStreak: number;
   streakFreezes?: number;
   compact?: boolean;
-}
-
-function getStreakEmoji(streak: number): string {
-  if (streak >= 60) return '\uD83D\uDD25'; // Fire
-  if (streak >= 30) return '\uD83D\uDC51'; // Crown
-  if (streak >= 14) return '\u2B50'; // Star
-  if (streak >= 7) return '\uD83C\uDF1F'; // Glowing star
-  if (streak >= 3) return '\uD83D\uDD25'; // Fire
-  return '\u26A1'; // Lightning
-}
-
-function getStreakColor(streak: number): string {
-  if (streak >= 30) return 'text-yellow-400';
-  if (streak >= 14) return 'text-orange-400';
-  if (streak >= 7) return 'text-orange-500';
-  if (streak >= 3) return 'text-amber-500';
-  return 'text-slate-400';
-}
-
-function getStreakMultiplier(streak: number): number {
-  if (streak >= 60) return 2.0;
-  if (streak >= 30) return 1.75;
-  if (streak >= 14) return 1.5;
-  if (streak >= 7) return 1.25;
-  if (streak >= 3) return 1.1;
-  return 1.0;
 }
 
 export function StreakIndicator({ currentStreak, longestStreak, streakFreezes = 0, compact = false }: StreakIndicatorProps) {

@@ -2,44 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { UserGamification, LevelTier } from '@/types';
-
-function getLevelTier(level: number): LevelTier {
-  if (level <= 5) return 'Pawn';
-  if (level <= 10) return 'Knight';
-  if (level <= 20) return 'Bishop';
-  if (level <= 35) return 'Rook';
-  if (level <= 50) return 'Queen';
-  return 'Grandmaster';
-}
-
-function getTierIcon(tier: LevelTier): string {
-  switch (tier) {
-    case 'Pawn': return '\u265F';
-    case 'Knight': return '\u265E';
-    case 'Bishop': return '\u265D';
-    case 'Rook': return '\u265C';
-    case 'Queen': return '\u265B';
-    case 'Grandmaster': return '\u265A';
-  }
-}
-
-function getStreakEmoji(streak: number): string {
-  if (streak >= 60) return '\uD83D\uDD25';
-  if (streak >= 30) return '\uD83D\uDC51';
-  if (streak >= 14) return '\u2B50';
-  if (streak >= 7) return '\uD83C\uDF1F';
-  if (streak >= 3) return '\uD83D\uDD25';
-  return '\u26A1';
-}
-
-function getStreakColor(streak: number): string {
-  if (streak >= 30) return 'text-yellow-400';
-  if (streak >= 14) return 'text-orange-400';
-  if (streak >= 7) return 'text-orange-500';
-  if (streak >= 3) return 'text-amber-500';
-  return 'text-slate-400';
-}
+import { UserGamification } from '@/types';
+import { getLevelTier, getTierIcon, getStreakEmoji, getStreakColor } from '@/lib/gamificationUtils';
 
 export function LiveGamificationBadge() {
   const { user, isAnonymous, isLoading: authLoading, getIdToken } = useAuth();

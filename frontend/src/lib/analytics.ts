@@ -4,6 +4,9 @@ import {
   resetAnalyticsUser,
 } from './firebase';
 
+// Only log in development
+const DEBUG = process.env.NODE_ENV !== 'production';
+
 // Type-safe event names for analytics
 export type AnalyticsEvent =
   | 'practice_session_started'
@@ -85,10 +88,10 @@ export function trackEvent<T extends AnalyticsEvent>(
   // Fire and forget - don't block on analytics
   trackAnalyticsEvent(event, properties as unknown as Record<string, unknown>)
     .then(() => {
-      console.debug('[Analytics] Event sent:', event);
+      if (DEBUG) console.debug('[Analytics] Event sent:', event);
     })
     .catch((error) => {
-      console.debug('[Analytics] Event failed:', event, error);
+      if (DEBUG) console.debug('[Analytics] Event failed:', event, error);
     });
 }
 
@@ -100,10 +103,10 @@ export function identifyUser(userId: string, properties?: Record<string, unknown
 
   identifyAnalyticsUser(userId, properties)
     .then(() => {
-      console.debug('[Analytics] User identified:', userId);
+      if (DEBUG) console.debug('[Analytics] User identified:', userId);
     })
     .catch((error) => {
-      console.debug('[Analytics] User identification failed:', error);
+      if (DEBUG) console.debug('[Analytics] User identification failed:', error);
     });
 }
 
@@ -115,9 +118,9 @@ export function resetUser(): void {
 
   resetAnalyticsUser()
     .then(() => {
-      console.debug('[Analytics] User reset');
+      if (DEBUG) console.debug('[Analytics] User reset');
     })
     .catch((error) => {
-      console.debug('[Analytics] User reset failed:', error);
+      if (DEBUG) console.debug('[Analytics] User reset failed:', error);
     });
 }

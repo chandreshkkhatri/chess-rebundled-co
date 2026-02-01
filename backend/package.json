@@ -11,7 +11,6 @@
     "migrate:01": "tsx src/scripts/migrations/01-seed-famous-players.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.2",
     "@fastify/cors": "^9.0.1",
     "@google/genai": "^1.38.0",
     "adm-zip": "^0.5.16",

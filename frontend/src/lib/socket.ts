@@ -43,9 +43,3 @@ export function connectSocket(): void {
     s.connect();
   }
 }
-
-export function disconnectSocket(): void {
-  if (socket?.connected) {
-    socket.disconnect();
-  }
-}
