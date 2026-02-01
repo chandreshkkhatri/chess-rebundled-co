@@ -441,7 +441,9 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
                   key={moveOptions.length > 0 ? move : idx}
                   onClick={() => move !== '—' && handleSelectOption(move)}
                   disabled={isSubmitting || move === '—'}
-                  className={`py-2 px-1 rounded font-mono text-sm transition-all border min-h-[44px] ${
+                  className={`py-2 px-0.5 rounded font-mono transition-all border min-h-[44px] ${
+                    move.length > 4 ? 'text-xs' : move.length > 3 ? 'text-[13px]' : 'text-sm'
+                  } ${
                     move === '—'
                       ? 'bg-slate-800/30 border-slate-700 text-slate-600 cursor-default'
                       : selectedMove === move
