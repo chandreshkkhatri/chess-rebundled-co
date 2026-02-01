@@ -13,6 +13,7 @@ import {
   signOut,
   onAuthStateChanged,
   sendPasswordResetEmail,
+  updateProfile,
   User,
   Auth,
 } from 'firebase/auth';
@@ -119,6 +120,13 @@ export async function logout(): Promise<void> {
 
 export async function resetPassword(email: string): Promise<void> {
   await sendPasswordResetEmail(auth, email);
+}
+
+// Update user's display name in Firebase Auth
+export async function updateDisplayName(displayName: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('No user logged in');
+  await updateProfile(user, { displayName });
 }
 
 // Get current user's ID token for API calls

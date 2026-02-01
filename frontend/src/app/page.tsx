@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { useAuth } from '@/contexts/AuthContext';
+import { updateDisplayName } from '@/lib/firebase';
 import { Header } from '@/components/Header';
 
 export default function Home() {
@@ -14,7 +16,7 @@ export default function Home() {
   // Initialize socket connection
   usePracticeSocket();
 
-  const { user, isAnonymous, getIdToken } = useAuth();
+  const { user, isAnonymous, isLoading, getIdToken } = useAuth();
   const { isConnected, playerName: storedPlayerName, setPlayerName: storeSetPlayerName } = usePracticeStore();
 
   // Load player name: prioritize authenticated user's displayName, then stored name
@@ -31,9 +33,13 @@ export default function Home() {
     if (name) {
       storeSetPlayerName(name);
 
-      // For authenticated users, also save to their profile
+      // For authenticated users, also save to their profile and Firebase Auth
       if (user && !isAnonymous) {
         try {
+          // Update Firebase Auth displayName (so it persists across sessions)
+          await updateDisplayName(name);
+
+          // Also save to Firestore profile
           const token = await getIdToken();
           if (token) {
             fetch('/api/user/profile', {
@@ -64,28 +70,59 @@ export default function Home() {
           </div>
 
         <div className="bg-slate-800 rounded-2xl shadow-xl p-6">
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Your Name
-            </label>
-            <input
-              type="text"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleStartPractice()}
-              placeholder="Enter your name"
-              className="w-full px-4 py-3 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none placeholder-slate-400"
-              maxLength={20}
-            />
-          </div>
+          {/* Show loading skeleton while auth is loading */}
+          {isLoading ? (
+            <div className="animate-pulse">
+              <div className="h-10 bg-slate-700 rounded mb-4"></div>
+              <div className="h-12 bg-slate-700 rounded"></div>
+            </div>
+          ) : user && !isAnonymous && user.displayName ? (
+            /* Authenticated user with displayName - skip name input */
+            <div className="text-center">
+              <p className="text-slate-300 mb-6">
+                Welcome back, <span className="text-white font-semibold">{user.displayName}</span>!
+              </p>
+              <button
+                onClick={() => router.push('/practice')}
+                disabled={!isConnected}
+                className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
+              >
+                {isConnected ? 'Start Practice' : 'Connecting...'}
+              </button>
+              <Link
+                href="/profile"
+                className="inline-block mt-3 text-sm text-slate-400 hover:text-slate-300 transition-colors"
+              >
+                Not you? Change name
+              </Link>
+            </div>
+          ) : (
+            /* Guest or authenticated without displayName - show name input */
+            <>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Your Name
+                </label>
+                <input
+                  type="text"
+                  value={playerName}
+                  onChange={(e) => setPlayerName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleStartPractice()}
+                  placeholder="Enter your name"
+                  className="w-full px-4 py-3 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none placeholder-slate-400"
+                  maxLength={20}
+                />
+              </div>
 
-          <button
-            onClick={handleStartPractice}
-            disabled={!isConnected}
-            className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
-          >
-            {isConnected ? 'Start Practice' : 'Connecting...'}
-          </button>
+              <button
+                onClick={handleStartPractice}
+                disabled={!isConnected}
+                className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
+              >
+                {isConnected ? 'Start Practice' : 'Connecting...'}
+              </button>
+            </>
+          )}
 
           {/* Features overview */}
           <div className="mt-6 pt-6 border-t border-slate-700">

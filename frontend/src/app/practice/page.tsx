@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { useAuth } from '@/contexts/AuthContext';
+import { updateDisplayName } from '@/lib/firebase';
 import { PracticeMode } from '@/types';
 
 export default function PracticeSelectPage() {
@@ -142,9 +144,13 @@ export default function PracticeSelectPage() {
     setIsSubmitting(true);
     storeSetPlayerName(name);
 
-    // For authenticated users, also save to their profile (non-blocking)
+    // For authenticated users, also save to their profile and Firebase Auth
     if (user && !isAnonymous) {
       try {
+        // Update Firebase Auth displayName (so it persists across sessions)
+        await updateDisplayName(name);
+
+        // Also save to Firestore profile
         const token = await getIdToken();
         if (token) {
           fetch('/api/user/profile', {
@@ -302,7 +308,12 @@ export default function PracticeSelectPage() {
         <div className="max-w-md w-full">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-2">Choose Practice Mode</h1>
-            <p className="text-slate-400">Hi {playerName}! How would you like to practice?</p>
+            <p className="text-slate-400">
+              Hi {playerName}! How would you like to practice?
+              <Link href="/profile" className="ml-2 text-purple-400 hover:text-purple-300 text-sm transition-colors">
+                Change name
+              </Link>
+            </p>
           </div>
 
           <div className="bg-slate-800 rounded-2xl shadow-xl p-6">
