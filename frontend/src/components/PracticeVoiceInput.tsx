@@ -7,10 +7,50 @@ import { usePracticeStore } from '@/stores/practiceStore';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { Chess } from 'chess.js';
 import { PracticeVoiceDebugOverlay } from './PracticeVoiceDebugOverlay';
-import { generateDistractors } from '@/lib/distractorGenerator';
+import {
+  StageState,
+  initialStageState,
+  getAvailablePieces,
+  getDisambiguationOptions,
+  getDestinationOptionsWithDistractors,
+  getLegalDestinations,
+  getPromotionOptions,
+  buildMoveFromSelection,
+  isLegalDestination,
+  getStageLabel,
+  getSelectionBreadcrumb,
+} from '@/lib/moveStageParser';
 
 // Debug flag - disabled for production builds
 const DEBUG_AUDIO = process.env.NODE_ENV !== 'production';
+
+// Pawn icon SVG component
+function PawnIcon({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2a3 3 0 0 0-3 3c0 1.1.6 2.1 1.5 2.6-.3.3-.5.7-.5 1.2 0 .6.3 1.1.7 1.4L9 14H7v2h2l-1 4H6v2h12v-2h-2l-1-4h2v-2h-2l-1.7-3.8c.4-.3.7-.8.7-1.4 0-.5-.2-.9-.5-1.2.9-.5 1.5-1.5 1.5-2.6a3 3 0 0 0-3-3z"/>
+    </svg>
+  );
+}
+
+// Check if option is the pawn piece indicator
+function isPawnPiece(option: string): boolean {
+  return option === 'P';
+}
+
+// Get aria-label for piece buttons
+function getPieceAriaLabel(option: string): string {
+  const pieceNames: Record<string, string> = {
+    'K': 'King',
+    'Q': 'Queen',
+    'R': 'Rook',
+    'B': 'Bishop',
+    'N': 'Knight',
+    'P': 'Pawn',
+    'O': 'Castling',
+  };
+  return pieceNames[option] || option;
+}
 
 // Convert technical error messages to user-friendly text
 function getFriendlyErrorMessage(error: string): string {
@@ -79,6 +119,12 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
   // Selected move (from AI result or alternatives)
   const [selectedMove, setSelectedMove] = useState<string | null>(null);
 
+  // Stage state for two-stage selection
+  const [stageState, setStageState] = useState<StageState>(initialStageState);
+
+  // Track wrong tap for feedback animation
+  const [wrongTap, setWrongTap] = useState<string | null>(null);
+
   // Text input fallback state
   const [textInput, setTextInput] = useState('');
   const [showTextInput, setShowTextInput] = useState(false);
@@ -106,21 +152,203 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     return legalMoves.some(m => m.replace(/[+#]/g, '') === cleanMove);
   }, [legalMoves]);
 
-  // Generate distractor move options (10 options including the correct move)
-  const moveOptions = useMemo(() => {
-    if (!currentExpectedMove?.san) return [];
-    return generateDistractors(currentExpectedMove.san, { count: 10, includeCorrect: true, shuffle: true });
-  }, [currentExpectedMove?.san]);
+  // Get options based on current stage
+  const stageOptions = useMemo(() => {
+    if (!legalMoves.length) return [];
 
-  // Handle selecting a move option (from tap) - directly submits for single-click UX
-  const handleSelectOption = useCallback((move: string) => {
-    if (!isSubmitting && isActive) {
-      clearLastMoveResult(); // Clear stale feedback from previous move
-      setSelectedMove(move);
-      // Directly submit - no need for two clicks
-      onMoveSubmit(move, 1.0); // Tapped selections have 100% confidence
+    switch (stageState.stage) {
+      case 'piece':
+        return getAvailablePieces(legalMoves);
+      case 'disambiguation':
+        if (!stageState.selectedPiece) return [];
+        return getDisambiguationOptions(legalMoves, stageState.selectedPiece) || [];
+      case 'destination': {
+        // For pawns, use the pawn file; for other pieces, use selectedPiece
+        const pieceOrFile = stageState.selectedPawnFile || stageState.selectedPiece;
+        if (!pieceOrFile) return [];
+        return getDestinationOptionsWithDistractors(
+          legalMoves,
+          pieceOrFile,
+          stageState.selectedDisambiguation
+        );
+      }
+      case 'promotion':
+        return getPromotionOptions();
+      default:
+        return [];
     }
-  }, [isSubmitting, isActive, clearLastMoveResult, onMoveSubmit]);
+  }, [legalMoves, stageState]);
+
+  // Handle piece selection (stage 1)
+  const handlePieceSelect = useCallback((piece: string) => {
+    if (isSubmitting || !isActive) return;
+
+    // If pawn selected, go directly to destination stage with full pawn moves
+    if (piece === 'P') {
+      const pawnMoves = getLegalDestinations(legalMoves, 'P');
+      // If only one pawn move, auto-select it
+      if (pawnMoves.length === 1) {
+        // Find the actual legal move (may have +/# suffix)
+        const fullMove = legalMoves.find(m => m.replace(/[+#]/g, '') === pawnMoves[0]) || pawnMoves[0];
+        clearLastMoveResult();
+        setSelectedMove(fullMove);
+        onMoveSubmit(fullMove, 1.0);
+        return;
+      }
+      setStageState({
+        stage: 'destination',
+        selectedPiece: 'P',
+        selectedPawnFile: null, // No file selection needed - destinations are full SANs
+        selectedDisambiguation: null,
+        selectedDestination: null,
+      });
+      return;
+    }
+
+    // Check if disambiguation is needed
+    const disambigOptions = getDisambiguationOptions(legalMoves, piece);
+
+    if (disambigOptions && disambigOptions.length > 1) {
+      // Need disambiguation stage
+      setStageState({
+        stage: 'disambiguation',
+        selectedPiece: piece,
+        selectedPawnFile: null,
+        selectedDisambiguation: null,
+        selectedDestination: null,
+      });
+    } else {
+      // Skip to destination stage
+      const destinations = getLegalDestinations(legalMoves, piece);
+
+      // If only one destination (e.g., single castling option), auto-select
+      if (piece === 'O' && destinations.length === 1) {
+        clearLastMoveResult();
+        setSelectedMove(destinations[0]);
+        onMoveSubmit(destinations[0], 1.0);
+        return;
+      }
+
+      setStageState({
+        stage: 'destination',
+        selectedPiece: piece,
+        selectedPawnFile: null,
+        selectedDisambiguation: disambigOptions?.[0] || null,
+        selectedDestination: null,
+      });
+    }
+  }, [isSubmitting, isActive, legalMoves, clearLastMoveResult, onMoveSubmit]);
+
+  // Handle disambiguation selection (stage 2a)
+  const handleDisambiguationSelect = useCallback((disambig: string) => {
+    if (isSubmitting || !isActive || !stageState.selectedPiece) return;
+
+    setStageState(prev => ({
+      ...prev,
+      stage: 'destination' as const,
+      selectedDisambiguation: disambig,
+    }));
+  }, [isSubmitting, isActive, stageState.selectedPiece]);
+
+  // Handle destination selection (stage 2)
+  const handleDestinationSelect = useCallback((destination: string) => {
+    if (isSubmitting || !isActive || !stageState.selectedPiece) return;
+
+    // For pawns, destination is already a full SAN (e.g., "e4", "exd5", "e8=Q")
+    if (stageState.selectedPiece === 'P') {
+      // Check if this is a legal pawn move
+      const isLegal = isLegalDestination(legalMoves, 'P', destination, null);
+      if (!isLegal) return;
+
+      // Find the actual legal move (may have +/# suffix)
+      const fullMove = legalMoves.find(m => m.replace(/[+#]/g, '') === destination) || destination;
+      clearLastMoveResult();
+      setSelectedMove(fullMove);
+      onMoveSubmit(fullMove, 1.0);
+      return;
+    }
+
+    // For other pieces, check if destination is legal
+    const isLegal = isLegalDestination(
+      legalMoves,
+      stageState.selectedPiece,
+      destination,
+      stageState.selectedDisambiguation
+    );
+
+    if (!isLegal) {
+      // Distractor selected - show feedback animation
+      setWrongTap(destination);
+      setTimeout(() => setWrongTap(null), 300);
+      return;
+    }
+
+    // Build and submit the move
+    const newState = {
+      ...stageState,
+      selectedDestination: destination,
+    };
+    const move = buildMoveFromSelection(newState, legalMoves);
+    if (move) {
+      clearLastMoveResult();
+      setSelectedMove(move);
+      onMoveSubmit(move, 1.0);
+    }
+  }, [isSubmitting, isActive, stageState, legalMoves, clearLastMoveResult, onMoveSubmit]);
+
+  // Handle promotion selection (stage 3)
+  const handlePromotionSelect = useCallback((promotion: string) => {
+    if (isSubmitting || !isActive || !stageState.selectedDestination) return;
+
+    const move = buildMoveFromSelection(stageState, legalMoves, promotion);
+    if (move) {
+      clearLastMoveResult();
+      setSelectedMove(move);
+      onMoveSubmit(move, 1.0);
+    }
+  }, [isSubmitting, isActive, stageState, legalMoves, clearLastMoveResult, onMoveSubmit]);
+
+  // Handle stage option selection (unified handler)
+  const handleStageOptionSelect = useCallback((option: string) => {
+    switch (stageState.stage) {
+      case 'piece':
+        handlePieceSelect(option);
+        break;
+      case 'disambiguation':
+        handleDisambiguationSelect(option);
+        break;
+      case 'destination':
+        handleDestinationSelect(option);
+        break;
+      case 'promotion':
+        handlePromotionSelect(option);
+        break;
+    }
+  }, [stageState.stage, handlePieceSelect, handleDisambiguationSelect, handleDestinationSelect, handlePromotionSelect]);
+
+  // Handle going back one stage
+  const handleStageBack = useCallback(() => {
+    setStageState(prev => {
+      switch (prev.stage) {
+        case 'promotion':
+          return { ...prev, stage: 'destination' as const, selectedDestination: null };
+        case 'destination':
+          if (prev.selectedDisambiguation) {
+            return { ...prev, stage: 'disambiguation' as const, selectedDisambiguation: null };
+          }
+          return { ...initialStageState };
+        case 'disambiguation':
+          return { ...initialStageState };
+        default:
+          return prev;
+      }
+    });
+  }, []);
+
+  // Reset stages
+  const resetStages = useCallback(() => {
+    setStageState(initialStageState);
+  }, []);
 
   // Handle voice result - hook now passes parsed notation (e.g. "e4") directly
   // Block new requests while already parsing to prevent race conditions
@@ -293,6 +521,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
       setTextInput('');
       setShowTextInput(false);
       clearAIParseState();
+      resetStages();
       lastProcessedRef.current = null;
       // Cancel any pending auto-submit since submission completed
       if (autoSubmitTimeoutRef.current) {
@@ -300,7 +529,12 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
         autoSubmitTimeoutRef.current = null;
       }
     }
-  }, [lastMoveResult, clearAIParseState]);
+  }, [lastMoveResult, clearAIParseState, resetStages]);
+
+  // Reset stages when position changes (new move to guess)
+  useEffect(() => {
+    resetStages();
+  }, [currentExpectedMove, resetStages]);
 
   const handleSubmit = useCallback(() => {
     if (selectedMove && isActive && !isSubmitting) {
@@ -314,6 +548,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     setSelectedMove(null);
     setTextInput('');
     clearAIParseState();
+    resetStages();
     lastProcessedRef.current = null;
     if (autoListenTimeoutRef.current) {
       clearTimeout(autoListenTimeoutRef.current);
@@ -322,7 +557,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
     if (voiceEnabled && !isListening && isActive) {
       startListening();
     }
-  }, [voiceEnabled, startListening, isListening, isActive, clearAIParseState]);
+  }, [voiceEnabled, startListening, isListening, isActive, clearAIParseState, resetStages]);
 
 
   // Handle text input submission
@@ -429,33 +664,72 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
           ) : null}
         </div>
 
-        {/* ZONE 2: Tap Grid (flex-1) - Always reserves space */}
+        {/* ZONE 2: Staged Selection Grid (flex-1) - Always reserves space */}
         <div className={`flex-1 min-h-0 overflow-y-auto ${tapGridEnabled && isActive ? '' : 'invisible'}`}>
           <div className="w-full">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5 text-center">
-              {voiceEnabled ? 'Tap or speak a move' : 'Tap a move'}
-            </div>
-            <div className="grid grid-cols-3 min-[400px]:grid-cols-4 sm:grid-cols-5 gap-1">
-              {(moveOptions.length > 0 ? moveOptions : Array(10).fill('—')).map((move, idx) => (
+            {/* Stage header with back button */}
+            <div className="flex items-center justify-between mb-1">
+              {stageState.stage !== 'piece' ? (
                 <button
-                  key={moveOptions.length > 0 ? move : idx}
-                  onClick={() => move !== '—' && handleSelectOption(move)}
-                  disabled={isSubmitting || move === '—'}
-                  className={`py-2 px-0.5 rounded font-mono transition-all border min-h-[44px] ${
-                    move.length > 4 ? 'text-xs' : move.length > 3 ? 'text-[13px]' : 'text-sm'
-                  } ${
-                    move === '—'
-                      ? 'bg-slate-800/30 border-slate-700 text-slate-600 cursor-default'
-                      : selectedMove === move
-                        ? 'bg-green-600/30 border-green-500 text-green-300 ring-2 ring-green-500/50'
-                        : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500 active:scale-95'
-                  } ${isSubmitting && move !== '—' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={handleStageBack}
+                  className="text-slate-400 hover:text-white text-xs flex items-center gap-0.5 px-1"
                 >
-                  {move}
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back
                 </button>
-              ))}
+              ) : (
+                <div className="w-12" />
+              )}
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider text-center flex-1">
+                {getStageLabel(stageState, voiceEnabled)}
+              </div>
+              <div className="w-12" />
             </div>
-            {voiceEnabled && (
+
+            {/* Selection breadcrumb */}
+            {stageState.selectedPiece && (
+              <div className="text-xs text-slate-400 text-center mb-1 font-mono">
+                {getSelectionBreadcrumb(stageState)}
+              </div>
+            )}
+
+            {/* Options grid */}
+            <div className="grid grid-cols-3 min-[400px]:grid-cols-4 sm:grid-cols-5 gap-1">
+              {(stageOptions.length > 0 ? stageOptions : Array(10).fill('—')).map((option, idx) => {
+                return (
+                  <button
+                    key={stageOptions.length > 0 ? `${stageState.stage}-${option}` : idx}
+                    onClick={() => option !== '—' && handleStageOptionSelect(option)}
+                    disabled={isSubmitting || option === '—'}
+                    aria-label={stageState.stage === 'piece' ? getPieceAriaLabel(option) : option}
+                    className={`py-2 px-0.5 rounded font-mono transition-all border min-h-[44px] flex flex-col items-center justify-center ${
+                      option.length > 4 ? 'text-xs' : option.length > 3 ? 'text-[13px]' : 'text-sm'
+                    } ${
+                      wrongTap === option
+                        ? 'bg-red-700/50 border-red-500 text-red-200 animate-shake'
+                        : option === '—'
+                          ? 'bg-slate-800/30 border-slate-700 text-slate-600 cursor-default'
+                          : stageState.stage === 'piece'
+                            ? 'bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500 active:scale-95'
+                            : stageState.stage === 'promotion'
+                              ? 'bg-purple-700/50 border-purple-600 text-purple-200 hover:bg-purple-600 hover:border-purple-500 active:scale-95'
+                              : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500 active:scale-95'
+                    } ${isSubmitting && option !== '—' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {stageState.stage === 'piece' && isPawnPiece(option) ? (
+                      <PawnIcon className="w-6 h-6" />
+                    ) : (
+                      option
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Voice tip - only show on piece stage */}
+            {voiceEnabled && stageState.stage === 'piece' && (
               <div className="text-[9px] text-slate-500 text-center mt-1">
                 Tip: Say &quot;delta&quot; for d, &quot;bravo&quot; for b
               </div>

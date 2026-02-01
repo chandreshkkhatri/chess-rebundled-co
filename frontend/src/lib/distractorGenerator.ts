@@ -40,7 +40,7 @@ const COMMON_MOVES = [
   'g3', 'Bg5', 'Bf4', 'Nd5', 'Ne5', 'Qe2', 'Rd1', 'Rab1', 'c5', 'b6',
 ];
 
-interface ParsedMove {
+export interface ParsedMove {
   piece: string | null;       // N, B, R, Q, K or null for pawn
   fromFile: string | null;    // Disambiguation file (e.g., Nbd2)
   fromRank: string | null;    // Disambiguation rank (e.g., R1e1)
@@ -55,7 +55,7 @@ interface ParsedMove {
 /**
  * Parse a SAN move into its components
  */
-function parseMove(san: string): ParsedMove {
+export function parseMove(san: string): ParsedMove {
   const result: ParsedMove = {
     piece: null,
     fromFile: null,
