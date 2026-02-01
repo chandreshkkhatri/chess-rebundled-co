@@ -48,6 +48,7 @@ let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
 let analytics: Analytics | null = null;
+let analyticsReady: Promise<Analytics | null>;
 
 if (typeof window !== 'undefined') {
   if (!getApps().length) {
@@ -59,11 +60,15 @@ if (typeof window !== 'undefined') {
   db = getFirestore(app);
 
   // Initialize Analytics (only in browser and if supported)
-  isSupported().then((supported) => {
+  analyticsReady = isSupported().then((supported) => {
     if (supported && firebaseConfig.measurementId) {
       analytics = getAnalytics(app);
+      return analytics;
     }
+    return null;
   });
+} else {
+  analyticsReady = Promise.resolve(null);
 }
 
 // OAuth Providers
@@ -159,30 +164,33 @@ export function subscribeToAuthState(callback: (user: User | null) => void): () 
 }
 
 // Analytics helper functions
-export function trackAnalyticsEvent(
+export async function trackAnalyticsEvent(
   eventName: string,
   eventParams?: Record<string, unknown>
-): void {
-  if (analytics) {
-    logEvent(analytics, eventName, eventParams);
+): Promise<void> {
+  const analyticsInstance = await analyticsReady;
+  if (analyticsInstance) {
+    logEvent(analyticsInstance, eventName, eventParams);
   }
 }
 
-export function identifyAnalyticsUser(
+export async function identifyAnalyticsUser(
   userId: string,
   userProperties?: Record<string, unknown>
-): void {
-  if (analytics) {
-    setUserId(analytics, userId);
+): Promise<void> {
+  const analyticsInstance = await analyticsReady;
+  if (analyticsInstance) {
+    setUserId(analyticsInstance, userId);
     if (userProperties) {
-      setUserProperties(analytics, userProperties);
+      setUserProperties(analyticsInstance, userProperties);
     }
   }
 }
 
-export function resetAnalyticsUser(): void {
-  if (analytics) {
-    setUserId(analytics, '');
+export async function resetAnalyticsUser(): Promise<void> {
+  const analyticsInstance = await analyticsReady;
+  if (analyticsInstance) {
+    setUserId(analyticsInstance, '');
   }
 }
 
