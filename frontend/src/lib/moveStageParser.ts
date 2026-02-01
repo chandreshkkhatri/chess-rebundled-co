@@ -109,56 +109,79 @@ export function getAvailablePieces(legalMoves: string[]): string[] {
 }
 
 /**
- * Check if disambiguation is needed for a piece
- * Returns disambiguation options (files or ranks) if needed, null otherwise
+ * Get all moves for a piece going to a specific destination
+ * Returns an array of matching move SANs
+ */
+export function getMovesForPieceAndDestination(
+  legalMoves: string[],
+  selectedPiece: string,
+  destination: string
+): string[] {
+  if (selectedPiece === 'O') {
+    // Castling - destination IS the move
+    return legalMoves.includes(destination) ? [destination] : [];
+  }
+
+  const matches: string[] = [];
+
+  for (const move of legalMoves) {
+    const parsed = parseMove(move);
+
+    if (parsed.piece === selectedPiece) {
+      const dest = (parsed.toFile || '') + (parsed.toRank || '');
+      if (dest === destination) {
+        matches.push(move);
+      }
+    }
+  }
+
+  return matches;
+}
+
+/**
+ * Get disambiguation options for a piece and destination
+ * Returns null if no disambiguation needed (single move), or array of options (files/ranks)
  */
 export function getDisambiguationOptions(
   legalMoves: string[],
-  selectedPiece: string
+  selectedPiece: string,
+  destination?: string
 ): string[] | null {
-  if (selectedPiece === 'O' || FILE_ORDER.includes(selectedPiece)) {
-    // Castling and pawns don't need disambiguation in the traditional sense
+  if (selectedPiece === 'O' || selectedPiece === 'P') {
+    // Castling and pawns don't need disambiguation
     return null;
   }
 
-  // Find all moves for this piece
-  const pieceMoves = legalMoves.filter(move => {
-    const parsed = parseMove(move);
-    return parsed.piece === selectedPiece;
-  });
+  // If destination is provided, get disambiguation for that specific destination
+  if (destination) {
+    const moves = getMovesForPieceAndDestination(legalMoves, selectedPiece, destination);
 
-  // Check if any destination has multiple source options
-  const destToDisambig = new Map<string, Set<string>>();
+    if (moves.length <= 1) {
+      return null; // No disambiguation needed
+    }
 
-  for (const move of pieceMoves) {
-    const parsed = parseMove(move);
-    if (!parsed.toFile || !parsed.toRank) continue;
-
-    const dest = parsed.toFile + parsed.toRank;
-    const disambig = parsed.fromFile || parsed.fromRank;
-
-    if (disambig) {
-      if (!destToDisambig.has(dest)) {
-        destToDisambig.set(dest, new Set());
+    // Extract disambiguation characters from each move
+    const disambigs: string[] = [];
+    for (const move of moves) {
+      const parsed = parseMove(move);
+      const disambig = parsed.fromFile || parsed.fromRank;
+      if (disambig) {
+        disambigs.push(disambig);
       }
-      destToDisambig.get(dest)!.add(disambig);
     }
+
+    return disambigs.length > 1 ? disambigs.sort() : null;
   }
 
-  // If any destination has multiple disambiguation options, we need disambiguation stage
-  for (const [, disambigs] of destToDisambig) {
-    if (disambigs.size > 1) {
-      return Array.from(disambigs).sort();
-    }
-  }
-
+  // No destination provided - return null (we no longer do upfront disambiguation)
   return null;
 }
 
 /**
- * Get legal destinations for a selected piece (and optional disambiguation)
+ * Get legal destinations for a selected piece
  * For pawns (selectedPiece === 'P'), returns full SAN moves (e4, exd5, e8=Q)
- * For pawn files (a-h), returns destination squares
+ * For pieces (N, B, R, Q, K), returns ALL destination squares any piece of that type can reach
+ * Note: disambiguation is handled AFTER destination selection, not before
  */
 export function getLegalDestinations(
   legalMoves: string[],
@@ -200,7 +223,8 @@ export function getLegalDestinations(
         destinations.add(parsed.toFile + parsed.toRank);
       }
     } else if (parsed.piece === selectedPiece) {
-      // For pieces, check disambiguation if needed
+      // For pieces: if disambiguation is provided, filter by it
+      // Otherwise, return ALL destinations (disambiguation happens after)
       if (selectedDisambiguation) {
         if (parsed.fromFile !== selectedDisambiguation && parsed.fromRank !== selectedDisambiguation) {
           continue;
@@ -459,7 +483,8 @@ export function getStageLabel(state: StageState, voiceEnabled: boolean): string 
     case 'pawnFile':
       return 'Which pawn?';
     case 'disambiguation':
-      return `Which ${state.selectedPiece}?`;
+      // Disambiguation now happens after destination selection
+      return `Which ${state.selectedPiece} to ${state.selectedDestination}?`;
     case 'destination': {
       // For pawns (P without pawnFile), show "Select pawn move"
       if (state.selectedPiece === 'P' && !state.selectedPawnFile) {

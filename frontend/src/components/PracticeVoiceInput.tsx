@@ -14,6 +14,7 @@ import {
   getDisambiguationOptions,
   getDestinationOptionsWithDistractors,
   getLegalDestinations,
+  getMovesForPieceAndDestination,
   getPromotionOptions,
   buildMoveFromSelection,
   isLegalDestination,
@@ -159,8 +160,13 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
       case 'piece':
         return getAvailablePieces(legalMoves);
       case 'disambiguation':
-        if (!stageState.selectedPiece) return [];
-        return getDisambiguationOptions(legalMoves, stageState.selectedPiece) || [];
+        // Disambiguation now happens AFTER destination selection
+        if (!stageState.selectedPiece || !stageState.selectedDestination) return [];
+        return getDisambiguationOptions(
+          legalMoves,
+          stageState.selectedPiece,
+          stageState.selectedDestination
+        ) || [];
       case 'destination': {
         // For pawns, use the pawn file; for other pieces, use selectedPiece
         const pieceOrFile = stageState.selectedPawnFile || stageState.selectedPiece;
@@ -168,7 +174,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
         return getDestinationOptionsWithDistractors(
           legalMoves,
           pieceOrFile,
-          stageState.selectedDisambiguation
+          null // Don't filter by disambiguation - show all destinations
         );
       }
       case 'promotion':
@@ -197,57 +203,53 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
       setStageState({
         stage: 'destination',
         selectedPiece: 'P',
-        selectedPawnFile: null, // No file selection needed - destinations are full SANs
+        selectedPawnFile: null,
         selectedDisambiguation: null,
         selectedDestination: null,
       });
       return;
     }
 
-    // Check if disambiguation is needed
-    const disambigOptions = getDisambiguationOptions(legalMoves, piece);
+    // For all other pieces, go directly to destination stage
+    // Disambiguation (if needed) will be handled AFTER destination selection
+    const destinations = getLegalDestinations(legalMoves, piece);
 
-    if (disambigOptions && disambigOptions.length > 1) {
-      // Need disambiguation stage
-      setStageState({
-        stage: 'disambiguation',
-        selectedPiece: piece,
-        selectedPawnFile: null,
-        selectedDisambiguation: null,
-        selectedDestination: null,
-      });
-    } else {
-      // Skip to destination stage
-      const destinations = getLegalDestinations(legalMoves, piece);
-
-      // If only one destination (e.g., single castling option), auto-select
-      if (piece === 'O' && destinations.length === 1) {
-        clearLastMoveResult();
-        setSelectedMove(destinations[0]);
-        onMoveSubmit(destinations[0], 1.0);
-        return;
-      }
-
-      setStageState({
-        stage: 'destination',
-        selectedPiece: piece,
-        selectedPawnFile: null,
-        selectedDisambiguation: disambigOptions?.[0] || null,
-        selectedDestination: null,
-      });
+    // If only one destination (e.g., single castling option), auto-select
+    if (piece === 'O' && destinations.length === 1) {
+      clearLastMoveResult();
+      setSelectedMove(destinations[0]);
+      onMoveSubmit(destinations[0], 1.0);
+      return;
     }
+
+    setStageState({
+      stage: 'destination',
+      selectedPiece: piece,
+      selectedPawnFile: null,
+      selectedDisambiguation: null,
+      selectedDestination: null,
+    });
   }, [isSubmitting, isActive, legalMoves, clearLastMoveResult, onMoveSubmit]);
 
-  // Handle disambiguation selection (stage 2a)
+  // Handle disambiguation selection (after destination is already selected)
   const handleDisambiguationSelect = useCallback((disambig: string) => {
     if (isSubmitting || !isActive || !stageState.selectedPiece) return;
 
-    setStageState(prev => ({
-      ...prev,
-      stage: 'destination' as const,
-      selectedDisambiguation: disambig,
-    }));
-  }, [isSubmitting, isActive, stageState.selectedPiece]);
+    // Destination should already be selected when we get here
+    if (stageState.selectedDestination) {
+      // Build and submit the move with disambiguation
+      const newState = {
+        ...stageState,
+        selectedDisambiguation: disambig,
+      };
+      const move = buildMoveFromSelection(newState, legalMoves);
+      if (move) {
+        clearLastMoveResult();
+        setSelectedMove(move);
+        onMoveSubmit(move, 1.0);
+      }
+    }
+  }, [isSubmitting, isActive, stageState, legalMoves, clearLastMoveResult, onMoveSubmit]);
 
   // Handle destination selection (stage 2)
   const handleDestinationSelect = useCallback((destination: string) => {
@@ -267,12 +269,12 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
       return;
     }
 
-    // For other pieces, check if destination is legal
+    // For other pieces, check if destination is legal (not a distractor)
     const isLegal = isLegalDestination(
       legalMoves,
       stageState.selectedPiece,
       destination,
-      stageState.selectedDisambiguation
+      null // Don't filter by disambiguation yet
     );
 
     if (!isLegal) {
@@ -282,7 +284,41 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
       return;
     }
 
-    // Build and submit the move
+    // Check how many moves can reach this destination
+    const matchingMoves = getMovesForPieceAndDestination(
+      legalMoves,
+      stageState.selectedPiece,
+      destination
+    );
+
+    if (matchingMoves.length > 1) {
+      // Multiple pieces can reach this square - need disambiguation
+      const disambigOptions = getDisambiguationOptions(
+        legalMoves,
+        stageState.selectedPiece,
+        destination
+      );
+
+      if (disambigOptions && disambigOptions.length > 1) {
+        // Go to disambiguation stage with destination already selected
+        setStageState(prev => ({
+          ...prev,
+          stage: 'disambiguation' as const,
+          selectedDestination: destination,
+        }));
+        return;
+      }
+    }
+
+    // Single move matches - submit it directly
+    if (matchingMoves.length === 1) {
+      clearLastMoveResult();
+      setSelectedMove(matchingMoves[0]);
+      onMoveSubmit(matchingMoves[0], 1.0);
+      return;
+    }
+
+    // Fallback: build move from selection state
     const newState = {
       ...stageState,
       selectedDestination: destination,
@@ -331,12 +367,15 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
       switch (prev.stage) {
         case 'promotion':
           return { ...prev, stage: 'destination' as const, selectedDestination: null };
-        case 'destination':
-          if (prev.selectedDisambiguation) {
-            return { ...prev, stage: 'disambiguation' as const, selectedDisambiguation: null };
-          }
-          return { ...initialStageState };
         case 'disambiguation':
+          // Go back to destination selection (disambiguation now comes AFTER destination)
+          return {
+            ...prev,
+            stage: 'destination' as const,
+            selectedDestination: null,
+            selectedDisambiguation: null,
+          };
+        case 'destination':
           return { ...initialStageState };
         default:
           return prev;
