@@ -61,10 +61,16 @@ if (typeof window !== 'undefined') {
 
   // Initialize Analytics (only in browser and if supported)
   analyticsReady = isSupported().then((supported) => {
+    console.debug('[Firebase Analytics] Support check:', {
+      supported,
+      measurementId: firebaseConfig.measurementId ? 'present' : 'missing',
+    });
     if (supported && firebaseConfig.measurementId) {
       analytics = getAnalytics(app);
+      console.debug('[Firebase Analytics] Initialized successfully');
       return analytics;
     }
+    console.debug('[Firebase Analytics] Not initialized - analytics will not be tracked');
     return null;
   });
 } else {
@@ -170,7 +176,10 @@ export async function trackAnalyticsEvent(
 ): Promise<void> {
   const analyticsInstance = await analyticsReady;
   if (analyticsInstance) {
+    console.debug('[Firebase Analytics] Logging event:', eventName, eventParams);
     logEvent(analyticsInstance, eventName, eventParams);
+  } else {
+    console.debug('[Firebase Analytics] Skipped event (no instance):', eventName);
   }
 }
 

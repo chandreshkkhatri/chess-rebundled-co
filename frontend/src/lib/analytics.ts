@@ -82,12 +82,14 @@ export function trackEvent<T extends AnalyticsEvent>(
 ): void {
   if (typeof window === 'undefined') return;
 
-  try {
-    trackAnalyticsEvent(event, properties as unknown as Record<string, unknown>);
-  } catch (error) {
-    // Silently fail if Analytics is not initialized
-    console.debug('Analytics event not sent:', event, error);
-  }
+  // Fire and forget - don't block on analytics
+  trackAnalyticsEvent(event, properties as unknown as Record<string, unknown>)
+    .then(() => {
+      console.debug('[Analytics] Event sent:', event);
+    })
+    .catch((error) => {
+      console.debug('[Analytics] Event failed:', event, error);
+    });
 }
 
 /**
@@ -96,11 +98,13 @@ export function trackEvent<T extends AnalyticsEvent>(
 export function identifyUser(userId: string, properties?: Record<string, unknown>): void {
   if (typeof window === 'undefined') return;
 
-  try {
-    identifyAnalyticsUser(userId, properties);
-  } catch (error) {
-    console.debug('User identification failed:', error);
-  }
+  identifyAnalyticsUser(userId, properties)
+    .then(() => {
+      console.debug('[Analytics] User identified:', userId);
+    })
+    .catch((error) => {
+      console.debug('[Analytics] User identification failed:', error);
+    });
 }
 
 /**
@@ -109,9 +113,11 @@ export function identifyUser(userId: string, properties?: Record<string, unknown
 export function resetUser(): void {
   if (typeof window === 'undefined') return;
 
-  try {
-    resetAnalyticsUser();
-  } catch (error) {
-    console.debug('User reset failed:', error);
-  }
+  resetAnalyticsUser()
+    .then(() => {
+      console.debug('[Analytics] User reset');
+    })
+    .catch((error) => {
+      console.debug('[Analytics] User reset failed:', error);
+    });
 }
