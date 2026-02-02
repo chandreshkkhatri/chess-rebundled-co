@@ -11,10 +11,6 @@ const DEBUG = process.env.NODE_ENV !== 'production';
 export type AnalyticsEvent =
   | 'practice_session_started'
   | 'practice_session_completed'
-  | 'move_submitted'
-  | 'voice_input_used'
-  | 'voice_mode_changed'
-  | 'game_selected'
   | 'sign_up';
 
 interface PracticeSessionStartedProps {
@@ -41,33 +37,6 @@ interface PracticeSessionCompletedProps {
   newAchievements?: number;
 }
 
-interface MoveSubmittedProps {
-  gameId: string;
-  moveIndex: number;
-  isCorrect: boolean;
-  inputMethod: 'voice' | 'text';
-  voiceMode?: 'webspeech-haiku' | 'gemini-audio';
-}
-
-interface VoiceInputUsedProps {
-  voiceMode: 'webspeech-haiku' | 'gemini-audio';
-  success: boolean;
-  transcription?: string;
-}
-
-interface VoiceModeChangedProps {
-  previousMode: 'webspeech-haiku' | 'gemini-audio';
-  newMode: 'webspeech-haiku' | 'gemini-audio';
-}
-
-interface GameSelectedProps {
-  gameId: string;
-  gameTitle: string;
-  whitePlayer: string;
-  blackPlayer: string;
-  year: number;
-}
-
 interface SignUpProps {
   method: 'email' | 'google' | 'github' | 'anonymous_upgrade';
 }
@@ -75,10 +44,6 @@ interface SignUpProps {
 type EventProperties = {
   practice_session_started: PracticeSessionStartedProps;
   practice_session_completed: PracticeSessionCompletedProps;
-  move_submitted: MoveSubmittedProps;
-  voice_input_used: VoiceInputUsedProps;
-  voice_mode_changed: VoiceModeChangedProps;
-  game_selected: GameSelectedProps;
   sign_up: SignUpProps;
 };
 
