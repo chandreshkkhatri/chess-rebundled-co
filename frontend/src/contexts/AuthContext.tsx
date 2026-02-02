@@ -16,6 +16,7 @@ import {
   getIdToken,
   resetPassword,
 } from '@/lib/firebase';
+import { trackEvent } from '@/lib/analytics';
 
 interface AuthContextType {
   user: User | null;
@@ -103,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       await registerWithEmail(email, password);
+      trackEvent('sign_up', { method: 'email' });
     } catch (err) {
       handleError(err, 'Failed to register');
     }
@@ -132,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       await upgradeAnonymousWithEmail(email, password);
+      trackEvent('sign_up', { method: 'anonymous_upgrade' });
     } catch (err) {
       handleError(err, 'Failed to upgrade account');
     }
@@ -141,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       await upgradeAnonymousWithGoogle();
+      trackEvent('sign_up', { method: 'google' });
     } catch (err) {
       handleError(err, 'Failed to upgrade with Google');
     }
@@ -150,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       await upgradeAnonymousWithGithub();
+      trackEvent('sign_up', { method: 'github' });
     } catch (err) {
       handleError(err, 'Failed to upgrade with GitHub');
     }

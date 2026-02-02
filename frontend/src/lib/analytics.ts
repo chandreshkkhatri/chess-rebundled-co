@@ -14,7 +14,8 @@ export type AnalyticsEvent =
   | 'move_submitted'
   | 'voice_input_used'
   | 'voice_mode_changed'
-  | 'game_selected';
+  | 'game_selected'
+  | 'sign_up';
 
 interface PracticeSessionStartedProps {
   gameId: string;
@@ -67,6 +68,10 @@ interface GameSelectedProps {
   year: number;
 }
 
+interface SignUpProps {
+  method: 'email' | 'google' | 'github' | 'anonymous_upgrade';
+}
+
 type EventProperties = {
   practice_session_started: PracticeSessionStartedProps;
   practice_session_completed: PracticeSessionCompletedProps;
@@ -74,6 +79,7 @@ type EventProperties = {
   voice_input_used: VoiceInputUsedProps;
   voice_mode_changed: VoiceModeChangedProps;
   game_selected: GameSelectedProps;
+  sign_up: SignUpProps;
 };
 
 /**
