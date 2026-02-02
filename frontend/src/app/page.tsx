@@ -7,7 +7,7 @@ import { usePracticeStore } from '@/stores/practiceStore';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { useAuth } from '@/contexts/AuthContext';
 import { updateDisplayName } from '@/lib/firebase';
-import { Header } from '@/components/Header';
+import { PageLayout } from '@/components/PageLayout';
 
 export default function Home() {
   const router = useRouter();
@@ -60,9 +60,8 @@ export default function Home() {
   };
 
   return (
-    <>
-      <Header />
-      <main className="min-h-screen flex items-center justify-center p-4 pt-20">
+    <PageLayout>
+      <div className="flex items-center justify-center p-4 py-8">
         <div className="max-w-md w-full">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-2">Chess Rebundled</h1>
@@ -148,7 +147,7 @@ export default function Home() {
           </div>
         </div>
       </div>
-    </main>
-    </>
+    </div>
+    </PageLayout>
   );
 }

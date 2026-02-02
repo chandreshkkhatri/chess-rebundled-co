@@ -55,6 +55,32 @@ export interface FirestoreSession {
   } | null;
 }
 
+// App configuration stored in Firestore
+export interface AppConfig {
+  discordInviteUrl: string | null;
+}
+
+/**
+ * Get public app configuration from Firestore.
+ * Returns default values if document doesn't exist.
+ */
+export async function getAppConfig(): Promise<AppConfig> {
+  if (!firestore) {
+    console.warn('[Firestore] Firestore not initialized, returning default config');
+    return { discordInviteUrl: null };
+  }
+
+  const doc = await firestore.collection('appConfig').doc('settings').get();
+  if (!doc.exists) {
+    return { discordInviteUrl: null };
+  }
+
+  const data = doc.data();
+  return {
+    discordInviteUrl: data?.discordInviteUrl || null,
+  };
+}
+
 /**
  * Ensure a user document exists in Firestore.
  * Creates a default user profile if it doesn't exist.

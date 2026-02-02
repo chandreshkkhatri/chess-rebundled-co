@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { Header } from '@/components/Header';
+import { PageLayout } from '@/components/PageLayout';
 
 interface SessionSummary {
   id: string;
@@ -65,9 +65,8 @@ export default function HistoryPage() {
 
   if (isLoading || loadingSessions) {
     return (
-      <>
-        <Header />
-        <main className="min-h-screen pt-20 px-4">
+      <PageLayout>
+        <div className="px-4 py-8">
           <div className="max-w-2xl mx-auto">
             <div className="animate-pulse space-y-4">
               <div className="h-8 bg-slate-700 rounded w-1/3"></div>
@@ -76,16 +75,15 @@ export default function HistoryPage() {
               ))}
             </div>
           </div>
-        </main>
-      </>
+        </div>
+      </PageLayout>
     );
   }
 
   if (isAnonymous) {
     return (
-      <>
-        <Header />
-        <main className="min-h-screen pt-20 px-4">
+      <PageLayout>
+        <div className="px-4 py-8">
           <div className="max-w-2xl mx-auto text-center">
             <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700">
               <h1 className="text-2xl font-bold text-white mb-4">Create an Account</h1>
@@ -100,15 +98,14 @@ export default function HistoryPage() {
               </Link>
             </div>
           </div>
-        </main>
-      </>
+        </div>
+      </PageLayout>
     );
   }
 
   return (
-    <>
-      <Header />
-      <main className="min-h-screen pt-20 px-4 pb-8">
+    <PageLayout>
+      <div className="px-4 py-8">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-white">Practice History</h1>
@@ -179,7 +176,7 @@ export default function HistoryPage() {
             </div>
           )}
         </div>
-      </main>
-    </>
+      </div>
+    </PageLayout>
   );
 }

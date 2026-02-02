@@ -112,8 +112,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
 
   // Determine which features are enabled based on input mode
   const voiceEnabled = inputMode === 'voice-tap';
-  const tapGridEnabled = inputMode === 'voice-tap' || inputMode === 'tap-only';
-  const textOnlyMode = inputMode === 'text-only';
+  const tapGridEnabled = true; // Always enabled (voice-tap or tap-only)
   const { parseMoveWithAI, parseAudioMoveWithGemini } = usePracticeSocket();
   const isActive = status === 'playing' && !disabled;
 
@@ -125,10 +124,6 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
 
   // Track wrong tap for feedback animation
   const [wrongTap, setWrongTap] = useState<string | null>(null);
-
-  // Text input state (text-only mode)
-  const [textInput, setTextInput] = useState('');
-  const textInputRef = useRef<HTMLInputElement>(null);
 
   const autoListenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoSubmitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -550,7 +545,6 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
   useEffect(() => {
     if (lastMoveResult) {
       setSelectedMove(null);
-      setTextInput('');
       clearAIParseState();
       resetStages();
       lastProcessedRef.current = null;
@@ -577,7 +571,6 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
 
   const handleReset = useCallback(() => {
     setSelectedMove(null);
-    setTextInput('');
     clearAIParseState();
     resetStages();
     lastProcessedRef.current = null;
@@ -591,75 +584,13 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
   }, [voiceEnabled, startListening, isListening, isActive, clearAIParseState, resetStages]);
 
 
-  // Handle text input submission
-  const handleTextSubmit = useCallback(() => {
-    if (!textInput.trim() || !isActive || isSubmitting) return;
-
-    const input = textInput.trim();
-    clearLastMoveResult(); // Clear stale feedback from previous move
-
-    // First check for exact match (case-insensitive)
-    const exactMatch = legalMoves.find(
-      m => m.toLowerCase() === input.toLowerCase() ||
-           m.replace(/[+#]/g, '').toLowerCase() === input.toLowerCase()
-    );
-
-    if (exactMatch) {
-      setTextInput('');
-      setSelectedMove(exactMatch);
-      onMoveSubmit(exactMatch, 1.0);
-      return;
-    }
-
-    // Try fuzzy matching - find moves that start with input or contain it
-    const partialMatches = legalMoves.filter(m =>
-      m.toLowerCase().startsWith(input.toLowerCase()) ||
-      m.replace(/[+#]/g, '').toLowerCase().startsWith(input.toLowerCase())
-    );
-
-    if (partialMatches.length === 1) {
-      setTextInput('');
-      setSelectedMove(partialMatches[0]);
-      onMoveSubmit(partialMatches[0], 0.95);
-      return;
-    }
-
-    // If we have multiple matches, select the first one but don't auto-submit
-    if (partialMatches.length > 1) {
-      setSelectedMove(partialMatches[0]);
-      setTextInput('');
-    }
-  }, [textInput, isActive, isSubmitting, legalMoves, clearLastMoveResult, onMoveSubmit]);
-
-  // Handle text input key down
-  const handleTextKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleTextSubmit();
-    } else if (e.key === 'Escape') {
-      setTextInput('');
-    }
-  }, [handleTextSubmit]);
-
-  // Get text input suggestions based on current input
-  const textSuggestions = useMemo(() => {
-    if (!textInput.trim() || !legalMoves.length) return [];
-    const input = textInput.trim().toLowerCase();
-    return legalMoves
-      .filter(m =>
-        m.toLowerCase().startsWith(input) ||
-        m.replace(/[+#]/g, '').toLowerCase().startsWith(input)
-      )
-      .slice(0, 5);
-  }, [textInput, legalMoves]);
-
   // Only show voice-not-supported warning when voice mode is enabled but not supported
   // If user chose tap-only or text-only mode, they don't need voice support
   if (voiceEnabled && !isSupported) {
     return (
       <div className="bg-yellow-900/50 border border-yellow-700 rounded-lg p-2">
         <div className="text-yellow-200 text-xs">
-          Voice recognition not supported in this browser. Use Chrome for voice input, or change to &quot;Tap Only&quot; or &quot;Text Only&quot; mode in Settings.
+          Voice recognition not supported in this browser. Use Chrome for voice input, or change to &quot;Tap Only&quot; mode in Settings.
         </div>
       </div>
     );
@@ -767,46 +698,7 @@ export function PracticeVoiceInput({ onMoveSubmit, disabled = false, showDebugPa
           </div>
         </div>
 
-        {/* ZONE 3: Text Input (h-12) - Only visible in text-only mode */}
-        <div className="h-12 flex-shrink-0 flex items-center">
-          {isActive && textOnlyMode ? (
-            <div className="relative w-full">
-              <input
-                ref={textInputRef}
-                type="text"
-                value={textInput}
-                onChange={(e) => setTextInput(e.target.value)}
-                onKeyDown={handleTextKeyDown}
-                placeholder="Type your move (e.g., e4, Nf3)"
-                disabled={isSubmitting}
-                autoFocus={!selectedMove}
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50"
-              />
-              {/* Suggestions dropdown */}
-              {textSuggestions.length > 0 && textInput.trim() && (
-                <div className="absolute z-10 w-full mt-1 bg-slate-700 border border-slate-600 rounded-lg shadow-lg overflow-hidden">
-                  {textSuggestions.map((move) => (
-                    <button
-                      key={move}
-                      onClick={() => {
-                        setTextInput('');
-                        setSelectedMove(move);
-                        onMoveSubmit(move, 1.0);
-                      }}
-                      className="w-full px-3 py-2 text-left text-white font-mono text-sm hover:bg-slate-600 transition-colors"
-                    >
-                      {move}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="invisible w-full h-full" />
-          )}
-        </div>
-
-        {/* ZONE 4: Feedback (h-8) - Fixed height */}
+        {/* ZONE 3: Feedback (h-8) - Fixed height */}
         <div className="h-8 flex-shrink-0 flex items-center justify-center">
           {lastMoveResult ? (
             <div

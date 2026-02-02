@@ -12,6 +12,8 @@ import {
   upgradeAnonymousWithEmail,
   upgradeAnonymousWithGoogle,
   upgradeAnonymousWithGithub,
+  linkAccountWithGoogle,
+  linkAccountWithGithub,
   logout,
   getIdToken,
   resetPassword,
@@ -36,6 +38,10 @@ interface AuthContextType {
   upgradeWithEmail: (email: string, password: string) => Promise<void>;
   upgradeWithGoogle: () => Promise<void>;
   upgradeWithGithub: () => Promise<void>;
+
+  // Link additional providers to existing account
+  linkWithGoogle: () => Promise<void>;
+  linkWithGithub: () => Promise<void>;
 
   // Password reset
   resetPassword: (email: string) => Promise<void>;
@@ -160,6 +166,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [handleError]);
 
+  const handleLinkWithGoogle = useCallback(async () => {
+    try {
+      setError(null);
+      await linkAccountWithGoogle();
+    } catch (err) {
+      handleError(err, 'Failed to link Google account');
+    }
+  }, [handleError]);
+
+  const handleLinkWithGithub = useCallback(async () => {
+    try {
+      setError(null);
+      await linkAccountWithGithub();
+    } catch (err) {
+      handleError(err, 'Failed to link GitHub account');
+    }
+  }, [handleError]);
+
   const handleLogout = useCallback(async () => {
     try {
       setError(null);
@@ -199,6 +223,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     upgradeWithEmail: handleUpgradeWithEmail,
     upgradeWithGoogle: handleUpgradeWithGoogle,
     upgradeWithGithub: handleUpgradeWithGithub,
+
+    linkWithGoogle: handleLinkWithGoogle,
+    linkWithGithub: handleLinkWithGithub,
 
     resetPassword: handleResetPassword,
 
