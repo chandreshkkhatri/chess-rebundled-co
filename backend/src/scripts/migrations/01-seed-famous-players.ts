@@ -11,6 +11,7 @@
  *   npm run migrate:01
  */
 
+import 'dotenv/config';
 import { connectToDatabase, closeDatabaseConnection } from '../../services/database.js';
 import { insertManyGames, getGameCount } from '../../services/gameRepository.js';
 import { isMigrationComplete, recordMigration } from '../../services/migrationRepository.js';
