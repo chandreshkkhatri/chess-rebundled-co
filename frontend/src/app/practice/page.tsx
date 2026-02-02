@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
@@ -8,6 +8,7 @@ import { usePracticeStore } from '@/stores/practiceStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { updateDisplayName } from '@/lib/firebase';
 import { PracticeMode } from '@/types';
+import { PracticeCountdown } from '@/components/PracticeCountdown';
 
 export default function PracticeSelectPage() {
   const router = useRouter();
@@ -29,12 +30,18 @@ export default function PracticeSelectPage() {
     status,
     error,
     isStarting,
+    selectedGame,
+    mode: storeMode,
+    playerColor: storePlayerColor,
     playerName: storedPlayerName,
     setPlayerName: storeSetPlayerName,
     setError,
     setStarting,
     reset,
   } = usePracticeStore();
+
+  // Countdown state - show countdown when game is ready before navigating
+  const [showCountdown, setShowCountdown] = useState(false);
 
   // Load player name: prioritize authenticated user's displayName, then stored name
   useEffect(() => {
@@ -60,12 +67,19 @@ export default function PracticeSelectPage() {
     }
   }, [reset]);
 
-  // Navigate to game when session starts
+  // Show countdown when session starts (instead of immediate navigation)
   useEffect(() => {
-    if (status === 'playing' && sessionId) {
+    if (status === 'playing' && sessionId && selectedGame && !showCountdown) {
+      setShowCountdown(true);
+    }
+  }, [status, sessionId, selectedGame, showCountdown]);
+
+  // Handle countdown completion - navigate to game
+  const handleCountdownComplete = useCallback(() => {
+    if (sessionId) {
       router.push(`/practice/${sessionId}`);
     }
-  }, [status, sessionId, router]);
+  }, [sessionId, router]);
 
   // Start practice when mode is selected (or immediately for both-sides)
   useEffect(() => {
@@ -373,12 +387,25 @@ export default function PracticeSelectPage() {
     setError(null);
     setStarting(false);
     hasStartedRef.current = false;
+    setShowCountdown(false);
     // Go back to mode selection
     setShowModeSelection(true);
     setSelectedMode(null);
     setSelectedColor(null);
     // Will trigger the useEffect to start again
   };
+
+  // Show countdown when game is ready
+  if (showCountdown && selectedGame) {
+    return (
+      <PracticeCountdown
+        game={selectedGame}
+        mode={storeMode}
+        playerColor={storePlayerColor}
+        onComplete={handleCountdownComplete}
+      />
+    );
+  }
 
   // Loading screen while starting practice session
   return (

@@ -64,7 +64,7 @@ interface PracticeState {
 
   // Settings
   autoSubmitEnabled: boolean;
-  inputMode: 'voice-tap' | 'tap-only' | 'text-only';
+  inputMode: 'voice-tap' | 'tap-only';
 
   // Achievement toasts queue
   pendingAchievements: Achievement[];
@@ -89,7 +89,7 @@ interface PracticeState {
   setVoiceParsingMode: (mode: 'webspeech-haiku' | 'gemini-audio') => void;
   setGeminiTranscription: (transcription: string | null) => void;
   setAutoSubmitEnabled: (enabled: boolean) => void;
-  setInputMode: (mode: 'voice-tap' | 'tap-only' | 'text-only') => void;
+  setInputMode: (mode: 'voice-tap' | 'tap-only') => void;
   queueAchievements: (achievements: Achievement[]) => void;
   dismissAchievement: (id: string) => void;
   resumeSession: (data: SessionResumedData) => void;
@@ -127,7 +127,7 @@ const initialState = {
     : 'webspeech-haiku') as 'webspeech-haiku' | 'gemini-audio',
   geminiTranscription: null as string | null,
   autoSubmitEnabled: false,
-  inputMode: 'voice-tap' as 'voice-tap' | 'tap-only' | 'text-only',
+  inputMode: 'voice-tap' as 'voice-tap' | 'tap-only',
   pendingAchievements: [] as Achievement[],
 };
 

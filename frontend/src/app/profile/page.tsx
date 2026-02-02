@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { updateDisplayName } from '@/lib/firebase';
-import { Header } from '@/components/Header';
+import { PageLayout } from '@/components/PageLayout';
 import { XPProgressBar } from '@/components/XPProgressBar';
 import { StreakIndicator } from '@/components/StreakIndicator';
 import { UserGamification } from '@/types';
@@ -147,9 +147,8 @@ export default function ProfilePage() {
 
   if (isLoading || loadingProfile) {
     return (
-      <>
-        <Header />
-        <main className="min-h-screen pt-20 px-4">
+      <PageLayout>
+        <div className="px-4 py-8">
           <div className="max-w-2xl mx-auto">
             <div className="animate-pulse space-y-4">
               <div className="h-8 bg-slate-700 rounded w-1/3"></div>
@@ -157,16 +156,15 @@ export default function ProfilePage() {
               <div className="h-48 bg-slate-700 rounded"></div>
             </div>
           </div>
-        </main>
-      </>
+        </div>
+      </PageLayout>
     );
   }
 
   if (isAnonymous) {
     return (
-      <>
-        <Header />
-        <main className="min-h-screen pt-20 px-4">
+      <PageLayout>
+        <div className="px-4 py-8">
           <div className="max-w-2xl mx-auto text-center">
             <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700">
               <h1 className="text-2xl font-bold text-white mb-4">Create an Account</h1>
@@ -181,15 +179,14 @@ export default function ProfilePage() {
               </Link>
             </div>
           </div>
-        </main>
-      </>
+        </div>
+      </PageLayout>
     );
   }
 
   return (
-    <>
-      <Header />
-      <main className="min-h-screen pt-20 px-4 pb-8">
+    <PageLayout>
+      <div className="px-4 py-8">
         <div className="max-w-2xl mx-auto space-y-6">
           {/* User Info */}
           <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
@@ -381,7 +378,7 @@ export default function ProfilePage() {
             </Link>
           </div>
         </div>
-      </main>
-    </>
+      </div>
+    </PageLayout>
   );
 }

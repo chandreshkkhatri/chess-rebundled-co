@@ -5,6 +5,7 @@ import { initializeSocket } from './socket/index.js';
 import { connectToDatabase } from './services/database.js';
 import { seedGamesIfEmpty, getAllGames } from './services/gameRepository.js';
 import { userRoutes } from './routes/userRoutes.js';
+import { configRoutes } from './routes/configRoutes.js';
 import { connectRedis, disconnectRedis } from './lib/redis.js';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -48,6 +49,9 @@ async function main() {
 
   // Register user routes (profile, history)
   await fastify.register(userRoutes);
+
+  // Register config routes (public app settings)
+  await fastify.register(configRoutes);
 
   // Get HTTP server from Fastify BEFORE ready()
   const httpServer = fastify.server;

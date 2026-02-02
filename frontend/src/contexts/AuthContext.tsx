@@ -12,10 +12,13 @@ import {
   upgradeAnonymousWithEmail,
   upgradeAnonymousWithGoogle,
   upgradeAnonymousWithGithub,
+  linkAccountWithGoogle,
+  linkAccountWithGithub,
   logout,
   getIdToken,
   resetPassword,
 } from '@/lib/firebase';
+import { trackEvent } from '@/lib/analytics';
 
 interface AuthContextType {
   user: User | null;
@@ -35,6 +38,10 @@ interface AuthContextType {
   upgradeWithEmail: (email: string, password: string) => Promise<void>;
   upgradeWithGoogle: () => Promise<void>;
   upgradeWithGithub: () => Promise<void>;
+
+  // Link additional providers to existing account
+  linkWithGoogle: () => Promise<void>;
+  linkWithGithub: () => Promise<void>;
 
   // Password reset
   resetPassword: (email: string) => Promise<void>;
@@ -103,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       await registerWithEmail(email, password);
+      trackEvent('sign_up', { method: 'email' });
     } catch (err) {
       handleError(err, 'Failed to register');
     }
@@ -132,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       await upgradeAnonymousWithEmail(email, password);
+      trackEvent('sign_up', { method: 'anonymous_upgrade' });
     } catch (err) {
       handleError(err, 'Failed to upgrade account');
     }
@@ -141,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       await upgradeAnonymousWithGoogle();
+      trackEvent('sign_up', { method: 'google' });
     } catch (err) {
       handleError(err, 'Failed to upgrade with Google');
     }
@@ -150,8 +160,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       await upgradeAnonymousWithGithub();
+      trackEvent('sign_up', { method: 'github' });
     } catch (err) {
       handleError(err, 'Failed to upgrade with GitHub');
+    }
+  }, [handleError]);
+
+  const handleLinkWithGoogle = useCallback(async () => {
+    try {
+      setError(null);
+      await linkAccountWithGoogle();
+    } catch (err) {
+      handleError(err, 'Failed to link Google account');
+    }
+  }, [handleError]);
+
+  const handleLinkWithGithub = useCallback(async () => {
+    try {
+      setError(null);
+      await linkAccountWithGithub();
+    } catch (err) {
+      handleError(err, 'Failed to link GitHub account');
     }
   }, [handleError]);
 
@@ -194,6 +223,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     upgradeWithEmail: handleUpgradeWithEmail,
     upgradeWithGoogle: handleUpgradeWithGoogle,
     upgradeWithGithub: handleUpgradeWithGithub,
+
+    linkWithGoogle: handleLinkWithGoogle,
+    linkWithGithub: handleLinkWithGithub,
 
     resetPassword: handleResetPassword,
 

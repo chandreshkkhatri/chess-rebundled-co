@@ -13,6 +13,7 @@ import { SettingsModal } from '@/components/SettingsModal';
 import { DiscordIcon } from '@/components/icons/DiscordIcon';
 import { LiveGamificationBadge } from '@/components/LiveGamificationBadge';
 import { AchievementToastContainer } from '@/components/AchievementToast';
+import { useAppConfig } from '@/hooks/useAppConfig';
 
 // Debug flag - matches PracticeVoiceInput
 const DEBUG_AUDIO = process.env.NODE_ENV !== 'production';
@@ -32,6 +33,7 @@ export default function PracticeGamePage() {
 
   const { submitPracticeMove, abandonPractice, resumeSession } = usePracticeSocket();
   const { user, isAnonymous } = useAuth();
+  const { discordInviteUrl } = useAppConfig();
   const {
     status,
     currentPosition,
@@ -314,15 +316,17 @@ export default function PracticeGamePage() {
               </svg>
             </button>
             {/* Discord link - desktop only */}
-            <a
-              href="https://discord.gg/ySGBwu9xvk"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden lg:flex items-center justify-center w-8 h-8 text-slate-400 hover:text-indigo-400 transition-colors"
-              title="Join our Discord"
-            >
-              <DiscordIcon className="w-5 h-5" />
-            </a>
+            {discordInviteUrl && (
+              <a
+                href={discordInviteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden lg:flex items-center justify-center w-8 h-8 text-slate-400 hover:text-indigo-400 transition-colors"
+                title="Join our Discord"
+              >
+                <DiscordIcon className="w-5 h-5" />
+              </a>
+            )}
           </div>
         </div>
 
@@ -332,15 +336,17 @@ export default function PracticeGamePage() {
           <div className="flex lg:hidden flex-col items-center justify-between py-2 px-1 bg-slate-800/50 rounded-lg flex-shrink-0">
             {/* Top group */}
             <div className="flex flex-col items-center gap-1">
-              <a
-                href="https://discord.gg/ySGBwu9xvk"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-1.5 text-slate-400 hover:text-indigo-400 transition-colors"
-                title="Join Discord"
-              >
-                <DiscordIcon className="w-5 h-5" />
-              </a>
+              {discordInviteUrl && (
+                <a
+                  href={discordInviteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 text-slate-400 hover:text-indigo-400 transition-colors"
+                  title="Join Discord"
+                >
+                  <DiscordIcon className="w-5 h-5" />
+                </a>
+              )}
               <button
                 onClick={() => setShowSettings(true)}
                 className="p-1.5 text-slate-400 hover:text-white transition-colors"

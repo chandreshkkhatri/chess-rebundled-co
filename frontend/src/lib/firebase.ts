@@ -142,6 +142,27 @@ export async function upgradeAnonymousWithGithub(): Promise<User> {
   return result.user;
 }
 
+// Link additional providers to existing account
+export async function linkAccountWithGoogle(): Promise<User> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('No user logged in');
+  }
+
+  const result = await linkWithPopup(currentUser, googleProvider);
+  return result.user;
+}
+
+export async function linkAccountWithGithub(): Promise<User> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('No user logged in');
+  }
+
+  const result = await linkWithPopup(currentUser, githubProvider);
+  return result.user;
+}
+
 export async function logout(): Promise<void> {
   await signOut(auth);
 }
