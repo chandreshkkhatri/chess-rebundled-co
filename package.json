@@ -17,5 +17,10 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "@google-cloud/text-to-speech": "^6.4.0",
+    "dotenv": "^17.2.3",
+    "elevenlabs": "^1.59.0"
   }
 }

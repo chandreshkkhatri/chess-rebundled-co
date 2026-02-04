@@ -5,3 +5,4 @@ dist
 ngrok_logs.txt
 .DS_Store
 backend/data/
+docs/marketing/audio
