@@ -32,8 +32,9 @@ async function main() {
   });
 
   // Register CORS
+  const isDevMode = process.env.NODE_ENV === 'development';
   await fastify.register(cors, {
-    origin: true,
+    origin: isDevMode ? true : (process.env.CLIENT_URL || 'http://localhost:3000'),
     credentials: true,
   });
 
