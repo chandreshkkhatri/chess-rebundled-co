@@ -221,10 +221,10 @@ export default function PracticeGamePage() {
   }
 
   return (
-    <main className="h-dvh flex flex-col p-2 overflow-hidden">
+    <main className="h-dvh flex flex-col pt-2 lg:pt-12 px-2 pb-2 overflow-hidden">
       <div className="max-w-6xl mx-auto w-full flex flex-col flex-1 min-h-0">
         {/* Header with integrated progress */}
-        <div className="bg-slate-800 rounded-lg py-1 px-2 mb-1">
+        <div className="bg-slate-800 rounded-lg py-1 px-2 mb-1 lg:mb-3">
           <div className="flex items-center justify-between gap-2">
             <button
               onClick={handleAbandon}

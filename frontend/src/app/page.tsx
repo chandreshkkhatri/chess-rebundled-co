@@ -62,7 +62,7 @@ export default function Home() {
   return (
     <PageLayout>
       <div className="flex items-center justify-center p-4 py-8">
-        <div className="max-w-md w-full">
+        <div className="max-w-md md:max-w-2xl lg:max-w-4xl w-full">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-2">Chess Rebundled</h1>
             <p className="text-slate-400">Learn chess notation by speaking moves from famous games</p>

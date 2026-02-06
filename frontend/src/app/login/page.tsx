@@ -46,7 +46,7 @@ function LoginContent() {
 
   return (
     <main className="min-h-screen flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
+      <div className="max-w-md md:max-w-2xl lg:max-w-4xl w-full">
         {/* Back link */}
         <div className="mb-6">
           <Link

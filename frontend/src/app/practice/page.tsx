@@ -208,7 +208,7 @@ export default function PracticeSelectPage() {
   if (!hasEnteredName) {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
+        <div className="max-w-md md:max-w-2xl lg:max-w-4xl w-full">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-2">Solo Practice</h1>
             <p className="text-slate-400">Practice identifying moves at your own pace</p>
@@ -279,7 +279,7 @@ export default function PracticeSelectPage() {
   if (showModeSelection && selectedMode === 'one-side' && selectedColor === null && status === 'idle') {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
+        <div className="max-w-md md:max-w-2xl lg:max-w-4xl w-full">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-2">Choose Your Side</h1>
             <p className="text-slate-400">Play as White or Black</p>
@@ -319,7 +319,7 @@ export default function PracticeSelectPage() {
   if (showModeSelection && status === 'idle' && !hasStartedRef.current) {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
+        <div className="max-w-md md:max-w-2xl lg:max-w-4xl w-full">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-2">Choose Practice Mode</h1>
             <p className="text-slate-400">

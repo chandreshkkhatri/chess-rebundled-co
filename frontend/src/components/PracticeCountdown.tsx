@@ -178,6 +178,16 @@ export function PracticeCountdown({
         <p className="text-center text-slate-500 text-sm mt-4">
           Get ready to identify the moves...
         </p>
+
+        {/* Skip button */}
+        {count > 0 && (
+          <button
+            onClick={onComplete}
+            className="block mx-auto mt-3 text-sm text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            Skip
+          </button>
+        )}
       </div>
 
       {/* Pulse animation style */}
