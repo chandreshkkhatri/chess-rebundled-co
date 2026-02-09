@@ -6,13 +6,13 @@ import { UserGamification } from '@/types';
 import { getLevelTier, getTierIcon, getStreakEmoji, getStreakColor } from '@/lib/gamificationUtils';
 
 export function LiveGamificationBadge() {
-  const { user, isAnonymous, isLoading: authLoading, getIdToken } = useAuth();
+  const { user, isLoading: authLoading, getIdToken } = useAuth();
   const [gamification, setGamification] = useState<UserGamification | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchGamification() {
-      if (authLoading || !user || isAnonymous) {
+      if (authLoading || !user) {
         setLoading(false);
         return;
       }
@@ -45,10 +45,10 @@ export function LiveGamificationBadge() {
     }
 
     fetchGamification();
-  }, [user, isAnonymous, authLoading, getIdToken]);
+  }, [user, authLoading, getIdToken]);
 
-  // Don't render for anonymous users or while loading
-  if (loading || !gamification || isAnonymous) {
+  // Don't render while loading or if no data
+  if (loading || !gamification) {
     return null;
   }
 

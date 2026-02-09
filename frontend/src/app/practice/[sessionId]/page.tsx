@@ -32,7 +32,7 @@ export default function PracticeGamePage() {
   const [isHeaderCompact, setIsHeaderCompact] = useState(false);
 
   const { submitPracticeMove, abandonPractice, resumeSession } = usePracticeSocket();
-  const { user, isAnonymous } = useAuth();
+  const { user } = useAuth();
   const { discordInviteUrl } = useAppConfig();
   const {
     status,
@@ -72,11 +72,11 @@ export default function PracticeGamePage() {
 
   // Determine the display name for the player
   const displayName = useMemo(() => {
-    if (user && !isAnonymous) {
+    if (user) {
       return playerName || user.displayName || 'You';
     }
     return playerName || 'You';
-  }, [user, isAnonymous, playerName]);
+  }, [user, playerName]);
 
   // Board orientation: in one-side mode, use player's color; otherwise follow current side
   const boardOrientation = mode === 'one-side' && playerColor ? playerColor : currentSide;
@@ -298,7 +298,7 @@ export default function PracticeGamePage() {
               }`}
             >
               {(mode === 'one-side' && playerColor ? playerColor : currentSide) === 'white' ? '⬜' : '⬛'}
-              {user && !isAnonymous && user.photoURL ? (
+              {user && user.photoURL ? (
                 <img src={user.photoURL} alt="" className="w-4 h-4 rounded-full" />
               ) : null}
               {/* Hide name on mobile when compact */}

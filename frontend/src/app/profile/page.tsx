@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { updateDisplayName } from '@/lib/firebase';
 import { PageLayout } from '@/components/PageLayout';
@@ -13,7 +14,6 @@ interface UserProfile {
   displayName?: string;
   email?: string;
   photoURL?: string;
-  isAnonymous?: boolean;
   createdAt?: string;
   stats: {
     totalSessions: number;
@@ -26,7 +26,8 @@ interface UserProfile {
 }
 
 export default function ProfilePage() {
-  const { user, isAnonymous, isLoading, getIdToken } = useAuth();
+  const router = useRouter();
+  const { user, isLoading, getIdToken } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -161,27 +162,9 @@ export default function ProfilePage() {
     );
   }
 
-  if (isAnonymous) {
-    return (
-      <PageLayout>
-        <div className="px-4 py-8">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700">
-              <h1 className="text-2xl font-bold text-white mb-4">Create an Account</h1>
-              <p className="text-slate-400 mb-6">
-                Sign up to save your practice history and track your progress over time.
-              </p>
-              <Link
-                href="/"
-                className="inline-block px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
-              >
-                Go to Home
-              </Link>
-            </div>
-          </div>
-        </div>
-      </PageLayout>
-    );
+  if (!user) {
+    router.replace('/login?redirect=%2Fprofile');
+    return null;
   }
 
   return (

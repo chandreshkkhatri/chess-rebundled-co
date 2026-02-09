@@ -54,7 +54,6 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
       displayName: profile.displayName,
       email: profile.email,
       photoURL: profile.photoURL,
-      isAnonymous: profile.isAnonymous,
       createdAt: profile.createdAt?.toDate?.() || null,
       stats: {
         totalSessions: profile.stats.totalSessions,

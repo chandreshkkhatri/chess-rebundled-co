@@ -9,16 +9,16 @@ import { AuthForm } from '@/components/auth/AuthForm';
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isAnonymous, isLoading } = useAuth();
+  const { user, isLoading } = useAuth();
 
   const redirectTo = searchParams.get('redirect') || '/';
 
-  // Redirect if already authenticated (non-anonymous)
+  // Redirect if already authenticated
   useEffect(() => {
-    if (!isLoading && user && !isAnonymous) {
+    if (!isLoading && user) {
       router.replace(decodeURIComponent(redirectTo));
     }
-  }, [user, isAnonymous, isLoading, router, redirectTo]);
+  }, [user, isLoading, router, redirectTo]);
 
   const handleSuccess = () => {
     router.replace(decodeURIComponent(redirectTo));
@@ -33,7 +33,7 @@ function LoginContent() {
   }
 
   // Already logged in - show redirect message
-  if (user && !isAnonymous) {
+  if (user) {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center">
@@ -62,18 +62,8 @@ function LoginContent() {
 
         {/* Auth card */}
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <AuthForm onSuccess={handleSuccess} variant="page" showHeader />
+          <AuthForm onSuccess={handleSuccess} showHeader />
         </div>
-
-        {/* Guest option */}
-        {!user && (
-          <p className="mt-6 text-center text-slate-400 text-sm">
-            Just want to try it out?{' '}
-            <Link href="/practice" className="text-purple-400 hover:text-purple-300">
-              Continue as guest
-            </Link>
-          </p>
-        )}
       </div>
     </main>
   );

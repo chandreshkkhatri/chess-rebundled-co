@@ -5,7 +5,6 @@ import { verifyIdToken } from '../lib/firebase-admin.js';
 declare module 'socket.io' {
   interface SocketData {
     uid?: string;
-    isAnonymous?: boolean;
     email?: string | null;
   }
 }
@@ -28,13 +27,11 @@ export async function firebaseAuthMiddleware(
       if (decodedToken) {
         // Attach user info to socket
         socket.data.uid = decodedToken.uid;
-        socket.data.isAnonymous = decodedToken.firebase?.sign_in_provider === 'anonymous';
         socket.data.email = decodedToken.email || null;
 
-        console.log(`[Auth] Socket ${socket.id} authenticated: uid=${decodedToken.uid}, anonymous=${socket.data.isAnonymous}`);
+        console.log(`[Auth] Socket ${socket.id} authenticated: uid=${decodedToken.uid}`);
       } else {
         // Invalid token - allow connection but without auth
-        // Log for security monitoring
         console.warn(`[Auth] Socket ${socket.id}: Invalid Firebase token provided, allowing unauthenticated connection`);
       }
     }

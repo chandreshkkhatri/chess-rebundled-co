@@ -1,15 +1,12 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import {
   getAuth,
-  signInAnonymously,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
-  linkWithCredential,
   linkWithPopup,
   GoogleAuthProvider,
   GithubAuthProvider,
-  EmailAuthProvider,
   signOut,
   onAuthStateChanged,
   sendPasswordResetEmail,
@@ -82,11 +79,6 @@ const googleProvider = new GoogleAuthProvider();
 const githubProvider = new GithubAuthProvider();
 
 // Auth functions
-export async function signInAsGuest(): Promise<User> {
-  const result = await signInAnonymously(auth);
-  return result.user;
-}
-
 export async function signInWithEmail(email: string, password: string): Promise<User> {
   const result = await signInWithEmailAndPassword(auth, email, password);
   return result.user;
@@ -104,41 +96,6 @@ export async function signInWithGoogle(): Promise<User> {
 
 export async function signInWithGithub(): Promise<User> {
   const result = await signInWithPopup(auth, githubProvider);
-  return result.user;
-}
-
-// Upgrade anonymous user to permanent account
-export async function upgradeAnonymousWithEmail(
-  email: string,
-  password: string
-): Promise<User> {
-  const currentUser = auth.currentUser;
-  if (!currentUser || !currentUser.isAnonymous) {
-    throw new Error('No anonymous user to upgrade');
-  }
-
-  const credential = EmailAuthProvider.credential(email, password);
-  const result = await linkWithCredential(currentUser, credential);
-  return result.user;
-}
-
-export async function upgradeAnonymousWithGoogle(): Promise<User> {
-  const currentUser = auth.currentUser;
-  if (!currentUser || !currentUser.isAnonymous) {
-    throw new Error('No anonymous user to upgrade');
-  }
-
-  const result = await linkWithPopup(currentUser, googleProvider);
-  return result.user;
-}
-
-export async function upgradeAnonymousWithGithub(): Promise<User> {
-  const currentUser = auth.currentUser;
-  if (!currentUser || !currentUser.isAnonymous) {
-    throw new Error('No anonymous user to upgrade');
-  }
-
-  const result = await linkWithPopup(currentUser, githubProvider);
   return result.user;
 }
 

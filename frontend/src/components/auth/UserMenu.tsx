@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 export function UserMenu() {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, isAnonymous, isLoading, logout } = useAuth();
+  const { user, isLoading, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -39,8 +39,8 @@ export function UserMenu() {
     );
   }
 
-  // Anonymous user or not logged in - show sign in button
-  if (isAnonymous || !user) {
+  // Not logged in - show sign in button
+  if (!user) {
     const handleSignIn = () => {
       const redirect = encodeURIComponent(pathname);
       router.push(`/login?redirect=${redirect}`);

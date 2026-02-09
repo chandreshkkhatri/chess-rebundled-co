@@ -1,171 +1,165 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { usePracticeStore } from '@/stores/practiceStore';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { useAuth } from '@/contexts/AuthContext';
-import { updateDisplayName } from '@/lib/firebase';
+import { usePracticeStore } from '@/stores/practiceStore';
 import { PageLayout } from '@/components/PageLayout';
 
 export default function Home() {
   const router = useRouter();
-  const [playerName, setPlayerName] = useState('');
 
   // Initialize socket connection
   usePracticeSocket();
 
-  const { user, isAnonymous, isLoading, getIdToken } = useAuth();
-  const { isConnected, playerName: storedPlayerName, setPlayerName: storeSetPlayerName } = usePracticeStore();
+  const { user, isLoading } = useAuth();
+  const { isConnected } = usePracticeStore();
 
-  // Load player name: prioritize authenticated user's displayName, then stored name
-  useEffect(() => {
-    if (user && !isAnonymous && user.displayName) {
-      setPlayerName(user.displayName);
-    } else if (storedPlayerName) {
-      setPlayerName(storedPlayerName);
-    }
-  }, [user, isAnonymous, storedPlayerName]);
-
-  const handleStartPractice = async () => {
-    const name = playerName.trim();
-    if (name) {
-      storeSetPlayerName(name);
-
-      // For authenticated users, also save to their profile and Firebase Auth
-      if (user && !isAnonymous) {
-        try {
-          // Update Firebase Auth displayName (so it persists across sessions)
-          await updateDisplayName(name);
-
-          // Also save to Firestore profile
-          const token = await getIdToken();
-          if (token) {
-            fetch('/api/user/profile', {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({ displayName: name }),
-            }).catch((e) => console.error('Failed to save name to profile:', e));
-          }
-        } catch (e) {
-          console.error('Failed to save name to profile:', e);
-        }
-      }
-    }
-    router.push('/practice');
-  };
-
-  return (
-    <PageLayout>
-      <div className="flex items-center justify-center p-4 py-8">
-        <div className="max-w-md md:max-w-2xl lg:max-w-4xl w-full">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2">Chess Rebundled</h1>
-            <p className="text-slate-400">Learn chess notation by speaking moves from famous games</p>
+  // Loading state
+  if (isLoading) {
+    return (
+      <PageLayout>
+        <div className="flex items-center justify-center p-4 py-16">
+          <div className="animate-pulse text-center">
+            <div className="h-10 w-48 bg-slate-700 rounded mx-auto mb-4"></div>
+            <div className="h-4 w-64 bg-slate-700 rounded mx-auto"></div>
           </div>
+        </div>
+      </PageLayout>
+    );
+  }
 
-        <div className="bg-slate-800 rounded-2xl shadow-xl p-6">
-          {/* Show loading skeleton while auth is loading */}
-          {isLoading ? (
-            <div className="animate-pulse">
-              <div className="h-10 bg-slate-700 rounded mb-4"></div>
-              <div className="h-12 bg-slate-700 rounded"></div>
-            </div>
-          ) : user && !isAnonymous && user.displayName ? (
-            /* Authenticated user with displayName - skip name input */
-            <div className="text-center">
-              <p className="text-slate-300 mb-6">
-                Welcome back, <span className="text-white font-semibold">{user.displayName}</span>!
+  // Authenticated user — dashboard
+  if (user) {
+    const displayName = user.displayName || user.email?.split('@')[0] || 'Player';
+
+    return (
+      <PageLayout>
+        <div className="flex items-center justify-center p-4 py-8">
+          <div className="max-w-md md:max-w-2xl lg:max-w-4xl w-full">
+            <div className="text-center mb-8">
+              <h1 className="text-4xl font-bold text-white mb-2">Chess Rebundled</h1>
+              <p className="text-slate-400">
+                Welcome back, <span className="text-white font-semibold">{displayName}</span>!
               </p>
-              <div className="space-y-3">
-                <button
-                  onClick={() => router.push('/practice')}
-                  disabled={!isConnected}
-                  className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
-                >
-                  {isConnected ? 'Start Practice' : 'Connecting...'}
-                </button>
-                <button
-                  onClick={() => router.push('/play')}
-                  disabled={!isConnected}
-                  className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
-                >
-                  {isConnected ? 'Play Online' : 'Connecting...'}
-                </button>
-              </div>
-              <Link
-                href="/profile"
-                className="inline-block mt-3 text-sm text-slate-400 hover:text-slate-300 transition-colors"
+            </div>
+
+            {/* Action cards */}
+            <div className="grid md:grid-cols-2 gap-4 mb-6">
+              <button
+                onClick={() => router.push('/practice')}
+                disabled={!isConnected}
+                className="bg-slate-800 rounded-2xl p-6 text-left hover:bg-slate-750 hover:ring-2 hover:ring-purple-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
               >
-                Not you? Change name
+                <div className="text-3xl mb-3">&#9812;&#9818;</div>
+                <h2 className="text-xl font-bold text-white mb-1 group-hover:text-purple-300 transition-colors">
+                  Solo Practice
+                </h2>
+                <p className="text-sm text-slate-400">
+                  Learn chess notation by replaying famous historical games
+                </p>
+              </button>
+
+              <button
+                onClick={() => router.push('/play')}
+                disabled={!isConnected}
+                className="bg-slate-800 rounded-2xl p-6 text-left hover:bg-slate-750 hover:ring-2 hover:ring-green-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+              >
+                <div className="text-3xl mb-3">&#9813;&#9819;</div>
+                <h2 className="text-xl font-bold text-white mb-1 group-hover:text-green-300 transition-colors">
+                  Play Online
+                </h2>
+                <p className="text-sm text-slate-400">
+                  Challenge another player using chess notation
+                </p>
+              </button>
+            </div>
+
+            {/* Quick links */}
+            <div className="flex justify-center gap-6 text-sm">
+              <Link href="/profile" className="text-slate-400 hover:text-purple-300 transition-colors">
+                Profile & Stats
+              </Link>
+              <Link href="/history" className="text-slate-400 hover:text-purple-300 transition-colors">
+                Practice History
+              </Link>
+              <Link href="/settings" className="text-slate-400 hover:text-purple-300 transition-colors">
+                Settings
               </Link>
             </div>
-          ) : (
-            /* Guest or authenticated without displayName - show name input */
-            <>
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Your Name
-                </label>
-                <input
-                  type="text"
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleStartPractice()}
-                  placeholder="Enter your name"
-                  className="w-full px-4 py-3 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none placeholder-slate-400"
-                  maxLength={20}
-                />
-              </div>
 
-              <div className="space-y-3">
-                <button
-                  onClick={handleStartPractice}
-                  disabled={!isConnected}
-                  className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
-                >
-                  {isConnected ? 'Start Practice' : 'Connecting...'}
-                </button>
-                <button
-                  onClick={() => router.push('/play')}
-                  disabled={!isConnected}
-                  className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
-                >
-                  {isConnected ? 'Play Online' : 'Connecting...'}
-                </button>
+            {!isConnected && (
+              <div className="mt-6 p-3 bg-yellow-900/30 border border-yellow-700 rounded-lg text-center">
+                <p className="text-sm text-yellow-400">Connecting to server...</p>
               </div>
-            </>
-          )}
+            )}
+          </div>
+        </div>
+      </PageLayout>
+    );
+  }
 
-          {/* Features overview */}
-          <div className="mt-6 pt-6 border-t border-slate-700">
-            <h3 className="text-sm font-semibold text-slate-300 mb-3 text-center">Features</h3>
-            <ul className="text-sm text-slate-400 space-y-2">
-              <li className="flex items-center gap-2">
-                <span className="text-purple-400">&#9679;</span>
-                Famous historical chess games
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-purple-400">&#9679;</span>
-                Voice input with AI-powered move parsing
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-purple-400">&#9679;</span>
-                Play as both sides or choose a color
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-purple-400">&#9679;</span>
-                Track your accuracy and progress
-              </li>
-            </ul>
+  // Unauthenticated — landing page
+  return (
+    <PageLayout>
+      <div className="flex items-center justify-center p-4 py-16">
+        <div className="max-w-md md:max-w-2xl lg:max-w-4xl w-full">
+          {/* Hero */}
+          <div className="text-center mb-16">
+            <h1 className="text-6xl font-bold text-white tracking-tight mb-4">Chess Rebundled</h1>
+            <p className="text-xl text-slate-400 mb-10">
+              Master chess notation through famous historical games and online play
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link
+                href="/login?initialView=register"
+                className="px-10 py-4 bg-purple-500 hover:bg-purple-600 text-white text-lg font-bold rounded-lg transition-all text-center"
+              >
+                Get Started
+              </Link>
+              <Link
+                href="/login"
+                className="px-10 py-4 bg-slate-700 hover:bg-slate-600 text-slate-200 text-lg font-medium rounded-lg transition-all text-center"
+              >
+                Sign In
+              </Link>
+            </div>
+          </div>
+
+          {/* Feature cards */}
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="bg-slate-800 rounded-xl p-5">
+              <div className="text-2xl mb-2">&#9822;</div>
+              <h3 className="font-semibold text-white mb-1">Learn Notation</h3>
+              <p className="text-sm text-slate-400">
+                Build fluency in algebraic notation by replaying moves from real grandmaster games
+              </p>
+            </div>
+            <div className="bg-slate-800 rounded-xl p-5">
+              <div className="text-2xl mb-2">&#127908;</div>
+              <h3 className="font-semibold text-white mb-1">Voice & Text Input</h3>
+              <p className="text-sm text-slate-400">
+                Type moves or speak them — AI-powered voice recognition understands natural chess language
+              </p>
+            </div>
+            <div className="bg-slate-800 rounded-xl p-5">
+              <div className="text-2xl mb-2">&#9813;&#9819;</div>
+              <h3 className="font-semibold text-white mb-1">Challenge Friends</h3>
+              <p className="text-sm text-slate-400">
+                Invite a friend or find a random opponent — all moves submitted as notation, not drag-and-drop
+              </p>
+            </div>
+            <div className="bg-slate-800 rounded-xl p-5">
+              <div className="text-2xl mb-2">&#9889;</div>
+              <h3 className="font-semibold text-white mb-1">Level Up</h3>
+              <p className="text-sm text-slate-400">
+                Earn XP, maintain daily streaks, and unlock achievements as your notation skills improve
+              </p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
     </PageLayout>
   );
 }

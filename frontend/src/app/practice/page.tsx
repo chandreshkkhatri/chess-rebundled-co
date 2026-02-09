@@ -23,7 +23,7 @@ export default function PracticeSelectPage() {
   const startTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { startPracticeRandom } = usePracticeSocket();
-  const { user, isAnonymous, getIdToken } = useAuth();
+  const { user, isLoading: authLoading, getIdToken } = useAuth();
   const {
     isConnected,
     sessionId,
@@ -43,10 +43,9 @@ export default function PracticeSelectPage() {
   // Countdown state - show countdown when game is ready before navigating
   const [showCountdown, setShowCountdown] = useState(false);
 
-  // Load player name: prioritize authenticated user's displayName, then stored name
+  // Load player name from authenticated user's displayName, or stored name
   useEffect(() => {
-    // For authenticated (non-anonymous) users, use their profile displayName
-    if (user && !isAnonymous && user.displayName) {
+    if (user && user.displayName) {
       setPlayerName(user.displayName);
       storeSetPlayerName(user.displayName);
       setHasEnteredName(true);
@@ -56,7 +55,7 @@ export default function PracticeSelectPage() {
       setHasEnteredName(true);
       setShowModeSelection(true);
     }
-  }, [user, isAnonymous, storedPlayerName, storeSetPlayerName]);
+  }, [user, storedPlayerName, storeSetPlayerName]);
 
   // Always reset to idle on mount - user is on /practice so any existing session is stale
   useEffect(() => {
@@ -147,6 +146,12 @@ export default function PracticeSelectPage() {
     };
   }, []);
 
+  // Auth guard - redirect to login if not authenticated
+  if (!authLoading && !user) {
+    router.replace('/login?redirect=%2Fpractice');
+    return null;
+  }
+
   const handleEnterName = async () => {
     const name = playerName.trim();
     if (!name) {
@@ -158,8 +163,8 @@ export default function PracticeSelectPage() {
     setIsSubmitting(true);
     storeSetPlayerName(name);
 
-    // For authenticated users, also save to their profile and Firebase Auth
-    if (user && !isAnonymous) {
+    // Save to profile and Firebase Auth
+    if (user) {
       try {
         // Update Firebase Auth displayName (so it persists across sessions)
         await updateDisplayName(name);

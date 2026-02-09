@@ -10,7 +10,6 @@ export interface FirestoreUser {
   email: string | null;
   displayName: string;
   photoURL: string | null;
-  isAnonymous: boolean;
   createdAt: Timestamp;
   lastLoginAt: Timestamp;
   stats: {
@@ -87,8 +86,7 @@ export async function getAppConfig(): Promise<AppConfig> {
  */
 export async function ensureUserExists(
   uid: string,
-  email: string | null,
-  isAnonymous: boolean
+  email: string | null
 ): Promise<void> {
   if (!firestore) {
     console.warn('[Firestore] Firestore not initialized, skipping user creation');
@@ -101,9 +99,8 @@ export async function ensureUserExists(
   if (!userDoc.exists) {
     const newUser: FirestoreUser = {
       email,
-      displayName: email?.split('@')[0] || 'Anonymous',
+      displayName: email?.split('@')[0] || 'Player',
       photoURL: null,
-      isAnonymous,
       createdAt: Timestamp.now(),
       lastLoginAt: Timestamp.now(),
       stats: {

@@ -86,12 +86,11 @@ export class GameHandler {
     try {
       // Get uid from socket auth data
       const uid = socket.data.uid;
-      const isAnonymous = socket.data.isAnonymous;
       const email = socket.data.email;
 
       // Ensure user exists in Firestore (if authenticated) - non-blocking
       if (uid) {
-        ensureUserExists(uid, email ?? null, isAnonymous ?? true).catch((err) => {
+        ensureUserExists(uid, email ?? null).catch((err) => {
           console.warn('[GameHandler] Failed to ensure user exists:', err);
         });
       }
@@ -133,12 +132,11 @@ export class GameHandler {
     try {
       // Get uid from socket auth data
       const uid = socket.data.uid;
-      const isAnonymous = socket.data.isAnonymous;
       const email = socket.data.email;
 
       // Ensure user exists in Firestore (if authenticated) - non-blocking
       if (uid) {
-        ensureUserExists(uid, email ?? null, isAnonymous ?? true).catch((err) => {
+        ensureUserExists(uid, email ?? null).catch((err) => {
           console.warn('[GameHandler] Failed to ensure user exists:', err);
         });
       }

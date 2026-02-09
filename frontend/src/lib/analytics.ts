@@ -38,7 +38,7 @@ interface PracticeSessionCompletedProps {
 }
 
 interface SignUpProps {
-  method: 'email' | 'google' | 'github' | 'anonymous_upgrade';
+  method: 'email' | 'google' | 'github';
 }
 
 type EventProperties = {

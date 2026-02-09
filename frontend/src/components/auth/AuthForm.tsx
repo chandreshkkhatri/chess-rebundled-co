@@ -40,7 +40,6 @@ function getFriendlyError(error: string): string {
 
 export function AuthForm({
   onSuccess,
-  variant = 'page',
   showHeader = true,
   initialView = 'login',
 }: AuthFormProps) {
@@ -53,14 +52,10 @@ export function AuthForm({
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
   const {
-    isAnonymous,
     signInWithEmail,
     registerWithEmail,
     signInWithGoogle,
     signInWithGithub,
-    upgradeWithEmail,
-    upgradeWithGoogle,
-    upgradeWithGithub,
     resetPassword,
     error: authError,
     clearError,
@@ -117,11 +112,7 @@ export function AuthForm({
       if (view === 'login') {
         await signInWithEmail(trimmedEmail, trimmedPassword);
       } else {
-        if (isAnonymous) {
-          await upgradeWithEmail(trimmedEmail, trimmedPassword);
-        } else {
-          await registerWithEmail(trimmedEmail, trimmedPassword);
-        }
+        await registerWithEmail(trimmedEmail, trimmedPassword);
       }
       resetForm();
       onSuccess?.();
@@ -132,19 +123,10 @@ export function AuthForm({
     }
   };
 
-  const handleOAuthSignIn = async (
-    signIn: () => Promise<void>,
-    upgrade: () => Promise<void>
-  ) => {
+  const handleOAuthSignIn = async (signIn: () => Promise<void>) => {
     setIsSubmitting(true);
     try {
-      // For login view, always sign in (replaces anonymous account)
-      // For register view with anonymous user, upgrade (links to existing anonymous account)
-      if (view === 'register' && isAnonymous) {
-        await upgrade();
-      } else {
-        await signIn();
-      }
+      await signIn();
       resetForm();
       onSuccess?.();
     } catch {
@@ -174,17 +156,11 @@ export function AuthForm({
       {showHeader && (
         <div className="relative px-6 py-5 bg-gradient-to-r from-purple-600 to-indigo-600">
           <h2 className="text-xl font-bold text-white">
-            {view === 'forgot-password'
-              ? 'Reset Password'
-              : isAnonymous
-                ? 'Save Your Progress'
-                : 'Welcome Back'}
+            {view === 'forgot-password' ? 'Reset Password' : 'Welcome Back'}
           </h2>
           {view !== 'forgot-password' && (
             <p className="text-purple-200 text-sm mt-1">
-              {isAnonymous
-                ? 'Create an account to save your practice history'
-                : 'Sign in to continue your practice'}
+              Sign in to continue your practice
             </p>
           )}
         </div>
@@ -297,7 +273,7 @@ export function AuthForm({
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              {isAnonymous ? 'Create Account' : 'Register'}
+              Register
             </button>
           </div>
 
@@ -305,10 +281,9 @@ export function AuthForm({
           <div className="p-6">
             {/* OAuth Buttons */}
             <OAuthButtons
-              onGoogle={() => handleOAuthSignIn(signInWithGoogle, upgradeWithGoogle)}
-              onGithub={() => handleOAuthSignIn(signInWithGithub, upgradeWithGithub)}
+              onGoogle={() => handleOAuthSignIn(signInWithGoogle)}
+              onGithub={() => handleOAuthSignIn(signInWithGithub)}
               disabled={isSubmitting}
-              isUpgrade={view === 'register' && isAnonymous}
             />
 
             {/* Divider */}
@@ -425,19 +400,11 @@ export function AuthForm({
                   </span>
                 ) : view === 'login' ? (
                   'Sign In'
-                ) : isAnonymous ? (
-                  'Save Progress & Create Account'
                 ) : (
                   'Create Account'
                 )}
               </button>
             </form>
-
-            {isAnonymous && (
-              <p className="mt-4 text-xs text-center text-slate-400">
-                Your practice history will be saved to your new account
-              </p>
-            )}
           </div>
         </>
       )}

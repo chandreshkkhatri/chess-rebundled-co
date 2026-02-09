@@ -2,7 +2,6 @@
 
 import { PracticeCompletedData, GamificationResult } from '@/types';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
 import { MoveHistory } from './MoveHistory';
 
 // Utility functions extracted outside component to prevent recreation
@@ -21,52 +20,6 @@ function getPerformanceMessage(accuracy: number): { emoji: string; text: string 
   return { emoji: '💪', text: 'Keep practicing!' };
 }
 
-// Get contextual upgrade prompt for anonymous users
-function getContextualUpgradePrompt(
-  accuracy: number,
-  xpEarned: number,
-  hasAchievements: boolean,
-  achievementName?: string
-): { emoji: string; primary: string; secondary: string } | null {
-  // Priority 1: Achievement unlocked
-  if (hasAchievements && achievementName) {
-    return {
-      emoji: '🏅',
-      primary: `You earned "${achievementName}"!`,
-      secondary: 'Create an account to keep your achievements',
-    };
-  }
-
-  // Priority 2: High accuracy (90%+)
-  if (accuracy >= 0.9) {
-    return {
-      emoji: '🎯',
-      primary: 'Perfect performance!',
-      secondary: `Sign up to claim ${xpEarned} XP and track your mastery`,
-    };
-  }
-
-  // Priority 3: Good accuracy (70%+)
-  if (accuracy >= 0.7) {
-    return {
-      emoji: '📈',
-      primary: "You're improving!",
-      secondary: 'Create an account to track your progress over time',
-    };
-  }
-
-  // Priority 4: Any XP earned
-  if (xpEarned > 0) {
-    return {
-      emoji: '⭐',
-      primary: `You earned ${xpEarned} XP this session`,
-      secondary: 'Sign up to save your XP and level up',
-    };
-  }
-
-  return null;
-}
-
 interface PracticeResultsProps {
   data: PracticeCompletedData;
   gamification?: GamificationResult;
@@ -74,9 +27,6 @@ interface PracticeResultsProps {
 }
 
 export function PracticeResults({ data, gamification, onPlayAgain }: PracticeResultsProps) {
-  const { user, isAnonymous } = useAuth();
-  const isAuthenticated = user && !isAnonymous;
-
   const accuracyPercent = (data.accuracy * 100).toFixed(1);
   const avgTimePerMove = (data.averageTimePerMove / 1000).toFixed(1);
   const performance = getPerformanceMessage(data.accuracy);
@@ -238,52 +188,21 @@ export function PracticeResults({ data, gamification, onPlayAgain }: PracticeRes
         </p>
       </div>
 
-      {/* Auto-save confirmation for authenticated users, contextual prompt for anonymous */}
-      {isAuthenticated ? (
-        <div className="text-center mb-4">
-          <div className="inline-flex items-center gap-1.5 text-sm text-green-400 bg-green-900/30 px-3 py-1.5 rounded-full">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            Saved to your history
-          </div>
-          <Link
-            href="/history"
-            className="block mt-2 text-sm text-purple-400 hover:text-purple-300 underline"
-          >
-            View all sessions
-          </Link>
+      {/* Auto-save confirmation */}
+      <div className="text-center mb-4">
+        <div className="inline-flex items-center gap-1.5 text-sm text-green-400 bg-green-900/30 px-3 py-1.5 rounded-full">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          Saved to your history
         </div>
-      ) : (
-        (() => {
-          const xpEarned = gamification?.xp?.totalXp || 0;
-          const hasAchievements = (gamification?.newAchievements?.length || 0) > 0;
-          const achievementName = gamification?.newAchievements?.[0]?.name;
-          const prompt = getContextualUpgradePrompt(data.accuracy, xpEarned, hasAchievements, achievementName);
-
-          if (prompt) {
-            return (
-              <div className="mb-4 bg-gradient-to-r from-purple-900/40 to-indigo-900/40 rounded-lg p-4 text-center border border-purple-500/30">
-                <div className="text-2xl mb-1">{prompt.emoji}</div>
-                <p className="text-white font-medium mb-1">{prompt.primary}</p>
-                <p className="text-slate-300 text-sm mb-3">{prompt.secondary}</p>
-                <Link
-                  href="/login"
-                  className="inline-block px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium rounded-lg transition-colors"
-                >
-                  Create Free Account
-                </Link>
-              </div>
-            );
-          }
-
-          return (
-            <p className="text-center text-xs text-slate-500 mb-3">
-              Sign in to save your progress
-            </p>
-          );
-        })()
-      )}
+        <Link
+          href="/history"
+          className="block mt-2 text-sm text-purple-400 hover:text-purple-300 underline"
+        >
+          View all sessions
+        </Link>
+      </div>
 
       <button
         onClick={onPlayAgain}

@@ -26,7 +26,7 @@ export default function PlayLobbyPage() {
   const [selectedTC, setSelectedTC] = useState<TimeControl | null>(null);
   const [joinCode, setJoinCode] = useState('');
 
-  const { user, isAnonymous } = useAuth();
+  const { user } = useAuth();
   const { findGame, cancelFind, createInvite, joinInvite } = useMultiplayerSocket();
   // Also init practice socket for connection (shared singleton)
   usePracticeSocket();
@@ -70,7 +70,7 @@ export default function PlayLobbyPage() {
   }, []);
 
   const requireAuth = () => {
-    if (!user || isAnonymous) {
+    if (!user) {
       setError('Please sign in to play multiplayer');
       return false;
     }
@@ -174,15 +174,6 @@ export default function PlayLobbyPage() {
             <p className="text-slate-400">Challenge another player using chess notation</p>
           </div>
 
-          {/* Auth warning */}
-          {(!user || isAnonymous) && (
-            <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-700 rounded-lg text-center">
-              <p className="text-sm text-yellow-400">
-                Please <a href="/login" className="underline font-medium">sign in</a> to play multiplayer
-              </p>
-            </div>
-          )}
-
           {/* Error */}
           {error && (
             <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg">
@@ -252,7 +243,7 @@ export default function PlayLobbyPage() {
             {tab === 'find' && (
               <button
                 onClick={handleFindGame}
-                disabled={!isConnected || !user || isAnonymous}
+                disabled={!isConnected || !user}
                 className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
               >
                 Find Opponent
@@ -262,7 +253,7 @@ export default function PlayLobbyPage() {
             {tab === 'invite' && (
               <button
                 onClick={handleCreateInvite}
-                disabled={!isConnected || !user || isAnonymous}
+                disabled={!isConnected || !user}
                 className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
               >
                 Create Invite Link
@@ -287,7 +278,7 @@ export default function PlayLobbyPage() {
                 </div>
                 <button
                   onClick={handleJoinInvite}
-                  disabled={!isConnected || !joinCode.trim() || !user || isAnonymous}
+                  disabled={!isConnected || !joinCode.trim() || !user}
                   className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
                 >
                   Join Game
