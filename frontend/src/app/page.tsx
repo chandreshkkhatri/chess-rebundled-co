@@ -81,13 +81,22 @@ export default function Home() {
               <p className="text-slate-300 mb-6">
                 Welcome back, <span className="text-white font-semibold">{user.displayName}</span>!
               </p>
-              <button
-                onClick={() => router.push('/practice')}
-                disabled={!isConnected}
-                className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
-              >
-                {isConnected ? 'Start Practice' : 'Connecting...'}
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={() => router.push('/practice')}
+                  disabled={!isConnected}
+                  className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
+                >
+                  {isConnected ? 'Start Practice' : 'Connecting...'}
+                </button>
+                <button
+                  onClick={() => router.push('/play')}
+                  disabled={!isConnected}
+                  className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
+                >
+                  {isConnected ? 'Play Online' : 'Connecting...'}
+                </button>
+              </div>
               <Link
                 href="/profile"
                 className="inline-block mt-3 text-sm text-slate-400 hover:text-slate-300 transition-colors"
@@ -113,13 +122,22 @@ export default function Home() {
                 />
               </div>
 
-              <button
-                onClick={handleStartPractice}
-                disabled={!isConnected}
-                className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
-              >
-                {isConnected ? 'Start Practice' : 'Connecting...'}
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={handleStartPractice}
+                  disabled={!isConnected}
+                  className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
+                >
+                  {isConnected ? 'Start Practice' : 'Connecting...'}
+                </button>
+                <button
+                  onClick={() => router.push('/play')}
+                  disabled={!isConnected}
+                  className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
+                >
+                  {isConnected ? 'Play Online' : 'Connecting...'}
+                </button>
+              </div>
             </>
           )}
 

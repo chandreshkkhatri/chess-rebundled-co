@@ -1,6 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { Server } from 'socket.io';
 import { GameHandler } from './gameHandler.js';
+import { MultiplayerHandler } from './multiplayerHandler.js';
 import { ClientToServerEvents, ServerToClientEvents } from '../types/index.js';
 import { firebaseAuthMiddleware } from '../middleware/socketAuth.js';
 
@@ -19,6 +20,7 @@ export function initializeSocket(httpServer: HttpServer): Server {
   io.use(firebaseAuthMiddleware);
 
   const gameHandler = new GameHandler(io);
+  const multiplayerHandler = new MultiplayerHandler(io);
 
   io.on('connection', (socket) => {
     // Log auth status
@@ -29,6 +31,7 @@ export function initializeSocket(httpServer: HttpServer): Server {
     }
 
     gameHandler.register(socket);
+    multiplayerHandler.register(socket);
   });
 
   console.log('Socket.io server initialized');

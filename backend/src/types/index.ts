@@ -185,6 +185,28 @@ export interface SessionResumedData {
   moveResults: PracticeMoveResult[];
 }
 
+// Multiplayer types re-export
+export type {
+  TimeControl,
+  MultiplayerGameStatus,
+  GameEndReason,
+  MultiplayerPlayer,
+  MultiplayerGameState,
+  MultiplayerGameStartedData,
+  MultiplayerMoveMadeData,
+  MultiplayerGameOverData,
+  MultiplayerGameResumedData,
+  QueueEntry,
+} from './multiplayer.js';
+
+import type {
+  TimeControl,
+  MultiplayerGameStartedData,
+  MultiplayerMoveMadeData,
+  MultiplayerGameOverData,
+  MultiplayerGameResumedData,
+} from './multiplayer.js';
+
 // Socket Event Types
 export interface ServerToClientEvents {
   // Practice mode events
@@ -204,6 +226,27 @@ export interface ServerToClientEvents {
   // Gemini audio parsing events
   'audio-move-parsed': (data: AIParsedMoveResult) => void;
   'audio-parse-error': (data: { message: string }) => void;
+
+  // Multiplayer events
+  'mp-searching': () => void;
+  'mp-search-cancelled': () => void;
+  'mp-invite-created': (data: { inviteCode: string; gameId: string }) => void;
+  'mp-game-found': (data: MultiplayerGameStartedData) => void;
+  'mp-move-made': (data: MultiplayerMoveMadeData) => void;
+  'mp-game-over': (data: MultiplayerGameOverData) => void;
+  'mp-clock-update': (data: { white: number; black: number }) => void;
+  'mp-draw-offered': (data: { by: 'white' | 'black' }) => void;
+  'mp-draw-declined': () => void;
+  'mp-illegal-move': (data: { move: string; reason: string }) => void;
+  'mp-opponent-connected': (data: { displayName: string }) => void;
+  'mp-opponent-disconnected': () => void;
+  'mp-game-resumed': (data: MultiplayerGameResumedData) => void;
+  'mp-game-not-found': (data: { gameId: string; reason: string }) => void;
+  'mp-move-parsed': (data: AIParsedMoveResult) => void;
+  'mp-parse-error': (data: { message: string }) => void;
+  'mp-audio-move-parsed': (data: AIParsedMoveResult) => void;
+  'mp-audio-parse-error': (data: { message: string }) => void;
+  'mp-error': (data: { message: string }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -219,4 +262,17 @@ export interface ClientToServerEvents {
   'parse-move-with-ai': (data: { sessionId: string; transcript: string }) => void;
   // Gemini audio parsing events
   'parse-audio-move-with-gemini': (data: { sessionId: string; audioBase64: string; mimeType: string }) => void;
+
+  // Multiplayer events
+  'mp-find-game': (data: { timeControl: TimeControl | null }) => void;
+  'mp-cancel-find': () => void;
+  'mp-create-invite': (data: { timeControl: TimeControl | null }) => void;
+  'mp-join-invite': (data: { inviteCode: string }) => void;
+  'mp-submit-move': (data: { gameId: string; move: string }) => void;
+  'mp-resign': (data: { gameId: string }) => void;
+  'mp-offer-draw': (data: { gameId: string }) => void;
+  'mp-respond-draw': (data: { gameId: string; accept: boolean }) => void;
+  'mp-reconnect': (data: { gameId: string }) => void;
+  'mp-parse-move-with-ai': (data: { gameId: string; transcript: string }) => void;
+  'mp-parse-audio-move-with-gemini': (data: { gameId: string; audioBase64: string; mimeType: string }) => void;
 }
