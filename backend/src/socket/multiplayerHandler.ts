@@ -5,6 +5,7 @@ import { parseChessMoveWithAI, AIParsedMove } from '../services/aiMoveParser.js'
 import { parseChessMoveFromAudio } from '../services/geminiAudioParser.js';
 import { ClientToServerEvents, ServerToClientEvents } from '../types/index.js';
 import { TimeControl } from '../types/multiplayer.js';
+import { WaitingPlayer } from '../services/matchmakingService.js';
 import crypto from 'crypto';
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -24,10 +25,19 @@ export class MultiplayerHandler {
 
   // Track socket -> gameId for disconnect handling
   private socketToGame: Map<string, string> = new Map();
+  private onLobbyChange: (() => void) | null = null;
 
   constructor(private io: Server<ClientToServerEvents, ServerToClientEvents>) {
     this.multiplayerService = new MultiplayerService(io);
     this.matchmakingService = new MatchmakingService();
+  }
+
+  setOnLobbyChange(callback: () => void): void {
+    this.onLobbyChange = callback;
+  }
+
+  getWaitingPlayers(): WaitingPlayer[] {
+    return this.matchmakingService.getWaitingPlayers();
   }
 
   register(socket: GameSocket): void {
@@ -58,7 +68,7 @@ export class MultiplayerHandler {
 
   private async handleFindGame(
     socket: GameSocket,
-    data: { timeControl: TimeControl | null }
+    data: { timeControl: TimeControl | null | 'any' }
   ): Promise<void> {
     const uid = socket.data.uid;
     if (!uid) {
@@ -77,18 +87,20 @@ export class MultiplayerHandler {
       return;
     }
 
-    const opponent = this.matchmakingService.addToQueue(
+    const matchResult = this.matchmakingService.addToQueue(
       { uid, displayName, socketId: socket.id, joinedAt: Date.now() },
       data.timeControl
     );
 
-    if (opponent) {
-      // Match found - create game
+    if (matchResult) {
+      const { opponent, matchedTimeControl } = matchResult;
+
+      // Match found - create game with the resolved time control
       const game = await this.multiplayerService.createGame(
         opponent.uid,
         opponent.displayName,
         opponent.socketId,
-        data.timeControl
+        matchedTimeControl
       );
 
       const joinResult = await this.multiplayerService.joinGame(
@@ -143,9 +155,11 @@ export class MultiplayerHandler {
       });
 
       console.log(`[Multiplayer] Game ${fullGame.id} started: ${fullGame.white.displayName} vs ${fullGame.black.displayName}`);
+      this.onLobbyChange?.();
     } else {
       // Queued, waiting for opponent
       socket.emit('mp-searching');
+      this.onLobbyChange?.();
     }
   }
 
@@ -155,6 +169,7 @@ export class MultiplayerHandler {
 
     this.matchmakingService.removeFromQueue(uid);
     socket.emit('mp-search-cancelled');
+    this.onLobbyChange?.();
   }
 
   private async handleCreateInvite(
@@ -388,6 +403,7 @@ export class MultiplayerHandler {
 
     // Remove from matchmaking queue
     this.matchmakingService.removeFromQueue(uid);
+    this.onLobbyChange?.();
 
     // Handle active game disconnect
     const gameId = this.socketToGame.get(socket.id);

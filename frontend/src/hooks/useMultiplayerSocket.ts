@@ -17,6 +17,7 @@ import type { AIParsedMoveResult } from '@/types';
 let mpListenersAttached = false;
 let mpAuthSubscribed = false;
 let mpSubmitTimeoutId: NodeJS.Timeout | null = null;
+let mpSearchTimeoutId: NodeJS.Timeout | null = null;
 
 export function useMultiplayerSocket() {
   const { setConnected, setSubmitting } = useMultiplayerStore();
@@ -62,6 +63,7 @@ export function useMultiplayerSocket() {
       socket.off('mp-audio-move-parsed');
       socket.off('mp-audio-parse-error');
       socket.off('mp-error');
+      socket.off('mp-lobby-stats');
 
       socket.on('connect', () => {
         useMultiplayerStore.getState().setConnected(true);
@@ -79,13 +81,28 @@ export function useMultiplayerSocket() {
         }
       });
 
+      // Lobby stats
+      socket.on('mp-lobby-stats', (data: { onlineCount: number; waitingPlayers: { uid: string; displayName: string; timeControl: string; waitingSince: number }[] }) => {
+        useMultiplayerStore.getState().setLobbyStats(data);
+      });
+
       // Matchmaking
       socket.on('mp-searching', () => {
         useMultiplayerStore.getState().setSearching(true);
+        // Start 30s search timeout
+        if (mpSearchTimeoutId) clearTimeout(mpSearchTimeoutId);
+        mpSearchTimeoutId = setTimeout(() => {
+          mpSearchTimeoutId = null;
+          const s = useMultiplayerStore.getState();
+          if (s.isSearching) {
+            s.setSearchTimedOut(true);
+          }
+        }, 30_000);
       });
 
       socket.on('mp-search-cancelled', () => {
         useMultiplayerStore.getState().setSearching(false);
+        if (mpSearchTimeoutId) { clearTimeout(mpSearchTimeoutId); mpSearchTimeoutId = null; }
       });
 
       socket.on('mp-invite-created', (data: { inviteCode: string; gameId: string }) => {
@@ -94,6 +111,7 @@ export function useMultiplayerSocket() {
       });
 
       socket.on('mp-game-found', (data: MultiplayerGameStartedData) => {
+        if (mpSearchTimeoutId) { clearTimeout(mpSearchTimeoutId); mpSearchTimeoutId = null; }
         useMultiplayerStore.getState().startGame(data);
       });
 
@@ -182,7 +200,7 @@ export function useMultiplayerSocket() {
 
   // --- Emitters ---
 
-  const findGame = useCallback((timeControl: TimeControl | null) => {
+  const findGame = useCallback((timeControl: TimeControl | null | 'any') => {
     const socket = getSocket();
     if (!socket.connected) {
       useMultiplayerStore.getState().setError('Not connected to server');
@@ -196,6 +214,7 @@ export function useMultiplayerSocket() {
     const socket = getSocket();
     socket.emit('mp-cancel-find');
     useMultiplayerStore.getState().setSearching(false);
+    if (mpSearchTimeoutId) { clearTimeout(mpSearchTimeoutId); mpSearchTimeoutId = null; }
   }, []);
 
   const createInvite = useCallback((timeControl: TimeControl | null) => {

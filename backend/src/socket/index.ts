@@ -22,6 +22,22 @@ export function initializeSocket(httpServer: HttpServer): Server {
   const gameHandler = new GameHandler(io);
   const multiplayerHandler = new MultiplayerHandler(io);
 
+  // Throttled lobby stats broadcast (at most once per 2 seconds)
+  let lobbyBroadcastScheduled = false;
+  function broadcastLobbyStats() {
+    if (lobbyBroadcastScheduled) return;
+    lobbyBroadcastScheduled = true;
+    setTimeout(() => {
+      lobbyBroadcastScheduled = false;
+      const onlineCount = io.engine.clientsCount;
+      const waitingPlayers = multiplayerHandler.getWaitingPlayers();
+      io.emit('mp-lobby-stats', { onlineCount, waitingPlayers });
+    }, 2000);
+  }
+
+  // Wire lobby change callback
+  multiplayerHandler.setOnLobbyChange(broadcastLobbyStats);
+
   io.on('connection', (socket) => {
     // Log auth status
     if (socket.data.uid) {
@@ -32,6 +48,16 @@ export function initializeSocket(httpServer: HttpServer): Server {
 
     gameHandler.register(socket);
     multiplayerHandler.register(socket);
+
+    // Send lobby stats on connect and schedule broadcast for others
+    const onlineCount = io.engine.clientsCount;
+    const waitingPlayers = multiplayerHandler.getWaitingPlayers();
+    socket.emit('mp-lobby-stats', { onlineCount, waitingPlayers });
+    broadcastLobbyStats();
+
+    socket.on('disconnect', () => {
+      broadcastLobbyStats();
+    });
   });
 
   console.log('Socket.io server initialized');

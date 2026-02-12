@@ -247,6 +247,10 @@ export interface ServerToClientEvents {
   'mp-audio-move-parsed': (data: AIParsedMoveResult) => void;
   'mp-audio-parse-error': (data: { message: string }) => void;
   'mp-error': (data: { message: string }) => void;
+  'mp-lobby-stats': (data: {
+    onlineCount: number;
+    waitingPlayers: { uid: string; displayName: string; timeControl: string; waitingSince: number }[];
+  }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -264,7 +268,7 @@ export interface ClientToServerEvents {
   'parse-audio-move-with-gemini': (data: { sessionId: string; audioBase64: string; mimeType: string }) => void;
 
   // Multiplayer events
-  'mp-find-game': (data: { timeControl: TimeControl | null }) => void;
+  'mp-find-game': (data: { timeControl: TimeControl | null | 'any' }) => void;
   'mp-cancel-find': () => void;
   'mp-create-invite': (data: { timeControl: TimeControl | null }) => void;
   'mp-join-invite': (data: { inviteCode: string }) => void;

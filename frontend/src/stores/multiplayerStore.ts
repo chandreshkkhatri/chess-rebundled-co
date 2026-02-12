@@ -11,9 +11,22 @@ import {
 } from '@/types/multiplayer';
 import { AIParsedMoveResult } from '@/types';
 
+interface LobbyWaitingPlayer {
+  uid: string;
+  displayName: string;
+  timeControl: string;
+  waitingSince: number;
+}
+
 interface MultiplayerState {
   // Connection
   isConnected: boolean;
+
+  // Lobby
+  onlineCount: number;
+  waitingPlayers: LobbyWaitingPlayer[];
+  searchStartedAt: number | null;
+  searchTimedOut: boolean;
 
   // Matchmaking
   isSearching: boolean;
@@ -64,6 +77,8 @@ interface MultiplayerState {
   // Actions
   setConnected: (connected: boolean) => void;
   setSearching: (searching: boolean) => void;
+  setLobbyStats: (data: { onlineCount: number; waitingPlayers: LobbyWaitingPlayer[] }) => void;
+  setSearchTimedOut: (timedOut: boolean) => void;
   setInviteCode: (code: string | null) => void;
   startGame: (data: MultiplayerGameStartedData) => void;
   applyMove: (data: MultiplayerMoveMadeData) => void;
@@ -91,6 +106,10 @@ const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 const initialState = {
   isConnected: false,
+  onlineCount: 0,
+  waitingPlayers: [] as LobbyWaitingPlayer[],
+  searchStartedAt: null as number | null,
+  searchTimedOut: false,
   isSearching: false,
   inviteCode: null as string | null,
   gameId: null as string | null,
@@ -131,8 +150,17 @@ export const useMultiplayerStore = create<MultiplayerState>()(
       setSearching: (searching) => set({
         isSearching: searching,
         status: searching ? 'searching' : 'idle',
+        searchStartedAt: searching ? Date.now() : null,
+        searchTimedOut: false,
         error: null,
       }),
+
+      setLobbyStats: (data) => set({
+        onlineCount: data.onlineCount,
+        waitingPlayers: data.waitingPlayers,
+      }),
+
+      setSearchTimedOut: (timedOut) => set({ searchTimedOut: timedOut }),
 
       setInviteCode: (code) => set({ inviteCode: code }),
 
