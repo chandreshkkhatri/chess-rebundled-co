@@ -241,6 +241,23 @@ export function usePracticeSocket() {
     return true;
   }, []);
 
+  const startPracticeByPlayer = useCallback((
+    playerName: string,
+    historicalPlayerName: string,
+    role: 'white' | 'black',
+    mode: PracticeMode = 'both-sides',
+    playerColor: 'white' | 'black' | null = null
+  ): boolean => {
+    const socket = getSocket();
+    if (!socket.connected) {
+      usePracticeStore.getState().setError('Not connected to server. Please refresh the page.');
+      return false;
+    }
+    usePracticeStore.getState().setStarting(true);
+    socket.emit('start-practice-by-player', { playerName, historicalPlayerName, role, mode, playerColor: playerColor ?? undefined });
+    return true;
+  }, []);
+
   const submitPracticeMove = useCallback((sessionId: string, move: string) => {
     const socket = getSocket();
     const state = usePracticeStore.getState();
@@ -304,6 +321,7 @@ export function usePracticeSocket() {
   return {
     startPractice,
     startPracticeRandom,
+    startPracticeByPlayer,
     submitPracticeMove,
     abandonPractice,
     parseMoveWithAI,

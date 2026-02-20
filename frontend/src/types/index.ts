@@ -54,6 +54,16 @@ export interface GamificationResult {
 
 export type LevelTier = 'Pawn' | 'Knight' | 'Bishop' | 'Rook' | 'Queen' | 'Grandmaster';
 
+// Player info for player selection feature
+export interface PlayerInfo {
+  name: string;
+  shortName: string;
+  role: 'white' | 'black';
+  gameCount: number;
+  notableGames: string[]; // up to 3 game titles
+  yearRange: { from: number; to: number };
+}
+
 // Shared types between frontend and backend
 export interface HistoricalGame {
   id: string;

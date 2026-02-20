@@ -1,6 +1,6 @@
 import { Collection, ObjectId } from 'mongodb';
 import { getDatabase } from './database.js';
-import { HistoricalGame } from '../types/index.js';
+import { HistoricalGame, PlayerInfo } from '../types/index.js';
 
 // MongoDB document type (with _id)
 interface GameDocument extends Omit<HistoricalGame, 'id'> {
@@ -67,6 +67,70 @@ export async function getAllGames(): Promise<HistoricalGame[]> {
 export async function getGameCount(): Promise<number> {
   const collection = getCollection();
   return collection.countDocuments();
+}
+
+export async function getPlayerList(): Promise<{ asWhite: PlayerInfo[]; asBlack: PlayerInfo[] }> {
+  const collection = getCollection();
+
+  const buildPlayerInfo = async (role: 'white' | 'black'): Promise<PlayerInfo[]> => {
+    const nameField = `${role}.name`;
+    const shortNameField = `${role}.shortName`;
+
+    const results = await collection.aggregate<{
+      _id: string;
+      shortName: string;
+      gameCount: number;
+      titles: string[];
+      minYear: number;
+      maxYear: number;
+    }>([
+      { $group: {
+        _id: `$${nameField}`,
+        shortName: { $first: `$${shortNameField}` },
+        gameCount: { $sum: 1 },
+        titles: { $push: '$title' },
+        minYear: { $min: '$year' },
+        maxYear: { $max: '$year' },
+      }},
+      { $sort: { _id: 1 } },
+    ]).toArray();
+
+    return results.map((r) => ({
+      name: r._id,
+      shortName: r.shortName,
+      role,
+      gameCount: r.gameCount,
+      notableGames: r.titles.slice(0, 3),
+      yearRange: { from: r.minYear, to: r.maxYear },
+    }));
+  };
+
+  const [asWhite, asBlack] = await Promise.all([
+    buildPlayerInfo('white'),
+    buildPlayerInfo('black'),
+  ]);
+
+  return { asWhite, asBlack };
+}
+
+export async function getRandomGameByPlayer(playerName: string, role: 'white' | 'black'): Promise<HistoricalGame | null> {
+  const collection = getCollection();
+  const nameField = role === 'white' ? 'white.name' : 'black.name';
+  const shortNameField = role === 'white' ? 'white.shortName' : 'black.shortName';
+
+  const results = await collection.aggregate<GameDocument & { _id: ObjectId }>([
+    { $match: { $or: [
+      { [nameField]: playerName },
+      { [shortNameField]: playerName },
+    ]}},
+    { $sample: { size: 1 } },
+  ]).toArray();
+
+  if (results.length === 0) {
+    return null;
+  }
+
+  return toHistoricalGame(results[0]);
 }
 
 export async function insertGame(game: Omit<HistoricalGame, 'id'>): Promise<string> {

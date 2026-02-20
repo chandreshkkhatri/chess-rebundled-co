@@ -88,6 +88,16 @@ export interface HistoricalGame {
   trivia: string[];
 }
 
+// Player info for player selection feature
+export interface PlayerInfo {
+  name: string;
+  shortName: string;
+  role: 'white' | 'black';
+  gameCount: number;
+  notableGames: string[]; // up to 3 game titles
+  yearRange: { from: number; to: number };
+}
+
 // Move details for board display
 export interface MoveDetails {
   san: string;
@@ -220,6 +230,8 @@ export interface ServerToClientEvents {
   // Session resume events
   'session-resumed': (data: SessionResumedData) => void;
   'session-not-found': (data: { sessionId: string; reason: string }) => void;
+  // Player list event
+  'player-list': (data: { asWhite: PlayerInfo[]; asBlack: PlayerInfo[] }) => void;
   // AI move parsing events (Web Speech + Haiku)
   'move-parsed': (data: AIParsedMoveResult) => void;
   'parse-error': (data: { message: string }) => void;
@@ -258,6 +270,8 @@ export interface ClientToServerEvents {
   'get-practice-games': () => void;
   'start-practice': (data: { gameId?: string; playerName: string; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
   'start-practice-random': (data: { playerName: string; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
+  'start-practice-by-player': (data: { playerName: string; historicalPlayerName: string; role: 'white' | 'black'; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
+  'get-player-list': () => void;
   'submit-practice-move': (data: { sessionId: string; move: string }) => void;
   'abandon-practice': (data: { sessionId: string }) => void;
   // Session resume

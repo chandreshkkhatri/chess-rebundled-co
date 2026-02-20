@@ -4,6 +4,7 @@ import { parseChessMoveWithAI, AIParsedMove } from '../services/aiMoveParser.js'
 import { parseChessMoveFromAudio } from '../services/geminiAudioParser.js';
 import { ClientToServerEvents, ServerToClientEvents } from '../types/index.js';
 import { saveCompletedSession, ensureUserExists, processGamification } from '../services/firestoreService.js';
+import { getPlayerList, getRandomGameByPlayer } from '../services/gameRepository.js';
 import crypto from 'crypto';
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -64,6 +65,8 @@ export class GameHandler {
     // Practice mode events
     socket.on('start-practice', (data) => this.handleStartPractice(socket, data));
     socket.on('start-practice-random', (data) => this.handleStartPracticeRandom(socket, data));
+    socket.on('start-practice-by-player', (data) => this.handleStartPracticeByPlayer(socket, data));
+    socket.on('get-player-list', () => this.handleGetPlayerList(socket));
     socket.on('submit-practice-move', (data) => this.handleSubmitPracticeMove(socket, data));
     socket.on('abandon-practice', (data) => this.handleAbandonPractice(socket, data));
     socket.on('resume-session', (data) => this.handleResumeSession(socket, data));
@@ -157,6 +160,57 @@ export class GameHandler {
       socket.emit('practice-started', startData);
     } catch (error) {
       console.error('Error starting random practice session:', error);
+      socket.emit('practice-error', { message: 'Failed to start practice session due to server error' });
+    }
+  }
+
+  private async handleGetPlayerList(socket: GameSocket): Promise<void> {
+    try {
+      const playerList = await getPlayerList();
+      socket.emit('player-list', playerList);
+    } catch (error) {
+      console.error('Error fetching player list:', error);
+      socket.emit('practice-error', { message: 'Failed to fetch player list' });
+    }
+  }
+
+  private async handleStartPracticeByPlayer(
+    socket: GameSocket,
+    data: { playerName: string; historicalPlayerName: string; role: 'white' | 'black'; mode?: 'both-sides' | 'one-side'; playerColor?: 'white' | 'black' }
+  ): Promise<void> {
+    try {
+      const uid = socket.data.uid;
+      const email = socket.data.email;
+
+      if (uid) {
+        ensureUserExists(uid, email ?? null).catch((err) => {
+          console.warn('[GameHandler] Failed to ensure user exists:', err);
+        });
+      }
+
+      const game = await getRandomGameByPlayer(data.historicalPlayerName, data.role);
+      if (!game) {
+        socket.emit('practice-error', { message: `No games found for player "${data.historicalPlayerName}" as ${data.role}` });
+        return;
+      }
+
+      const startData = await this.practiceService.startSession(
+        socket.id,
+        data.playerName,
+        game.id,
+        data.mode || 'both-sides',
+        data.playerColor || null,
+        uid
+      );
+
+      if (!startData) {
+        socket.emit('practice-error', { message: 'Could not start practice session' });
+        return;
+      }
+
+      socket.emit('practice-started', startData);
+    } catch (error) {
+      console.error('Error starting practice by player:', error);
       socket.emit('practice-error', { message: 'Failed to start practice session due to server error' });
     }
   }
