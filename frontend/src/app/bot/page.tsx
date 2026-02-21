@@ -130,36 +130,33 @@ function BotPlayContent() {
         </div>
       </div>
 
-      {/* Game Layout */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0 overflow-hidden">
-        {/* Main Game Section (Left) */}
-        <div className="flex-[3] flex flex-col min-w-0 min-h-0 bg-slate-900/40 rounded-2xl border border-slate-800/50 overflow-hidden shadow-2xl">
-          {/* Top Bar - Bot Info */}
-          <div className={`flex items-center justify-between px-4 py-2 border-b border-slate-800/50 transition-all ${moveState === 'bot-thinking' ? 'bg-purple-900/20' : 'bg-slate-800/30'}`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded flex items-center justify-center text-lg bg-slate-700/50 ${playerColor === 'white' ? 'text-slate-950' : 'text-slate-100'}`}>
-                {playerColor === 'white' ? '♚' : '♔'}
+      {/* Game Layout - 3 columns on large screens, stacked on mobile */}
+      <div className="flex-1 flex flex-col lg:flex-row gap-2 lg:gap-4 min-h-0 overflow-hidden">
+        
+        {/* 1. Main Game Section (Left / Top) */}
+        <div className="flex justify-center flex-shrink-0 lg:flex-[3] xl:flex-[4] min-h-0 min-w-0">
+          <div className="w-full max-w-[min(100%,calc(100vh-340px))] lg:max-w-[calc(100vh-140px)] flex flex-col justify-center gap-1 lg:gap-2">
+            
+            {/* Top Plate - Stockfish */}
+            <div className="flex items-center justify-between px-1 text-white">
+              <div className="flex items-center gap-2">
+                <div className={`w-6 h-6 lg:w-8 lg:h-8 rounded flex items-center justify-center text-sm lg:text-xl ${playerColor === 'white' ? 'bg-slate-700' : 'bg-slate-200 text-slate-800'}`}>
+                  {playerColor === 'white' ? '♚' : '♔'}
+                </div>
+                <div className="font-semibold text-sm lg:text-base truncate flex items-center gap-2">
+                  Stockfish <span className="text-[9px] text-slate-500 font-mono tracking-tighter hidden sm:inline">CPU</span>
+                </div>
               </div>
-              <div>
-                <div className="text-xs font-black text-slate-200 uppercase tracking-tight">Stockfish</div>
-                <div className="text-[9px] text-slate-500 font-mono tracking-tighter">CPU OPPONENT</div>
-              </div>
+              {moveState === 'bot-thinking' && (
+                <div className="flex items-center gap-2 px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded">
+                   <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
+                   <span className="text-[9px] text-purple-400 font-black uppercase tracking-widest hidden sm:inline">Processing</span>
+                </div>
+              )}
             </div>
-            {moveState === 'bot-thinking' && (
-              <div className="flex items-center gap-2 px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded">
-                 <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
-                 <span className="text-[9px] text-purple-400 font-black uppercase tracking-widest">Processing</span>
-              </div>
-            )}
-          </div>
 
-          {/* Board Container - Responsive Fitting */}
-          <div className="flex-1 flex items-center justify-center p-2 lg:p-4 min-h-0 min-w-0 overflow-hidden bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-800/20 to-transparent">
-            {/* Limit max width to avoid overflowing vertically or horizontally */}
-            <div className="w-full max-w-[min(100%,calc(100vh-350px))] lg:max-w-[calc(100vh-300px)] flex justify-center items-center">
-              <div 
-                className="w-full aspect-square relative shadow-2xl shadow-black/80 ring-4 lg:ring-8 ring-slate-800/20 rounded-sm bg-slate-800"
-              >
+            {/* Board Container */}
+            <div className="w-full aspect-square relative shadow-2xl shadow-black/80 ring-4 lg:ring-8 ring-slate-800/20 rounded-sm bg-slate-800">
               {/* Thinking animation overlay */}
               {moveState === 'bot-thinking' && (
                  <div className="absolute inset-x-0 top-0 pointer-events-none z-10">
@@ -190,61 +187,62 @@ function BotPlayContent() {
                 </div>
               )}
             </div>
-          </div>
-          </div>
-          {/* Bottom Bar - Human Info */}
-          <div className={`px-4 py-2 border-y border-slate-800/50 transition-all ${moveState === 'human-thinking' && !isGameOver ? 'bg-purple-900/10' : 'bg-slate-800/20'}`}>
-             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded flex items-center justify-center text-lg bg-slate-700/50 ${playerColor === 'white' ? 'text-white' : 'text-slate-950'}`}>
+
+            {/* Bottom Plate - Human */}
+            <div className="flex items-center justify-between px-1 text-white">
+              <div className="flex items-center gap-2">
+                <div className={`w-6 h-6 lg:w-8 lg:h-8 rounded flex items-center justify-center text-sm lg:text-xl font-bold ${playerColor === 'white' ? 'bg-slate-200 text-slate-800' : 'bg-slate-700'}`}>
                   {playerColor === 'white' ? '♔' : '♚'}
                 </div>
-                <div>
-                  <div className="text-xs font-black text-slate-200 uppercase tracking-tight">You</div>
-                  <div className="text-[9px] text-slate-500 font-mono tracking-tighter">HUMAN PLAYER</div>
+                <div className="font-semibold text-sm lg:text-base truncate flex items-center gap-2">
+                  You <span className="text-[9px] text-slate-500 font-mono tracking-tighter hidden sm:inline">HUMAN</span>
                 </div>
               </div>
               {moveState === 'human-thinking' && !isGameOver && (
                 <span className="text-[9px] text-purple-400 font-black uppercase tracking-[0.2em] animate-pulse">Your Turn</span>
               )}
-             </div>
-          </div>
-
-          {/* Input Panel - Dedicated section */}
-          <div className="h-[200px] shrink-0 bg-slate-900/60 p-2">
-             <UniversalInputPanel 
-              fen={fen}
-              isActive={moveState === 'human-thinking' || (moveState === 'idle' && !isGameOver)}
-              isSubmitting={moveState === 'bot-thinking' || isGameOver || !isReady}
-              inputMode="tap-only"
-              voiceParsingMode="webspeech-haiku"
-              autoSubmitEnabled={true}
-              aiParseResult={null}
-              aiParseError={null}
-              isAIParsing={false}
-              onMoveSubmit={(move) => makeHumanMove(move)}
-              onParseMoveWithText={() => {}}
-              onParseMoveWithAudio={() => {}}
-              clearAIParseState={() => {}}
-            />
+            </div>
           </div>
         </div>
 
-        {/* Sidebar Section (Right) */}
-        <div className="flex-1 flex flex-col min-h-0 shrink-0">
+        {/* 2. Input Panel Section (Middle on Desktop, Bottom on Mobile) */}
+        <div className="h-[200px] lg:h-auto lg:flex-[2] shrink-0 border border-slate-800/50 bg-slate-900/40 lg:bg-transparent lg:border-none rounded-2xl p-1 lg:p-0">
+           <div className="h-full flex flex-col justify-end">
+             <div className="h-full lg:h-[250px] xl:h-[300px]">
+               <UniversalInputPanel 
+                fen={fen}
+                isActive={moveState === 'human-thinking' || (moveState === 'idle' && !isGameOver)}
+                isSubmitting={moveState === 'bot-thinking' || isGameOver || !isReady}
+                inputMode="tap-only"
+                voiceParsingMode="webspeech-haiku"
+                autoSubmitEnabled={true}
+                aiParseResult={null}
+                aiParseError={null}
+                isAIParsing={false}
+                onMoveSubmit={(move) => makeHumanMove(move)}
+                onParseMoveWithText={() => {}}
+                onParseMoveWithAudio={() => {}}
+                clearAIParseState={() => {}}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Sidebar Section (Right on Desktop, Middle on Mobile) */}
+        <div className="flex-1 lg:flex-[1.5] flex flex-col min-h-[100px] lg:min-h-0 shrink-0">
            <div className="flex-1 bg-slate-900/40 rounded-2xl border border-slate-800/50 flex flex-col min-h-0 overflow-hidden shadow-2xl">
-              <div className="px-4 py-3 border-b border-slate-800/50 flex justify-between items-center bg-slate-800/30">
+              <div className="px-4 py-2 border-b border-slate-800/50 flex justify-between items-center bg-slate-800/30">
                 <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Log</h3>
                 <span className="text-[9px] font-mono bg-slate-700/50 px-2 py-0.5 rounded text-slate-400">
                   {Math.ceil(moves.length / 2)} PND
                 </span>
               </div>
               
-              <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-2 lg:p-3 space-y-1 custom-scrollbar">
                 {moves.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center opacity-10 pt-10">
-                    <span className="text-4xl mb-2">♟️</span>
-                    <p className="text-[9px] uppercase font-bold tracking-widest">No moves recorded</p>
+                  <div className="h-full flex flex-col items-center justify-center opacity-10 pt-4 lg:pt-10">
+                    <span className="text-2xl lg:text-4xl mb-2">♟️</span>
+                    <p className="text-[9px] uppercase font-bold tracking-widest">No moves</p>
                   </div>
                 ) : (
                   Array.from({ length: Math.ceil(moves.length / 2) }).map((_, i) => (
@@ -266,12 +264,13 @@ function BotPlayContent() {
                  <div className="flex items-center gap-2">
                     <div className={`w-1.5 h-1.5 rounded-full ${isReady ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-yellow-500 animate-pulse'}`} />
                     <span className="text-[8px] text-slate-500 uppercase font-bold tracking-tighter">
-                      STOCKFISH: {isReady ? 'ONLINE' : 'BOOTING'}
+                      ENGINE: {isReady ? 'ONLINE' : 'BOOTING'}
                     </span>
                  </div>
               </div>
            </div>
         </div>
+
       </div>
     </div>
   );
