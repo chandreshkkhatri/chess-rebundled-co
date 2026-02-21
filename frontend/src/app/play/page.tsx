@@ -43,13 +43,20 @@ function formatTCLabel(key: string): string {
   return `${mins} min`;
 }
 
-type LobbyTab = 'find' | 'invite' | 'join';
+type LobbyTab = 'find' | 'invite' | 'join' | 'bot';
+
+export type BotDifficulty = 'easy' | 'medium' | 'hard';
+export type PlayerColorPreference = 'white' | 'black' | 'random';
 
 export default function PlayLobbyPage() {
   const router = useRouter();
   const [tab, setTab] = useState<LobbyTab>('find');
   const [selectedTC, setSelectedTC] = useState<TimeControl | null | 'any'>('any');
   const [joinCode, setJoinCode] = useState('');
+  
+  // Bot settings
+  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>('easy');
+  const [botColor, setBotColor] = useState<PlayerColorPreference>('random');
   const [elapsedMs, setElapsedMs] = useState(0);
   const elapsedRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -150,6 +157,16 @@ export default function PlayLobbyPage() {
   const handleCancel = () => {
     cancelFind();
     reset();
+  };
+
+  const handleStartBotGame = () => {
+    // Determine actual color if random
+    const finalColor = botColor === 'random' 
+      ? (Math.random() < 0.5 ? 'white' : 'black') 
+      : botColor;
+    
+    // Redirect to the dedicated bot play route
+    router.push(`/bot?difficulty=${botDifficulty}&color=${finalColor}`);
   };
 
   // Build a map of queue sizes from waitingPlayers
@@ -323,24 +340,24 @@ export default function PlayLobbyPage() {
 
           <div className="bg-slate-800 rounded-2xl shadow-xl p-6">
             {/* Tabs */}
-            <div className="flex mb-6 bg-slate-700 rounded-lg p-1">
-              {(['find', 'invite', 'join'] as const).map((t) => (
+            <div className="flex mb-6 bg-slate-700 rounded-lg p-1 overflow-x-auto">
+              {(['find', 'invite', 'join', 'bot'] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
-                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
                     tab === t
                       ? 'bg-purple-500 text-white'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  {t === 'find' ? 'Find Game' : t === 'invite' ? 'Create Invite' : 'Join Invite'}
+                  {t === 'find' ? 'Find Game' : t === 'invite' ? 'Create Invite' : t === 'join' ? 'Join Invite' : 'Play Bot'}
                 </button>
               ))}
             </div>
 
             {/* Time Control Selection (for find/invite tabs) */}
-            {tab !== 'join' && (
+            {(tab === 'find' || tab === 'invite') && (
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-slate-300 mb-3">Time Control</h3>
                 <div className="grid grid-cols-4 gap-2">
@@ -370,6 +387,55 @@ export default function PlayLobbyPage() {
                       </button>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Bot Configuration Options */}
+            {tab === 'bot' && (
+              <div className="mb-6 space-y-6">
+                <div>
+                  <h3 className="text-sm font-medium text-slate-300 mb-3">Difficulty</h3>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['easy', 'medium', 'hard'] as const).map((level) => (
+                      <button
+                        key={level}
+                        onClick={() => setBotDifficulty(level)}
+                        className={`p-3 rounded-lg border-2 text-center transition-all ${
+                          botDifficulty === level
+                            ? 'border-purple-500 bg-purple-900/30'
+                            : 'border-slate-600 hover:border-slate-500'
+                        }`}
+                      >
+                        <div className="font-semibold text-slate-100 text-sm capitalize">{level}</div>
+                        <div className="text-[10px] text-slate-400 mt-1">
+                          {level === 'easy' ? 'Stockfish Lvl 0' : level === 'medium' ? 'Stockfish Lvl 10' : 'Stockfish Lvl 20'}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-medium text-slate-300 mb-3">Your Color</h3>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['white', 'random', 'black'] as const).map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => setBotColor(color)}
+                        className={`p-3 rounded-lg border-2 flex flex-col items-center justify-center transition-all ${
+                          botColor === color
+                            ? 'border-purple-500 bg-purple-900/30'
+                            : 'border-slate-600 hover:border-slate-500'
+                        }`}
+                      >
+                        <div className="text-2xl mb-1">
+                          {color === 'white' ? '♔' : color === 'black' ? '♚' : '🎲'}
+                        </div>
+                        <div className="font-semibold text-slate-100 text-sm capitalize">{color}</div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -437,6 +503,15 @@ export default function PlayLobbyPage() {
                   Join Game
                 </button>
               </div>
+            )}
+
+            {tab === 'bot' && (
+              <button
+                onClick={handleStartBotGame}
+                className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
+              >
+                Start Bot Game
+              </button>
             )}
 
             <button

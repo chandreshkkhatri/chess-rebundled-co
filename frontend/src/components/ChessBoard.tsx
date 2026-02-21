@@ -8,6 +8,8 @@ interface ChessBoardProps {
   fen: string;
   orientation?: 'white' | 'black';
   lastMove?: { from: string; to: string };
+  draggable?: boolean;
+  onPieceDrop?: (sourceSquare: string, targetSquare: string, piece: string) => boolean;
 }
 
 // Error boundary to catch invalid FEN or other rendering errors
@@ -32,7 +34,7 @@ class ChessBoardErrorBoundary extends Component<{ children: ReactNode }, ErrorBo
   render() {
     if (this.state.hasError) {
       return (
-        <div className="w-full max-w-[min(100%,480px)] md:max-w-[min(100%,512px)] aspect-square bg-slate-700 rounded flex items-center justify-center">
+        <div className="w-full h-full aspect-square bg-slate-700 rounded flex items-center justify-center">
           <div className="text-center text-slate-400 p-4">
             <p className="text-sm">Unable to display board</p>
             <p className="text-xs mt-1">Invalid position data</p>
@@ -44,7 +46,13 @@ class ChessBoardErrorBoundary extends Component<{ children: ReactNode }, ErrorBo
   }
 }
 
-export function ChessBoard({ fen, orientation = 'white', lastMove }: ChessBoardProps) {
+export function ChessBoard({ 
+  fen, 
+  orientation = 'white', 
+  lastMove,
+  draggable = false,
+  onPieceDrop
+}: ChessBoardProps) {
   // Convert lastMove to arrows format for react-chessboard
   const arrows: Arrow[] = lastMove
     ? [{ startSquare: lastMove.from, endSquare: lastMove.to, color: 'rgba(255, 170, 0, 0.8)' }]
@@ -52,13 +60,14 @@ export function ChessBoard({ fen, orientation = 'white', lastMove }: ChessBoardP
 
   return (
     <ChessBoardErrorBoundary>
-      <div className="w-full max-w-[min(100%,480px)] md:max-w-[min(100%,512px)]">
+      <div className="w-full h-full aspect-square mx-auto">
         <Chessboard
           options={{
             position: fen,
             boardOrientation: orientation,
-            allowDragging: false,
+            allowDragging: draggable,
             arrows,
+            onPieceDrop: onPieceDrop as any,
             boardStyle: {
               borderRadius: '4px',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',

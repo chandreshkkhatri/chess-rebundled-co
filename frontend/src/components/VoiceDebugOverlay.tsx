@@ -1,6 +1,6 @@
 'use client';
 
-interface PracticeVoiceDebugOverlayProps {
+interface VoiceDebugOverlayProps {
     volumeLevel: number;
     silenceThreshold: number;
     isListening: boolean;
@@ -10,7 +10,7 @@ interface PracticeVoiceDebugOverlayProps {
     onClose: () => void;
 }
 
-export function PracticeVoiceDebugOverlay({
+export function VoiceDebugOverlay({
     volumeLevel,
     silenceThreshold,
     isListening,
@@ -18,7 +18,7 @@ export function PracticeVoiceDebugOverlay({
     isActive,
     voiceParsingMode,
     onClose,
-}: PracticeVoiceDebugOverlayProps) {
+}: VoiceDebugOverlayProps) {
     return (
         <div className="fixed bottom-4 right-4 bg-black/90 text-white p-3 rounded-lg font-mono text-xs z-50 min-w-[200px] border border-green-500/50">
             <div className="flex justify-between items-center mb-2">

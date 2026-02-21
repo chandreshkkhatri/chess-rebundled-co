@@ -7,7 +7,7 @@ import { useMultiplayerStore } from '@/stores/multiplayerStore';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { ChessBoard } from '@/components/ChessBoard';
 import { ChessClock } from '@/components/ChessClock';
-import { MultiplayerVoiceInput } from '@/components/MultiplayerVoiceInput';
+import { UniversalInputPanel } from '@/components/UniversalInputPanel';
 import { MoveHistory } from '@/components/MoveHistory';
 
 export default function MultiplayerGamePage() {
@@ -262,12 +262,20 @@ export default function MultiplayerGamePage() {
         <div className="w-full lg:w-72 flex flex-col gap-3">
           {/* Move input */}
           <div className="bg-slate-800 rounded-xl p-3 flex-1 min-h-[240px]">
-            <MultiplayerVoiceInput
+            <UniversalInputPanel
               fen={fen}
-              isMyTurn={isMyTurn}
-              isSubmitting={isSubmitting}
+              isActive={isMyTurn}
+              isSubmitting={isSubmitting || isGameOver}
+              inputMode="tap-only"
+              voiceParsingMode="webspeech-haiku"
+              autoSubmitEnabled={true}
+              aiParseResult={null}
+              aiParseError={null}
+              isAIParsing={false}
               onMoveSubmit={handleMoveSubmit}
-              disabled={isGameOver}
+              onParseMoveWithText={() => {}}
+              onParseMoveWithAudio={() => {}}
+              clearAIParseState={() => {}}
             />
           </div>
 
