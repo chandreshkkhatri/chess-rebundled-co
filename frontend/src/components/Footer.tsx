@@ -34,6 +34,12 @@ export function Footer() {
                 Discord
               </a>
             )}
+            <a
+              href="mailto:support@rebundled.co"
+              className="text-sm text-slate-400 hover:text-white transition-colors"
+            >
+              Support
+            </a>
             <Link
               href="/privacy"
               className="text-sm text-slate-400 hover:text-white transition-colors"

@@ -34,7 +34,7 @@ async function fetchConfig(): Promise<AppConfig> {
       return config;
     } catch (error) {
       console.error('[useAppConfig] Failed to fetch config:', error);
-      return { discordInviteUrl: null };
+      return { discordInviteUrl: 'https://discord.gg/rebundled' };
     } finally {
       fetchPromise = null;
     }
@@ -63,6 +63,6 @@ export function useAppConfig() {
   return {
     config,
     isLoading,
-    discordInviteUrl: config?.discordInviteUrl ?? null,
+    discordInviteUrl: config?.discordInviteUrl || 'https://discord.gg/rebundled',
   };
 }
