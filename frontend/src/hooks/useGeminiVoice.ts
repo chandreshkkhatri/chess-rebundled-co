@@ -148,13 +148,18 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
         isRecordingRef.current = false;
         setIsRecording(false);
         silenceStartRef.current = null;
+        
+        // Calculate the duration of the recording before clearing
+        const recordingDuration = recordingStartRef.current ? Date.now() - recordingStartRef.current : 0;
         recordingStartRef.current = null;
 
         if (chunksRef.current.length > 0) {
           const blob = new Blob(chunksRef.current, { type: mimeType });
 
-          // Only send if we have meaningful audio (at least 200ms worth)
-          if (blob.size > 1000) {
+          // Only send if we have meaningful audio:
+          // 1. Duration must be > 500ms to filter out brief noises (coughs, taps, etc)
+          // 2. Blob size must be > 3000 to filter out empty/quiet frames
+          if (blob.size > 3000 && recordingDuration > 500) {
             const reader = new FileReader();
             reader.onloadend = () => {
               const base64 = (reader.result as string).split(',')[1];
@@ -162,6 +167,9 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
               onAudioReadyRef.current?.(base64, simpleMimeType);
             };
             reader.readAsDataURL(blob);
+          } else {
+             // Discarding too short or too small recording
+             chunksRef.current = [];
           }
         }
 
