@@ -135,7 +135,8 @@ function BotPlayContent() {
         
         {/* 1. Main Game Section (Left / Top) */}
         <div className="flex justify-center flex-shrink-0 lg:flex-[3] xl:flex-[4] min-h-0 min-w-0">
-          <div className="w-full max-w-[min(100%,calc(100vh-340px))] lg:max-w-[calc(100vh-140px)] flex flex-col justify-center gap-1 lg:gap-2">
+          {/* Shrunk the max-width bounds to prevent vertical overflow on smaller screens */}
+          <div className="w-full max-w-[min(100%,calc(100vh-340px))] lg:max-w-[calc(100vh-220px)] flex flex-col justify-center gap-1 lg:gap-2">
             
             {/* Top Plate - Stockfish */}
             <div className="flex items-center justify-between px-1 text-white">
@@ -206,9 +207,10 @@ function BotPlayContent() {
         </div>
 
         {/* 2. Input Panel Section (Middle on Desktop, Bottom on Mobile) */}
-        <div className="h-[200px] lg:h-auto lg:flex-[2] shrink-0 border border-slate-800/50 bg-slate-900/40 lg:bg-transparent lg:border-none rounded-2xl p-1 lg:p-0">
+        <div className="h-[180px] lg:h-auto lg:flex-[2] shrink-0 border border-slate-800/50 bg-slate-900/40 lg:bg-transparent lg:border-none rounded-2xl p-1 lg:p-0">
            <div className="h-full flex flex-col justify-end">
-             <div className="h-full lg:h-[250px] xl:h-[300px]">
+             {/* Reduced max-height of input panel to prevent it from forcing a scrollbar */}
+             <div className="h-full lg:max-h-[220px] xl:max-h-[260px]">
                <UniversalInputPanel 
                 fen={fen}
                 isActive={moveState === 'human-thinking' || (moveState === 'idle' && !isGameOver)}
