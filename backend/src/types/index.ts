@@ -227,6 +227,7 @@ export interface ServerToClientEvents {
   'practice-completed': (data: PracticeCompletedData) => void;
   'practice-move-response': (data: PracticeMoveResponseData) => void; // Combined event
   'practice-error': (data: { message: string }) => void;
+  'practice-game-details': (game: HistoricalGame) => void;
   // Session resume events
   'session-resumed': (data: SessionResumedData) => void;
   'session-not-found': (data: { sessionId: string; reason: string }) => void;
@@ -271,6 +272,8 @@ export interface ClientToServerEvents {
   'start-practice': (data: { gameId?: string; playerName: string; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
   'start-practice-random': (data: { playerName: string; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
   'start-practice-by-player': (data: { playerName: string; historicalPlayerName: string; role: 'white' | 'black'; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
+  'get-random-practice-game': () => void;
+  'get-player-practice-game': (data: { historicalPlayerName: string; role: 'white' | 'black' }) => void;
   'get-player-list': () => void;
   'submit-practice-move': (data: { sessionId: string; move: string }) => void;
   'abandon-practice': (data: { sessionId: string }) => void;

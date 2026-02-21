@@ -299,7 +299,6 @@ function prioritizePawnMoves(moves: string[], maxOptions: number): string[] {
 
   return scored
     .sort((a, b) => b.score - a.score)
-    .slice(0, maxOptions)
     .map(s => s.move);
 }
 
@@ -321,12 +320,9 @@ export function getDestinationOptionsWithDistractors(
   }
 
   // For pawn moves, return full SANs without distractors
-  // If too many, prioritize the most important ones
+  // We no longer truncate pawn moves because there are rarely more than 15,
+  // and truncating them risks hiding the correct move. They scroll beautifully.
   if (selectedPiece === 'P') {
-    if (legalDestinations.length > maxOptions) {
-      const topPawnMoves = prioritizePawnMoves(legalDestinations, maxOptions);
-      return topPawnMoves.sort((a, b) => a.localeCompare(b));
-    }
     return legalDestinations;
   }
 
