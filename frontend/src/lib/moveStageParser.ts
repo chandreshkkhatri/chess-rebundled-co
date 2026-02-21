@@ -268,16 +268,10 @@ export function getMirrorDistractors(destination: string, maxDistractors: number
   const fullMirror = horizontalMirrorFile(file) + verticalMirrorRank(rank);
   if (fullMirror !== destination && !allMirrors.includes(fullMirror)) allMirrors.push(fullMirror);
 
-  // Return limited number of distractors (shuffle and take first N)
-  // Use a simple deterministic shuffle based on destination to be consistent
-  const seed = destination.charCodeAt(0) + destination.charCodeAt(1);
-  const shuffled = allMirrors.sort((a, b) => {
-    const aVal = (a.charCodeAt(0) + a.charCodeAt(1) + seed) % 4;
-    const bVal = (b.charCodeAt(0) + b.charCodeAt(1) + seed) % 4;
-    return aVal - bVal;
-  });
+  // Return limited number of distractors (sort alphabetically and take first N)
+  const sorted = allMirrors.sort((a, b) => a.localeCompare(b));
 
-  return shuffled.slice(0, maxDistractors);
+  return sorted.slice(0, maxDistractors);
 }
 
 /**
@@ -330,7 +324,8 @@ export function getDestinationOptionsWithDistractors(
   // If too many, prioritize the most important ones
   if (selectedPiece === 'P') {
     if (legalDestinations.length > maxOptions) {
-      return prioritizePawnMoves(legalDestinations, maxOptions);
+      const topPawnMoves = prioritizePawnMoves(legalDestinations, maxOptions);
+      return topPawnMoves.sort((a, b) => a.localeCompare(b));
     }
     return legalDestinations;
   }
@@ -373,14 +368,9 @@ export function getDestinationOptionsWithDistractors(
     }
   }
 
-  // Shuffle all options together (deterministic based on first legal destination)
+  // Sort all options predictably (alphabetical asc)
   const result = Array.from(allOptions);
-  const seed = legalDestinations[0]?.charCodeAt(0) || 0;
-  return result.sort((a, b) => {
-    const aVal = (a.charCodeAt(0) * 8 + a.charCodeAt(1) + seed) % 64;
-    const bVal = (b.charCodeAt(0) * 8 + b.charCodeAt(1) + seed) % 64;
-    return aVal - bVal;
-  });
+  return result.sort((a, b) => a.localeCompare(b));
 }
 
 /**

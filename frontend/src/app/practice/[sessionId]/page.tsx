@@ -53,6 +53,7 @@ export default function PracticeGamePage() {
     error,
     setError,
     isStarting,
+    isOpponentThinking,
     playerName,
     isConnected,
     sessionId: storedSessionId,
@@ -236,7 +237,7 @@ export default function PracticeGamePage() {
             {/* Game title - hidden on mobile when compact */}
             <div className={`flex-1 flex items-center justify-center gap-1 min-w-0 ${isHeaderCompact ? 'hidden' : 'flex'} sm:flex`}>
               <span className="text-white font-medium text-sm truncate">
-                {selectedGame.white.shortName} vs {selectedGame.black.shortName}
+                {selectedGame.white.shortName} vs {selectedGame.black.shortName} ({selectedGame.year})
               </span>
               <div className="relative">
                 <button
@@ -411,22 +412,51 @@ export default function PracticeGamePage() {
 
           {/* Main content: board + controls */}
           <div className="flex flex-col lg:flex-row gap-1 lg:gap-3 flex-1 min-h-0 overflow-hidden">
-            {/* Board - constrained to leave room for controls */}
             <div className="flex justify-center flex-shrink-0 lg:flex-1 lg:flex-shrink min-h-0">
-              <div className="w-full max-w-[min(100%,calc(100vh-220px))] lg:max-w-lg">
-              <ChessBoard
-                fen={currentPosition}
-                orientation={boardOrientation}
-                lastMove={
-                  showingOpponentMove && pendingOpponentMove
-                    ? { from: pendingOpponentMove.from, to: pendingOpponentMove.to }
-                    : currentExpectedMove
-                    ? { from: currentExpectedMove.from, to: currentExpectedMove.to }
-                    : undefined
-                }
-              />
+              <div className="w-full max-w-[min(100%,calc(100vh-250px))] lg:max-w-lg flex flex-col justify-center">
+                
+                {/* Top Player Plate (Opponent in One-Side Mode) */}
+                <div className="flex items-center gap-2 px-1 py-1.5 lg:py-2 text-white">
+                  <div className={`w-8 h-8 rounded flex items-center justify-center text-xl bg-slate-700`}>
+                    {boardOrientation === 'white' ? '♚' : '♔'}
+                  </div>
+                  <div className="font-semibold truncate">
+                    {boardOrientation === 'white' ? selectedGame.black.name : selectedGame.white.name}
+                  </div>
+                </div>
+
+                <div className="w-full relative self-center">
+                  {isOpponentThinking && mode === 'one-side' && (
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-purple-400 z-10 animate-tubelight-top pointer-events-none rounded-t-[4px]" style={{ animationDelay: '0.1s' }}></div>
+                  )}
+                  <ChessBoard
+                    fen={currentPosition}
+                    orientation={boardOrientation}
+                    lastMove={
+                      showingOpponentMove && pendingOpponentMove
+                        ? { from: pendingOpponentMove.from, to: pendingOpponentMove.to }
+                        : currentExpectedMove && !isOpponentThinking
+                        ? { from: currentExpectedMove.from, to: currentExpectedMove.to }
+                        : undefined
+                    }
+                  />
+                </div>
+
+                {/* Bottom Player Plate (User in One-Side Mode) */}
+                <div className="flex items-center gap-2 px-1 py-1.5 lg:py-2 text-white">
+                  <div className={`w-8 h-8 rounded flex items-center justify-center text-xl font-bold bg-slate-200 text-slate-800`}>
+                    {boardOrientation === 'white' ? '♔' : '♚'}
+                  </div>
+                  <div className="font-semibold truncate flex items-center gap-2">
+                    {boardOrientation === 'white' ? selectedGame.white.name : selectedGame.black.name}
+                    {mode === 'one-side' && (
+                      <span className="text-xs font-normal bg-purple-600/50 text-purple-200 px-2 py-0.5 rounded">You</span>
+                    )}
+                  </div>
+                </div>
+
+              </div>
             </div>
-          </div>
 
           {/* Control area - voice input on mobile, sidebar on desktop */}
           <div className="flex flex-col gap-1 lg:gap-2 flex-1 min-h-0 lg:w-72 lg:flex-initial">
@@ -434,7 +464,7 @@ export default function PracticeGamePage() {
             <div className="flex-1 lg:flex-initial min-w-0 min-h-0">
               <PracticeVoiceInput
                 onMoveSubmit={handleMoveSubmit}
-                disabled={showingOpponentMove}
+                disabled={showingOpponentMove || isOpponentThinking}
                 showDebugPanel={showDebugPanel}
                 onCloseDebugPanel={() => setShowDebugPanel(false)}
               />

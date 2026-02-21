@@ -8,7 +8,7 @@ import { usePracticeStore } from '@/stores/practiceStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { updateDisplayName } from '@/lib/firebase';
 import { getSocket } from '@/lib/socket';
-import { PracticeMode, PlayerInfo } from '@/types';
+import { PracticeMode, PlayerInfo, HistoricalGame } from '@/types';
 import { PracticeCountdown } from '@/components/PracticeCountdown';
 
 export default function PracticeSelectPage() {
@@ -24,13 +24,15 @@ export default function PracticeSelectPage() {
   const [selectedGameSource, setSelectedGameSource] = useState<'random' | 'player' | null>(null);
   const [showPlayerSelection, setShowPlayerSelection] = useState(false);
   const [playerList, setPlayerList] = useState<{ asWhite: PlayerInfo[]; asBlack: PlayerInfo[] } | null>(null);
+  const [recentPlayers, setRecentPlayers] = useState<string[]>([]);
   const [playerSearch, setPlayerSearch] = useState('');
   const [activeRoleTab, setActiveRoleTab] = useState<'white' | 'black'>('white');
   const [isLoadingPlayers, setIsLoadingPlayers] = useState(false);
+  const [fetchedGameDetails, setFetchedGameDetails] = useState<HistoricalGame | null>(null);
   const hasStartedRef = useRef(false);
   const startTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { startPracticeRandom, startPracticeByPlayer } = usePracticeSocket();
+  const { startPractice, getRandomPracticeGame, getPlayerPracticeGame } = usePracticeSocket();
   const { user, isLoading: authLoading, getIdToken } = useAuth();
   const {
     isConnected,
@@ -51,7 +53,7 @@ export default function PracticeSelectPage() {
   // Countdown state - show countdown when game is ready before navigating
   const [showCountdown, setShowCountdown] = useState(false);
 
-  // Load player name from authenticated user's displayName, or stored name
+  // Load player name and recent players on mount
   useEffect(() => {
     if (user && user.displayName) {
       setPlayerName(user.displayName);
@@ -62,6 +64,13 @@ export default function PracticeSelectPage() {
       setPlayerName(storedPlayerName);
       setHasEnteredName(true);
       setShowModeSelection(true);
+    }
+
+    try {
+      const stored = localStorage.getItem('chess-recent-players');
+      if (stored) setRecentPlayers(JSON.parse(stored));
+    } catch (e) {
+      // Ignored
     }
   }, [user, storedPlayerName, storeSetPlayerName]);
 
@@ -88,47 +97,7 @@ export default function PracticeSelectPage() {
     }
   }, [sessionId, router]);
 
-  // Start practice when mode is selected (or immediately for both-sides)
-  useEffect(() => {
-    const canStart = hasEnteredName &&
-                     isConnected &&
-                     !hasStartedRef.current &&
-                     status === 'idle' &&
-                     !isStarting &&
-                     showModeSelection &&
-                     selectedMode !== null &&
-                     (selectedMode === 'both-sides' || (selectedMode === 'one-side' && selectedColor !== null)) &&
-                     gameSourceSelected &&
-                     selectedGameSource === 'random';
-
-    if (canStart) {
-      // Small delay to ensure listeners are attached after React Strict Mode double-mount
-      const timeout = setTimeout(() => {
-        if (!hasStartedRef.current) {
-          hasStartedRef.current = true;
-          const success = startPracticeRandom(playerName, selectedMode, selectedColor);
-
-          if (success) {
-            // Set timeout for server response - if no response in 8s, show error
-            startTimeoutRef.current = setTimeout(() => {
-              const currentStatus = usePracticeStore.getState().status;
-              const currentIsStarting = usePracticeStore.getState().isStarting;
-
-              if (currentStatus === 'idle' && currentIsStarting) {
-                usePracticeStore.getState().setError('Server did not respond. Please try again.');
-                usePracticeStore.getState().setStarting(false);
-                hasStartedRef.current = false;
-              }
-            }, 8000);
-          } else {
-            // Emit failed (e.g., not connected), allow retry
-            hasStartedRef.current = false;
-          }
-        }
-      }, 100);
-      return () => clearTimeout(timeout);
-    }
-  }, [hasEnteredName, isConnected, status, isStarting, playerName, selectedMode, selectedColor, showModeSelection, gameSourceSelected, selectedGameSource, startPracticeRandom]);
+  // Removed auto-start useEffect - starting is now explicit in button handlers
 
   // Clear timeout when navigating to game or on error
   useEffect(() => {
@@ -206,23 +175,66 @@ export default function PracticeSelectPage() {
     setSelectedMode(mode);
     if (mode === 'both-sides') {
       setSelectedColor(null);
-      // Auto-start will trigger via useEffect
     }
   };
 
   const handleSelectColor = (color: 'white' | 'black') => {
     setSelectedColor(color);
-    // Auto-start will trigger via useEffect
+    if (fetchedGameDetails) {
+      hasStartedRef.current = true;
+      const success = startPractice(fetchedGameDetails.id, playerName, 'one-side', color);
+      if (success) {
+        startTimeoutRef.current = setTimeout(() => {
+          const currentStatus = usePracticeStore.getState().status;
+          const currentIsStarting = usePracticeStore.getState().isStarting;
+          if (currentStatus === 'idle' && currentIsStarting) {
+            usePracticeStore.getState().setError('Server did not respond. Please try again.');
+            usePracticeStore.getState().setStarting(false);
+            hasStartedRef.current = false;
+          }
+        }, 8000);
+      } else {
+        hasStartedRef.current = false;
+      }
+    }
   };
 
   const handleBackToModeSelection = () => {
     setSelectedColor(null);
+    setFetchedGameDetails(null);
   };
 
-  const handleChooseRandom = () => {
+  const handleChooseRandom = async () => {
     setSelectedGameSource('random');
     setGameSourceSelected(true);
-    // useEffect will pick this up and call startPracticeRandom
+    usePracticeStore.getState().setStarting(true);
+    try {
+      const game = await getRandomPracticeGame();
+      setFetchedGameDetails(game);
+      usePracticeStore.getState().setStarting(false);
+      
+      if (selectedMode === 'both-sides') {
+        hasStartedRef.current = true;
+        const success = startPractice(game.id, playerName, 'both-sides', null);
+        if (success) {
+          startTimeoutRef.current = setTimeout(() => {
+            const currentStatus = usePracticeStore.getState().status;
+            const currentIsStarting = usePracticeStore.getState().isStarting;
+            if (currentStatus === 'idle' && currentIsStarting) {
+              usePracticeStore.getState().setError('Server did not respond. Please try again.');
+              usePracticeStore.getState().setStarting(false);
+              hasStartedRef.current = false;
+            }
+          }, 8000);
+        } else {
+          hasStartedRef.current = false;
+        }
+      }
+    } catch (err) {
+      usePracticeStore.getState().setError(err instanceof Error ? err.message : 'Failed to fetch game');
+      usePracticeStore.getState().setStarting(false);
+      setGameSourceSelected(false);
+    }
   };
 
   const handleChoosePlayer = () => {
@@ -237,22 +249,42 @@ export default function PracticeSelectPage() {
     socket.emit('get-player-list');
   };
 
-  const handleSelectPlayer = (historicalPlayerName: string, role: 'white' | 'black') => {
-    hasStartedRef.current = true;
+  const handleSelectPlayer = async (historicalPlayerName: string, role: 'white' | 'black') => {
+    try {
+      const updatedRecent = [historicalPlayerName, ...recentPlayers.filter(p => p !== historicalPlayerName)].slice(0, 5);
+      setRecentPlayers(updatedRecent);
+      localStorage.setItem('chess-recent-players', JSON.stringify(updatedRecent));
+    } catch (e) {
+      // Ignored
+    }
+
     setShowPlayerSelection(false);
-    const success = startPracticeByPlayer(playerName, historicalPlayerName, role, selectedMode!, selectedColor);
-    if (success) {
-      startTimeoutRef.current = setTimeout(() => {
-        const currentStatus = usePracticeStore.getState().status;
-        const currentIsStarting = usePracticeStore.getState().isStarting;
-        if (currentStatus === 'idle' && currentIsStarting) {
-          usePracticeStore.getState().setError('Server did not respond. Please try again.');
-          usePracticeStore.getState().setStarting(false);
+    usePracticeStore.getState().setStarting(true);
+    try {
+      const game = await getPlayerPracticeGame(historicalPlayerName, role);
+      setFetchedGameDetails(game);
+      usePracticeStore.getState().setStarting(false);
+      
+      if (selectedMode === 'both-sides') {
+        hasStartedRef.current = true;
+        const success = startPractice(game.id, playerName, 'both-sides', null);
+        if (success) {
+          startTimeoutRef.current = setTimeout(() => {
+            const currentStatus = usePracticeStore.getState().status;
+            const currentIsStarting = usePracticeStore.getState().isStarting;
+            if (currentStatus === 'idle' && currentIsStarting) {
+              usePracticeStore.getState().setError('Server did not respond. Please try again.');
+              usePracticeStore.getState().setStarting(false);
+              hasStartedRef.current = false;
+            }
+          }, 8000);
+        } else {
           hasStartedRef.current = false;
         }
-      }, 8000);
-    } else {
-      hasStartedRef.current = false;
+      }
+    } catch (err) {
+      usePracticeStore.getState().setError(err instanceof Error ? err.message : 'Failed to fetch game');
+      usePracticeStore.getState().setStarting(false);
       setShowPlayerSelection(true);
     }
   };
@@ -341,13 +373,25 @@ export default function PracticeSelectPage() {
   }
 
   // Color selection for one-side mode
-  if (showModeSelection && selectedMode === 'one-side' && selectedColor === null && status === 'idle') {
+  if (showModeSelection && selectedMode === 'one-side' && fetchedGameDetails && selectedColor === null && status === 'idle') {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
         <div className="max-w-md md:max-w-2xl lg:max-w-4xl w-full">
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <h1 className="text-4xl font-bold text-white mb-2">Choose Your Side</h1>
             <p className="text-slate-400">Play as White or Black</p>
+          </div>
+          
+          <div className="bg-slate-800 rounded-2xl shadow-xl p-6 mb-6">
+            <h3 className="text-xl font-bold text-white mb-1">
+              {fetchedGameDetails.white.name} vs {fetchedGameDetails.black.name} ({fetchedGameDetails.year})
+            </h3>
+            <p className="text-slate-400 text-sm mb-4">
+              {fetchedGameDetails.title} • {fetchedGameDetails.event}
+            </p>
+            <div className="inline-block bg-slate-700 rounded-lg px-3 py-1 text-sm font-medium text-slate-300">
+              Result: {fetchedGameDetails.result}
+            </div>
           </div>
 
           <div className="bg-slate-800 rounded-2xl shadow-xl p-6">
@@ -369,10 +413,15 @@ export default function PracticeSelectPage() {
             </div>
 
             <button
-              onClick={() => setSelectedMode(null)}
+              onClick={() => {
+                setFetchedGameDetails(null);
+                setSelectedColor(null);
+                setSelectedGameSource(null);
+                setGameSourceSelected(false);
+              }}
               className="w-full py-3 px-6 bg-slate-700 hover:bg-slate-600 text-slate-300 font-medium rounded-lg transition-all"
             >
-              Back to Mode Selection
+              Back to Game Selection
             </button>
           </div>
         </div>
@@ -381,9 +430,25 @@ export default function PracticeSelectPage() {
   }
 
   // Player selection screen
-  if (showPlayerSelection) {
+  if (showPlayerSelection && !fetchedGameDetails) {
     const currentList = activeRoleTab === 'white' ? (playerList?.asWhite ?? []) : (playerList?.asBlack ?? []);
-    const filtered = currentList.filter((p) =>
+    
+    // Sort logic
+    const sorted = [...currentList].sort((a, b) => {
+      const aRecentIdx = recentPlayers.indexOf(a.name);
+      const bRecentIdx = recentPlayers.indexOf(b.name);
+      
+      const aIsRecent = aRecentIdx !== -1;
+      const bIsRecent = bRecentIdx !== -1;
+      
+      if (aIsRecent && !bIsRecent) return -1;
+      if (!aIsRecent && bIsRecent) return 1;
+      if (aIsRecent && bIsRecent) return aRecentIdx - bRecentIdx;
+      
+      return b.gameCount - a.gameCount;
+    });
+
+    const filtered = sorted.filter((p) =>
       p.name.toLowerCase().includes(playerSearch.toLowerCase()) ||
       p.shortName.toLowerCase().includes(playerSearch.toLowerCase())
     );
@@ -444,6 +509,11 @@ export default function PracticeSelectPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-semibold text-slate-100">{player.name}</span>
+                        {recentPlayers.includes(player.name) && (
+                          <span className="text-[10px] bg-slate-600 text-slate-300 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                            Recent
+                          </span>
+                        )}
                         <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full whitespace-nowrap">
                           {player.gameCount} {player.gameCount === 1 ? 'game' : 'games'}
                         </span>
@@ -477,9 +547,9 @@ export default function PracticeSelectPage() {
     );
   }
 
-  // Game source selection screen (after mode/color, before game start)
+  // Game source selection screen (after mode, before game start)
   if (showModeSelection && status === 'idle' && !hasStartedRef.current && !gameSourceSelected &&
-      selectedMode !== null && (selectedMode === 'both-sides' || selectedColor !== null)) {
+      selectedMode !== null && !fetchedGameDetails) {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
         <div className="max-w-md md:max-w-2xl lg:max-w-4xl w-full">
@@ -619,6 +689,7 @@ export default function PracticeSelectPage() {
     setShowPlayerSelection(false);
     setPlayerList(null);
     setPlayerSearch('');
+    setFetchedGameDetails(null);
   };
 
   // Show countdown when game is ready

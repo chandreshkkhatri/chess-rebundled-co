@@ -50,6 +50,9 @@ interface PracticeState {
   // Starting session state (pending server response)
   isStarting: boolean;
 
+  // Opponent delay
+  isOpponentThinking: boolean;
+
   // Error state
   error: string | null;
 
@@ -80,6 +83,7 @@ interface PracticeState {
   setCompleted: (data: PracticeCompletedData, gamification?: GamificationResult) => void;
   setSubmitting: (isSubmitting: boolean) => void;
   setStarting: (isStarting: boolean) => void;
+  setOpponentThinking: (isThinking: boolean) => void;
   setError: (error: string | null) => void;
   setAIParseResult: (result: AIParsedMoveResult | null) => void;
   setAIParseError: (error: string | null) => void;
@@ -115,6 +119,7 @@ const initialState = {
   gamificationResult: null as GamificationResult | null,
   isSubmitting: false,
   isStarting: false,
+  isOpponentThinking: false,
   error: null as string | null,
   mode: 'both-sides' as PracticeMode,
   playerColor: null as 'white' | 'black' | null,
@@ -158,6 +163,7 @@ export const usePracticeStore = create<PracticeState>()(
           completedData: null,
           isSubmitting: false,
           isStarting: false,
+          isOpponentThinking: false,
           error: null,
           mode: data.mode,
           playerColor: data.playerColor,
@@ -194,6 +200,8 @@ export const usePracticeStore = create<PracticeState>()(
       setSubmitting: (isSubmitting) => set({ isSubmitting }),
 
       setStarting: (isStarting) => set({ isStarting }),
+
+      setOpponentThinking: (isThinking) => set({ isOpponentThinking: isThinking }),
 
       setError: (error) => set({ error, isStarting: false }),
 
@@ -243,6 +251,7 @@ export const usePracticeStore = create<PracticeState>()(
           gamificationResult: null,
           isSubmitting: false,
           isStarting: false,
+          isOpponentThinking: false,
           error: null,
           mode: data.mode,
           playerColor: data.playerColor,

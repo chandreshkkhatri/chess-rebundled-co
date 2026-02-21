@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
+import { Chess } from 'chess.js';
 import { getSocket, connectSocket, setAuthToken } from '@/lib/socket';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { trackEvent } from '@/lib/analytics';
@@ -11,6 +12,7 @@ import {
   AIParsedMoveResult,
   PracticeMoveResponseData,
   SessionResumedData,
+  HistoricalGame,
 } from '@/types';
 
 // Track if listeners have been attached (module-level, survives remounts)
@@ -140,13 +142,52 @@ export function usePracticeSocket() {
             newAchievements: data.gamification?.newAchievements.length,
           });
         } else if (data.nextMove) {
-          store.updatePosition({
-            position: data.nextMove.position,
-            currentMoveIndex: data.nextMove.currentMoveIndex,
-            currentSide: data.nextMove.currentSide,
-            expectedMove: data.nextMove.expectedMove,
-            opponentMove: data.nextMove.opponentMove,
-          });
+          if (data.nextMove.opponentMove && data.result.isCorrect) {
+            try {
+              const chess = new Chess(store.currentPosition);
+              chess.move(data.result.expectedMove);
+              const intermediatePosition = chess.fen();
+              
+              store.updatePosition({
+                position: intermediatePosition,
+                currentMoveIndex: store.currentMoveIndex,
+                currentSide: store.currentSide === 'white' ? 'black' : 'white',
+                expectedMove: store.currentExpectedMove!,
+                // No opponentMove yet for the intermediate state
+              });
+              
+              store.setOpponentThinking(true);
+              
+              setTimeout(() => {
+                const currentStore = usePracticeStore.getState();
+                currentStore.updatePosition({
+                  position: data.nextMove!.position,
+                  currentMoveIndex: data.nextMove!.currentMoveIndex,
+                  currentSide: data.nextMove!.currentSide,
+                  expectedMove: data.nextMove!.expectedMove,
+                  opponentMove: data.nextMove!.opponentMove,
+                });
+                currentStore.setOpponentThinking(false);
+              }, 2000);
+            } catch (e) {
+              console.error("Failed to calculate intermediate position for animation", e);
+              store.updatePosition({
+                position: data.nextMove.position,
+                currentMoveIndex: data.nextMove.currentMoveIndex,
+                currentSide: data.nextMove.currentSide,
+                expectedMove: data.nextMove.expectedMove,
+                opponentMove: data.nextMove.opponentMove,
+              });
+            }
+          } else {
+            store.updatePosition({
+              position: data.nextMove.position,
+              currentMoveIndex: data.nextMove.currentMoveIndex,
+              currentSide: data.nextMove.currentSide,
+              expectedMove: data.nextMove.expectedMove,
+              opponentMove: data.nextMove.opponentMove,
+            });
+          }
         }
       });
 
@@ -215,9 +256,15 @@ export function usePracticeSocket() {
     playerName: string,
     mode: PracticeMode = 'both-sides',
     playerColor: 'white' | 'black' | null = null
-  ) => {
+  ): boolean => {
     const socket = getSocket();
+    if (!socket.connected) {
+      usePracticeStore.getState().setError('Not connected to server. Please refresh the page.');
+      return false;
+    }
+    usePracticeStore.getState().setStarting(true);
     socket.emit('start-practice', { gameId, playerName, mode, playerColor });
+    return true;
   }, []);
 
   const startPracticeRandom = useCallback((
@@ -256,6 +303,56 @@ export function usePracticeSocket() {
     usePracticeStore.getState().setStarting(true);
     socket.emit('start-practice-by-player', { playerName, historicalPlayerName, role, mode, playerColor: playerColor ?? undefined });
     return true;
+  }, []);
+
+  const getRandomPracticeGame = useCallback((): Promise<HistoricalGame> => {
+    return new Promise((resolve, reject) => {
+      const socket = getSocket();
+      if (!socket.connected) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+      
+      const onDetails = (game: HistoricalGame) => {
+        socket.off('practice-error', onError);
+        resolve(game);
+      };
+      
+      const onError = (data: { message: string }) => {
+        socket.off('practice-game-details', onDetails);
+        reject(new Error(data.message));
+      };
+      
+      socket.once('practice-game-details', onDetails);
+      socket.once('practice-error', onError);
+      
+      socket.emit('get-random-practice-game');
+    });
+  }, []);
+
+  const getPlayerPracticeGame = useCallback((historicalPlayerName: string, role: 'white' | 'black'): Promise<HistoricalGame> => {
+    return new Promise((resolve, reject) => {
+      const socket = getSocket();
+      if (!socket.connected) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+      
+      const onDetails = (game: HistoricalGame) => {
+        socket.off('practice-error', onError);
+        resolve(game);
+      };
+      
+      const onError = (data: { message: string }) => {
+        socket.off('practice-game-details', onDetails);
+        reject(new Error(data.message));
+      };
+      
+      socket.once('practice-game-details', onDetails);
+      socket.once('practice-error', onError);
+      
+      socket.emit('get-player-practice-game', { historicalPlayerName, role });
+    });
   }, []);
 
   const submitPracticeMove = useCallback((sessionId: string, move: string) => {
@@ -327,5 +424,7 @@ export function usePracticeSocket() {
     parseMoveWithAI,
     parseAudioMoveWithGemini,
     resumeSession,
+    getRandomPracticeGame,
+    getPlayerPracticeGame,
   };
 }
