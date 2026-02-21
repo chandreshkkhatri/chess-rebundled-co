@@ -12,11 +12,11 @@ import type { TimeControl } from '@/types/multiplayer';
 const TIME_CONTROLS: { label: string; description: string; value: TimeControl | null | 'any' }[] = [
   { label: 'Any', description: 'Match anything', value: 'any' },
   { label: 'No Clock', description: 'Untimed game', value: null },
-  { label: '10 min', description: 'Standard', value: { initialTimeMs: 600_000, incrementMs: 0 } },
+  { label: '15+10', description: 'Rapid', value: { initialTimeMs: 900_000, incrementMs: 10_000 } },
+  { label: '10 min', description: 'Rapid', value: { initialTimeMs: 600_000, incrementMs: 0 } },
+  { label: '5+5', description: 'Blitz', value: { initialTimeMs: 300_000, incrementMs: 5_000 } },
   { label: '5 min', description: 'Blitz', value: { initialTimeMs: 300_000, incrementMs: 0 } },
-  { label: '3 min', description: 'Blitz', value: { initialTimeMs: 180_000, incrementMs: 0 } },
-  { label: '3+2', description: 'Blitz w/ increment', value: { initialTimeMs: 180_000, incrementMs: 2_000 } },
-  { label: '1 min', description: 'Bullet', value: { initialTimeMs: 60_000, incrementMs: 0 } },
+  { label: '3+2', description: 'Blitz', value: { initialTimeMs: 180_000, incrementMs: 2_000 } },
 ];
 
 function tcKey(tc: TimeControl | null | 'any'): string {
