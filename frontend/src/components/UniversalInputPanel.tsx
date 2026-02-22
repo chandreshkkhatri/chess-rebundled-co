@@ -647,7 +647,7 @@ export function UniversalInputPanel({
         </div>
 
         {/* ZONE 2: Staged Selection Grid (flex-1) - Always reserves space */}
-        <div className={`flex-1 min-h-0 overflow-y-auto ${tapGridEnabled && isActive ? '' : 'invisible'}`}>
+        <div className={`flex-1 min-h-0 ${tapGridEnabled && isActive ? '' : 'invisible'}`}>
           <div className="w-full">
             {/* Stage header with back button */}
             <div className="flex items-center justify-between mb-1">
@@ -686,7 +686,7 @@ export function UniversalInputPanel({
                     onClick={() => option !== '—' && handleStageOptionSelect(option)}
                     disabled={isSubmitting || option === '—'}
                     aria-label={stageState.stage === 'piece' ? getPieceAriaLabel(option) : option}
-                    className={`py-2 px-0.5 rounded font-mono transition-all border min-h-[44px] flex flex-col items-center justify-center ${
+                    className={`py-1 sm:py-2 px-0.5 rounded font-mono transition-all border min-h-[36px] sm:min-h-[44px] flex flex-col items-center justify-center ${
                       option.length > 4 ? 'text-xs' : option.length > 3 ? 'text-[13px]' : 'text-sm'
                     } ${
                       wrongTap === option
