@@ -112,7 +112,7 @@ function BotPlayContent() {
   };
 
   return (
-    <div className="flex flex-col h-full w-full p-2 lg:p-4 overflow-hidden bg-slate-950/20">
+    <div className="flex flex-col h-[calc(100vh-[56px])] w-full p-2 lg:p-4 overflow-hidden bg-slate-950/20">
       {/* Header - Compact */}
       <div className="flex justify-between items-center mb-2 shrink-0 px-2 font-mono">
         <button 
@@ -131,12 +131,12 @@ function BotPlayContent() {
       </div>
 
       {/* Game Layout - 3 columns on large screens, stacked on mobile */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-2 lg:gap-3 xl:gap-4 lg:justify-center min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row gap-2 lg:gap-3 xl:gap-4 lg:justify-center min-h-0 lg:max-h-[calc(100vh-140px)] overflow-hidden">
         
         {/* 1. Main Game Section (Left / Top) */}
-        <div className="flex justify-center flex-shrink-0 lg:flex-none lg:w-[calc(100vh-220px)] xl:w-[calc(100vh-140px)] min-h-0 min-w-0">
-          {/* Shrunk the max-width bounds to prevent vertical overflow on smaller screens */}
-          <div className="w-full max-w-[min(100%,calc(100vh-340px))] lg:max-w-full flex flex-col justify-center gap-1">
+        {/* Reduced max widths to absolutely guarantee no scrolling on any desktop viewport */}
+        <div className="flex justify-center flex-shrink-0 lg:flex-none lg:w-[calc(100vh-280px)] xl:w-[calc(100vh-200px)] min-h-0 min-w-0">
+          <div className="w-full max-w-[min(100%,calc(100vh-380px))] lg:max-w-full flex flex-col justify-center gap-1">
             
             {/* Top Plate - Stockfish */}
             <div className="flex items-center justify-between px-1 text-white">
@@ -210,7 +210,7 @@ function BotPlayContent() {
         <div className="h-[180px] w-full lg:h-auto lg:w-[240px] xl:w-[280px] shrink-0 lg:border-none lg:bg-transparent rounded-2xl p-1 lg:p-0">
            {/* Pulled tight to the board horizontally and vertically */}
            <div className="h-full flex flex-col justify-start lg:pt-8 xl:pt-10">
-             <div className="h-full lg:h-auto lg:max-h-[220px] xl:max-h-[260px] shadow-2xl lg:shadow-none bg-slate-900/40 lg:bg-transparent border lg:border-none border-slate-800/50 rounded-2xl">
+             <div className="h-full lg:h-auto lg:max-h-[220px] shadow-2xl lg:shadow-none bg-slate-900/40 lg:bg-transparent border lg:border-none border-slate-800/50 rounded-2xl">
                <UniversalInputPanel 
                 fen={fen}
                 isActive={moveState === 'human-thinking' || (moveState === 'idle' && !isGameOver)}
@@ -231,7 +231,7 @@ function BotPlayContent() {
         </div>
 
         {/* 3. Sidebar Section (Right on Desktop, Middle on Mobile) */}
-        <div className="flex-1 lg:max-w-[300px] xl:max-w-[350px] flex flex-col min-h-[100px] lg:min-h-0 shrink-0">
+        <div className="flex-1 lg:max-w-[280px] xl:max-w-[320px] flex flex-col min-h-[100px] lg:min-h-0 lg:max-h-full shrink-0">
            <div className="flex-1 bg-slate-900/40 rounded-2xl border border-slate-800/50 flex flex-col min-h-0 overflow-hidden shadow-2xl">
               <div className="px-4 py-2 border-b border-slate-800/50 flex justify-between items-center bg-slate-800/30">
                 <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Log</h3>
