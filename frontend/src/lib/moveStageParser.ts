@@ -326,12 +326,12 @@ export function getDestinationOptionsWithDistractors(
     return legalDestinations;
   }
 
-  // For piece moves: fill up to maxOptions with distractors
+  // For piece moves: if there are already more legal destinations than maxOptions,
+  // return all of them without truncation to avoid hiding the correct move.
   const distractorBudget = Math.max(0, maxOptions - legalDestinations.length);
 
   if (distractorBudget === 0) {
-    // Already at or over max, just return legal destinations (truncated if needed)
-    return legalDestinations.slice(0, maxOptions);
+    return legalDestinations.sort((a, b) => a.localeCompare(b));
   }
 
   // Collect distractors up to budget
