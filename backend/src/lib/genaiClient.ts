@@ -39,7 +39,8 @@ function buildVertexOptions(): GoogleGenAIOptions {
   // (b) Service-account mode.
   const options: GoogleGenAIOptions = {
     vertexai: true,
-    project: process.env.GOOGLE_CLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID,
+    project:
+      process.env.GOOGLE_CLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID,
     location: process.env.GOOGLE_CLOUD_LOCATION,
   };
 
@@ -51,7 +52,7 @@ function buildVertexOptions(): GoogleGenAIOptions {
 
   if (clientEmail && privateKey) {
     options.googleAuthOptions = {
-      credentials: { client_email: clientEmail, private_key: privateKey },
+      credentials: { client_email: moclientEmail, private_key: privateKey },
     };
   }
 

@@ -17,7 +17,6 @@ import { AchievementToastContainer } from '@/components/AchievementToast';
 import { useAppConfig } from '@/hooks/useAppConfig';
 import { useStockfish } from '@/hooks/useStockfish';
 import { Chess } from 'chess.js';
-import { AICasterPanel } from '@/components/AICasterPanel';
 
 // Debug flag - matches PracticeVoiceInput
 const DEBUG_AUDIO = process.env.NODE_ENV !== 'production';
@@ -308,8 +307,8 @@ export default function PracticeGamePage() {
   }
 
   return (
-    <main className="h-dvh flex flex-col pt-2 lg:pt-12 px-2 pb-2 overflow-hidden">
-      <div className="max-w-6xl mx-auto w-full flex flex-col flex-1 min-h-0">
+    <main className="h-dvh flex flex-col pt-2 lg:pt-8 px-2 lg:px-4 pb-2 lg:pb-4 overflow-hidden">
+      <div className="max-w-7xl mx-auto w-full flex flex-col flex-1 min-h-0">
         {/* Header with integrated progress */}
         <div className="bg-slate-800 rounded-lg py-1 px-2 mb-1 lg:mb-3">
           <div className="flex items-center justify-between gap-2">
@@ -518,10 +517,10 @@ export default function PracticeGamePage() {
             </div>
           </div>
 
-          {/* Main content: board + controls */}
-          <div className="flex flex-col lg:flex-row gap-1 lg:gap-3 flex-1 min-h-0 overflow-hidden">
-            <div className="flex justify-center flex-shrink-0 lg:flex-1 lg:flex-shrink min-h-0">
-              <div className="w-full max-w-[min(100%,calc(100vh-250px))] lg:max-w-lg flex flex-col justify-center">
+          {/* Main content: board + practice controls */}
+          <div className="flex flex-col lg:flex-row gap-1 lg:gap-4 flex-1 min-h-0 overflow-hidden">
+            <div className="flex justify-center flex-shrink-0 lg:flex-[1.15] lg:flex-shrink min-h-0">
+              <div className="w-full max-w-[min(100%,calc(100vh-250px))] lg:max-w-[min(58vh,620px)] xl:max-w-[min(64vh,700px)] flex flex-col justify-center">
                 
                 {/* Top Player Plate (Opponent in One-Side Mode) */}
                 <div className="flex items-center gap-2 px-1 py-1.5 lg:py-2 text-white">
@@ -570,10 +569,10 @@ export default function PracticeGamePage() {
               </div>
             </div>
 
-          {/* Control area - voice input on mobile, sidebar on desktop */}
-          <div className="flex flex-col gap-1 lg:gap-2 flex-1 min-h-0 lg:w-72 lg:flex-initial">
-            {/* Voice input - full width on mobile */}
-            <div className="flex-1 lg:flex-initial min-w-0 min-h-0">
+          {/* Control area - voice input stays primary; supporting details remain compact. */}
+          <div className="flex flex-col gap-1 lg:gap-2 flex-1 min-h-0 lg:w-[360px] xl:w-[410px] lg:flex-initial">
+            {/* Voice input - full width on mobile, dominant panel on desktop */}
+            <div className="flex-1 min-w-0 min-h-0 lg:min-h-[360px]">
               <PracticeVoiceInput
                 onMoveSubmit={handleMoveSubmit}
                 disabled={showingOpponentMove || isOpponentThinking}
@@ -585,7 +584,7 @@ export default function PracticeGamePage() {
               />
             </div>
 
-            {/* Move History - hidden on mobile, visible on desktop */}
+            {/* Move History - hidden on mobile, compact on desktop */}
             <div className="hidden lg:flex lg:flex-initial bg-slate-800 rounded-lg p-1.5 min-h-0 flex-col">
               <h3 className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
                 Moves
@@ -596,17 +595,17 @@ export default function PracticeGamePage() {
                 playerColor={playerColor}
                 variant="compact"
                 theme="dark"
-                maxHeight="max-h-32"
+                maxHeight="max-h-28"
               />
             </div>
 
-            {/* Historical Insights - desktop only */}
+            {/* Historical Insights - desktop only, compact supporting context */}
             {selectedGame.trivia && selectedGame.trivia.length > 0 && (
               <div className="hidden lg:flex lg:flex-initial bg-slate-800 rounded-lg p-3 min-h-0 flex-col border border-slate-700/50">
                 <h3 className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
-                  📖 Historical Insights
+                  Historical Insights
                 </h3>
-                <div className="space-y-2 overflow-y-auto max-h-[160px] pr-1">
+                <div className="space-y-2 overflow-y-auto max-h-[110px] pr-1">
                   {unlockedTrivia.map((item, idx) => (
                     <div 
                       key={idx} 
@@ -629,10 +628,6 @@ export default function PracticeGamePage() {
                 </div>
               </div>
             )}
-            {/* AI Streamer Caster Commentary - desktop only */}
-            <div className="hidden lg:block">
-              <AICasterPanel moves={moveResults.filter(r => r.isCorrect).map(r => r.expectedMove)} fen={currentPosition} />
-            </div>
           </div>
           </div>
         </div>
