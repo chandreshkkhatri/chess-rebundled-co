@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-export type BotDifficulty = 'easy' | 'medium' | 'hard';
+export type BotDifficulty = 'easy' | 'medium' | 'hard' | 'expert';
 
 export interface BotConfig {
   skillLevel: number;
@@ -9,9 +9,10 @@ export interface BotConfig {
 }
 
 export const DIFFICULTY_MAP: Record<BotDifficulty, BotConfig> = {
-  easy: { skillLevel: 0, depth: 5, moveTime: 1000 },
+  easy:   { skillLevel: 0,  depth: 5,  moveTime: 1000 },
   medium: { skillLevel: 10, depth: 10, moveTime: 2000 },
-  hard: { skillLevel: 20, depth: 15, moveTime: 3000 },
+  hard:   { skillLevel: 15, depth: 15, moveTime: 3000 },
+  expert: { skillLevel: 20, depth: 20, moveTime: 5000 },
 };
 
 export function useStockfish() {

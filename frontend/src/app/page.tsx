@@ -6,6 +6,14 @@ import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { PageLayout } from '@/components/PageLayout';
+import { useEffect, useState } from 'react';
+
+interface QuickStats {
+  streak: number;
+  totalXp: number;
+  overallAccuracy: number;
+  totalSessions: number;
+}
 
 export default function Home() {
   const router = useRouter();
@@ -13,8 +21,34 @@ export default function Home() {
   // Initialize socket connection
   usePracticeSocket();
 
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, getIdToken } = useAuth();
   const { isConnected } = usePracticeStore();
+  const [quickStats, setQuickStats] = useState<QuickStats | null>(null);
+
+  // Fetch lightweight profile stats for the dashboard banner
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const token = await getIdToken();
+        if (!token) return;
+        const apiUrl = process.env.NEXT_PUBLIC_SOCKET_URL || '';
+        const res = await fetch(`${apiUrl}/api/user/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setQuickStats({
+          streak: data.gamification?.streaks?.currentStreak ?? 0,
+          totalXp: data.gamification?.totalXp ?? 0,
+          overallAccuracy: data.stats?.overallAccuracy ?? 0,
+          totalSessions: data.stats?.totalSessions ?? 0,
+        });
+      } catch {
+        // Non-critical — silently ignore
+      }
+    })();
+  }, [user, getIdToken]);
 
   // Loading state
   if (isLoading) {
@@ -38,12 +72,40 @@ export default function Home() {
       <PageLayout>
         <div className="flex items-center justify-center p-4 py-8">
           <div className="max-w-md md:max-w-2xl lg:max-w-4xl w-full">
-            <div className="text-center mb-8">
+            <div className="text-center mb-6">
               <h1 className="text-4xl font-bold text-white mb-2">Chess Rebundled</h1>
               <p className="text-slate-400">
                 Welcome back, <span className="text-white font-semibold">{displayName}</span>!
               </p>
             </div>
+
+            {/* Quick Stats Banner */}
+            {quickStats && (
+              <div className="grid grid-cols-4 gap-2 mb-6">
+                <div className="bg-slate-800/60 rounded-xl p-3 text-center border border-slate-700/50">
+                  <p className="text-xl font-black text-orange-400">
+                    {quickStats.streak > 0 ? `🔥 ${quickStats.streak}` : '—'}
+                  </p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">Streak</p>
+                </div>
+                <div className="bg-slate-800/60 rounded-xl p-3 text-center border border-slate-700/50">
+                  <p className="text-xl font-black text-purple-400">{quickStats.totalXp.toLocaleString()}</p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">XP</p>
+                </div>
+                <div className="bg-slate-800/60 rounded-xl p-3 text-center border border-slate-700/50">
+                  <p className="text-xl font-black text-green-400">
+                    {quickStats.totalSessions > 0
+                      ? `${(quickStats.overallAccuracy * 100).toFixed(0)}%`
+                      : '—'}
+                  </p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">Accuracy</p>
+                </div>
+                <div className="bg-slate-800/60 rounded-xl p-3 text-center border border-slate-700/50">
+                  <p className="text-xl font-black text-blue-400">{quickStats.totalSessions}</p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">Sessions</p>
+                </div>
+              </div>
+            )}
 
             {/* Action cards */}
             <div className="grid md:grid-cols-3 gap-4 mb-6">

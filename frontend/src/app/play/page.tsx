@@ -45,8 +45,22 @@ function formatTCLabel(key: string): string {
 
 type LobbyTab = 'find' | 'invite' | 'join' | 'bot';
 
-export type BotDifficulty = 'easy' | 'medium' | 'hard';
+export type BotDifficulty = 'easy' | 'medium' | 'hard' | 'expert';
 export type PlayerColorPreference = 'white' | 'black' | 'random';
+
+const BOT_DIFFICULTIES: {
+  id: BotDifficulty;
+  label: string;
+  icon: string;
+  description: string;
+  skillLabel: string;
+  color: string;
+}[] = [
+  { id: 'easy',   label: 'Easy',   icon: '🐣', description: 'Great for beginners',       skillLabel: 'Stockfish Lvl 0',  color: 'border-green-600  bg-green-900/20  text-green-300'  },
+  { id: 'medium', label: 'Medium', icon: '⚔️', description: 'A solid challenge',          skillLabel: 'Stockfish Lvl 10', color: 'border-yellow-600 bg-yellow-900/20 text-yellow-300' },
+  { id: 'hard',   label: 'Hard',   icon: '🔥', description: 'For experienced players',   skillLabel: 'Stockfish Lvl 15', color: 'border-orange-600 bg-orange-900/20 text-orange-300' },
+  { id: 'expert', label: 'Expert', icon: '💀', description: 'Brutal — near-perfect play', skillLabel: 'Stockfish Lvl 20', color: 'border-red-600    bg-red-900/20    text-red-300'    },
+];
 
 export default function PlayLobbyPage() {
   const router = useRouter();
@@ -394,28 +408,32 @@ export default function PlayLobbyPage() {
             {/* Bot Configuration Options */}
             {tab === 'bot' && (
               <div className="mb-6 space-y-6">
+                {/* Difficulty picker */}
                 <div>
                   <h3 className="text-sm font-medium text-slate-300 mb-3">Difficulty</h3>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['easy', 'medium', 'hard'] as const).map((level) => (
+                  <div className="grid grid-cols-2 gap-2">
+                    {BOT_DIFFICULTIES.map((d) => (
                       <button
-                        key={level}
-                        onClick={() => setBotDifficulty(level)}
-                        className={`p-3 rounded-lg border-2 text-center transition-all ${
-                          botDifficulty === level
-                            ? 'border-purple-500 bg-purple-900/30'
-                            : 'border-slate-600 hover:border-slate-500'
+                        key={d.id}
+                        onClick={() => setBotDifficulty(d.id)}
+                        className={`p-3 rounded-xl border-2 text-left transition-all ${
+                          botDifficulty === d.id
+                            ? d.color
+                            : 'border-slate-600 hover:border-slate-500 bg-transparent text-slate-300'
                         }`}
                       >
-                        <div className="font-semibold text-slate-100 text-sm capitalize">{level}</div>
-                        <div className="text-[10px] text-slate-400 mt-1">
-                          {level === 'easy' ? 'Stockfish Lvl 0' : level === 'medium' ? 'Stockfish Lvl 10' : 'Stockfish Lvl 20'}
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-lg leading-none">{d.icon}</span>
+                          <span className="font-bold text-sm">{d.label}</span>
                         </div>
+                        <p className="text-[10px] text-slate-400 leading-tight">{d.description}</p>
+                        <p className="text-[9px] font-mono text-slate-600 mt-1">{d.skillLabel}</p>
                       </button>
                     ))}
                   </div>
                 </div>
 
+                {/* Color picker */}
                 <div>
                   <h3 className="text-sm font-medium text-slate-300 mb-3">Your Color</h3>
                   <div className="grid grid-cols-3 gap-2">
@@ -423,16 +441,16 @@ export default function PlayLobbyPage() {
                       <button
                         key={color}
                         onClick={() => setBotColor(color)}
-                        className={`p-3 rounded-lg border-2 flex flex-col items-center justify-center transition-all ${
+                        className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition-all ${
                           botColor === color
-                            ? 'border-purple-500 bg-purple-900/30'
-                            : 'border-slate-600 hover:border-slate-500'
+                            ? 'border-purple-500 bg-purple-900/30 text-purple-200'
+                            : 'border-slate-600 hover:border-slate-500 text-slate-300'
                         }`}
                       >
-                        <div className="text-2xl mb-1">
+                        <span className="text-2xl leading-none">
                           {color === 'white' ? '♔' : color === 'black' ? '♚' : '🎲'}
-                        </div>
-                        <div className="font-semibold text-slate-100 text-sm capitalize">{color}</div>
+                        </span>
+                        <span className="font-semibold text-xs capitalize">{color}</span>
                       </button>
                     ))}
                   </div>

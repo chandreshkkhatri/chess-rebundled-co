@@ -182,3 +182,24 @@ Brings bot play and practice mode sidebar commentary to life with an active simu
 *   **Twitch-style Formatting**: Chatters are color-coded with Twitch username colors and equip custom badges (Mod `🛡️`, Sub `⭐`, VIP `💎`).
 *   **Interactive Input Box**: The user can type and submit their own messages into the chat, which triggers automated replies from the simulated chatters.
 
+---
+
+## 🎯 10. UX Polish — Iteration 12
+
+### Enriched Practice History Cards ([history/page.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/history/page.tsx))
+*   **Accuracy Progress Bar**: Each session card now shows a color-coded horizontal bar (green ≥80%, yellow ≥50%, red below) that visually conveys performance at a glance.
+*   **Relative Timestamps**: Dates now display as human-readable relative strings ("2 days ago", "just now", "yesterday") making history feel current.
+*   **Side & Mode Badges**: Pill badges show which colour the player practised as (♔ White / ♚ Black) and whether it was a Both-Sides or One-Side session.
+*   **Abandoned Badge**: Sessions that were quit early are flagged with an amber "Abandoned" badge.
+*   **Summary Header**: The page header shows total completed count and average accuracy at a glance.
+
+### Dashboard Quick-Stats Banner ([page.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/page.tsx))
+*   **4-Cell Stats Grid**: Logged-in users see a compact banner between the welcome message and mode cards showing: 🔥 Daily Streak, ⚡ Total XP, accuracy %, and total sessions.
+*   **Progressive Reveal**: The banner only appears once profile data has loaded, silently skipping if the fetch fails — ensuring no disruption to users.
+
+### Upgraded Bot Difficulty Picker ([play/page.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/play/page.tsx))
+*   **Expert Tier Added**: A fourth `expert` difficulty (💀 Brutal — near-perfect play, Stockfish Lvl 20, depth 20) completes the difficulty ladder.
+*   **Colour-Coded Cards**: Each difficulty tier now uses its own border and background accent — green for Easy, yellow for Medium, orange for Hard, red for Expert — providing instant visual scanning.
+*   **Richer Descriptions**: Each difficulty card shows an icon, label, a one-line description, and the Stockfish skill label for transparency.
+*   **`useStockfish` Updated**: The `BotDifficulty` type and `DIFFICULTY_MAP` now include `expert` with appropriate engine parameters.
+
