@@ -1,6 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
+import { withTimeout } from "../lib/withTimeout";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
+
+// Cap Gemini text-parse latency so a hung request surfaces as an error
+// instead of leaving the client awaiting forever.
+const AI_PARSE_TIMEOUT_MS = 7000;
 
 export interface AIParsedMove {
   move: string;
@@ -15,7 +20,7 @@ export interface AIParseOptions {
 }
 
 /**
- * Parse a spoken chess move transcript using Gemini 2.5 Flash Lite.
+ * Parse a spoken chess move transcript using Gemini.
  * Takes the raw speech-to-text transcript and the current board position,
  * then returns the most likely chess move in SAN notation.
  */
@@ -105,10 +110,14 @@ ${
 }`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-lite",
-      contents: prompt,
-    });
+    const response = await withTimeout(
+      ai.models.generateContent({
+        model: process.env.GEMINI_MODEL || "gemini-3.1-flash-lite",
+        contents: prompt,
+      }),
+      AI_PARSE_TIMEOUT_MS,
+      "AI move parse",
+    );
 
     const text = response.text || "";
 

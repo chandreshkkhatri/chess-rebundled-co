@@ -22,6 +22,9 @@ let listenersAttached = false;
 // Track submit timeout for safety reset (Bug 3 fix)
 let submitTimeoutId: NodeJS.Timeout | null = null;
 
+// Track AI parse timeout to prevent indefinite "Processing..." state
+let aiParseTimeoutId: NodeJS.Timeout | null = null;
+
 // Track if auth subscription is set up
 let authSubscribed = false;
 
@@ -78,6 +81,11 @@ export function usePracticeSocket() {
         if (submitTimeoutId) {
           clearTimeout(submitTimeoutId);
           submitTimeoutId = null;
+        }
+        // Clear any pending AI parse timeout
+        if (aiParseTimeoutId) {
+          clearTimeout(aiParseTimeoutId);
+          aiParseTimeoutId = null;
         }
       });
 
@@ -229,10 +237,14 @@ export function usePracticeSocket() {
 
       // AI parsing events - use store instead of window events
       socket.on("move-parsed", (data: AIParsedMoveResult) => {
+        // Cancel the safety fallback timeout — real response arrived
+        if (aiParseTimeoutId) { clearTimeout(aiParseTimeoutId); aiParseTimeoutId = null; }
         usePracticeStore.getState().setAIParseResult(data);
       });
 
       socket.on("parse-error", (data: { message: string }) => {
+        // Cancel the safety fallback timeout — got an error response
+        if (aiParseTimeoutId) { clearTimeout(aiParseTimeoutId); aiParseTimeoutId = null; }
         usePracticeStore.getState().setAIParseError(data.message);
       });
 
@@ -240,6 +252,7 @@ export function usePracticeSocket() {
       socket.on(
         "audio-move-parsed",
         (data: AIParsedMoveResult & { transcription?: string }) => {
+          if (aiParseTimeoutId) { clearTimeout(aiParseTimeoutId); aiParseTimeoutId = null; }
           usePracticeStore.getState().setAIParseResult(data);
           if (data.transcription) {
             usePracticeStore
@@ -250,6 +263,7 @@ export function usePracticeSocket() {
       );
 
       socket.on("audio-parse-error", (data: { message: string }) => {
+        if (aiParseTimeoutId) { clearTimeout(aiParseTimeoutId); aiParseTimeoutId = null; }
         usePracticeStore.getState().setAIParseError(data.message);
       });
     }
@@ -441,12 +455,37 @@ export function usePracticeSocket() {
   const parseMoveWithAI = useCallback(
     (sessionId: string, transcript: string, rawTranscript?: string) => {
       const socket = getSocket();
+
+      // Cancel any existing AI parse timeout
+      if (aiParseTimeoutId) {
+        clearTimeout(aiParseTimeoutId);
+        aiParseTimeoutId = null;
+      }
+
       usePracticeStore.getState().setAIParsing(true);
       socket.emit("parse-move-with-ai", {
         sessionId,
         transcript,
         rawTranscript,
       });
+
+      // Safety timeout: if no parse response arrives within 8s, fall back to the
+      // locally-parsed transcript so the user isn't stuck on "Processing..."
+      aiParseTimeoutId = setTimeout(() => {
+        aiParseTimeoutId = null;
+        const store = usePracticeStore.getState();
+        if (store.isAIParsing) {
+          // Build a synthetic local result from the transcript the user already spoke
+          const fallbackMove = transcript.trim();
+          store.setAIParseResult({
+            parsedMove: fallbackMove,
+            transcript: rawTranscript || fallbackMove,
+            confidence: 0.6,
+            alternatives: [],
+            reasoning: 'Local fallback — AI parse timed out',
+          } as AIParsedMoveResult);
+        }
+      }, 8000);
     },
     [],
   );
@@ -454,12 +493,34 @@ export function usePracticeSocket() {
   const parseAudioMoveWithGemini = useCallback(
     (sessionId: string, audioBase64: string, mimeType: string) => {
       const socket = getSocket();
+
+      // Cancel any existing AI parse timeout
+      if (aiParseTimeoutId) {
+        clearTimeout(aiParseTimeoutId);
+        aiParseTimeoutId = null;
+      }
+
       usePracticeStore.getState().setAIParsing(true);
       socket.emit("parse-audio-move-with-gemini", {
         sessionId,
         audioBase64,
         mimeType,
       });
+
+      // Safety timeout: audio mode has no local fallback move, so if no parse
+      // response arrives we surface an error rather than leaving the user stuck
+      // on "Processing...". Set above the backend's audio timeout so a real
+      // error response wins in the normal case; this only fires if the backend
+      // itself never responds (e.g. disconnect mid-flight).
+      aiParseTimeoutId = setTimeout(() => {
+        aiParseTimeoutId = null;
+        const store = usePracticeStore.getState();
+        if (store.isAIParsing) {
+          store.setAIParseError(
+            "Voice parsing timed out. Please try again.",
+          );
+        }
+      }, 14000);
     },
     [],
   );

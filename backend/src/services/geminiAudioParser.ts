@@ -1,6 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
+import { withTimeout } from "../lib/withTimeout";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
+
+// Audio inference is heavier than text, so allow a bit more headroom — but
+// still cap it so a hung request can't strand the client on "Processing...".
+const AUDIO_PARSE_TIMEOUT_MS = 12000;
 
 export interface GeminiAudioParsedMove {
   move: string;
@@ -16,7 +21,7 @@ export interface GeminiAudioParseOptions {
 }
 
 /**
- * Parse a chess move directly from audio using Gemini 2.5 Flash multimodal.
+ * Parse a chess move directly from audio using Gemini multimodal.
  * Takes raw audio data (base64) and current board position,
  * returns the most likely chess move in SAN notation.
  */
@@ -59,18 +64,22 @@ Returns:
 {"move": "e4", "confidence": 0.9, "alternatives": ["d4"], "reasoning": "Heard echo-four", "transcription": "echo four"}`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-lite",
-      contents: [
-        {
-          inlineData: {
-            data: audioBase64,
-            mimeType: mimeType,
+    const response = await withTimeout(
+      ai.models.generateContent({
+        model: process.env.GEMINI_MODEL || "gemini-3.1-flash-lite",
+        contents: [
+          {
+            inlineData: {
+              data: audioBase64,
+              mimeType: mimeType,
+            },
           },
-        },
-        prompt,
-      ],
-    });
+          prompt,
+        ],
+      }),
+      AUDIO_PARSE_TIMEOUT_MS,
+      "Gemini audio parse",
+    );
 
     const text = response.text || "";
 

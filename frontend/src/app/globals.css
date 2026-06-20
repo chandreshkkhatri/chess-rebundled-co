@@ -42,3 +42,18 @@ body {
 .animate-unlock-pulse {
   animation: unlock-pulse 1.2s ease-out;
 }
+
+/* Wrong-move feedback: horizontal shake + red flash on the board wrapper */
+@keyframes wrong-move-shake {
+  0%   { transform: translateX(0);    box-shadow: 0 0 0 0px rgba(239,68,68,0); }
+  10%  { transform: translateX(-6px); box-shadow: 0 0 0 4px rgba(239,68,68,0.55); }
+  25%  { transform: translateX(6px);  box-shadow: 0 0 0 4px rgba(239,68,68,0.55); }
+  40%  { transform: translateX(-5px); box-shadow: 0 0 0 3px rgba(239,68,68,0.35); }
+  55%  { transform: translateX(5px);  box-shadow: 0 0 0 3px rgba(239,68,68,0.35); }
+  70%  { transform: translateX(-3px); box-shadow: 0 0 0 2px rgba(239,68,68,0.2); }
+  85%  { transform: translateX(3px);  box-shadow: 0 0 0 2px rgba(239,68,68,0.2); }
+  100% { transform: translateX(0);    box-shadow: 0 0 0 0px rgba(239,68,68,0); }
+}
+.wrong-move-shake {
+  animation: wrong-move-shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
