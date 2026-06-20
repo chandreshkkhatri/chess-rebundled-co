@@ -118,3 +118,30 @@ Brings bot matches and practice mode to life with live commentary.
 *   **Integration**:
     *   *Bot Matches* ([page.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/bot/page.tsx)): Desktop sidebar slot and mobile drawer overlay next to the move log.
     *   *Practice Mode* ([page.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/practice/%5BsessionId%5D/page.tsx)): Desktop sidebar card below unlocked insights.
+
+---
+
+## 🏆 7. Duolingo-Style Weekly Leagues & Leaderboards
+
+Provides a competitive framework for daily practice using simulated divisions.
+
+### [League Leaderboard Component](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/LeagueLeaderboard.tsx)
+*   **6-Division Progression**:
+    *   *Pawn League*: Entry level, 0 - 999 XP.
+    *   *Knight League*: 1000 - 2499 XP.
+    *   *Bishop League*: 2500 - 4999 XP.
+    *   *Rook League*: 5000 - 7999 XP.
+    *   *Queen League*: 8000 - 11999 XP.
+    *   *King League*: >= 12000 XP.
+*   **XP Standing Tracker**:
+    *   Simulates 9 competitor chess-themed players with randomized base scores.
+    *   Determines current position in the division based on user's live profile XP.
+    *   **Standings Zones**:
+        *   Ranks 1-3: **Promotion Zone** (Highlighted in green, triggers promotion to higher league on cycle end).
+        *   Ranks 4-7: **Safe Zone** (Safe from demotion).
+        *   Ranks 8-10: **Demotion Zone** (Highlighted in red, triggers regression on cycle end).
+    *   **Active Simulator**: Listens to changes in the user's XP. When the user gains XP, competitors randomly gain +10 to +40 XP in the background to simulate dynamic competition.
+    *   **League Timer**: Countdown clock (e.g. `2d 12h remaining`) resetting every 3 days.
+*   **Integration**:
+    *   *Profile Page* ([page.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/profile/page.tsx)): Rendered as a core dashboard widget above the Aesthetic Customization Shop.
+

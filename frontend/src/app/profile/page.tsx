@@ -10,6 +10,7 @@ import { XPProgressBar } from '@/components/XPProgressBar';
 import { StreakIndicator } from '@/components/StreakIndicator';
 import { UserGamification } from '@/types';
 import { AestheticShop } from '@/components/AestheticShop';
+import { LeagueLeaderboard } from '@/components/LeagueLeaderboard';
 import Image from 'next/image';
 
 interface UserProfile {
@@ -304,6 +305,14 @@ export default function ProfilePage() {
                 )}
               </div>
             </div>
+          )}
+
+          {/* Weekly League Leaderboard */}
+          {profile?.gamification && (
+            <LeagueLeaderboard
+              totalXp={profile.gamification.totalXp}
+              displayName={profile.displayName || user?.displayName || user?.email?.split('@')[0] || 'Player'}
+            />
           )}
 
           {/* Aesthetic Customization Shop */}
