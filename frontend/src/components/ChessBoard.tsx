@@ -1,6 +1,6 @@
 'use client';
 
-import { Component, ReactNode, useState, useEffect, useRef } from 'react';
+import { Component, ReactNode, useState, useEffect, useRef, useCallback } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { Arrow } from 'react-chessboard';
 
@@ -83,7 +83,7 @@ export function ChessBoard({
   }, []);
 
   // Play synthesized audio move sounds based on active sound pack
-  const playMoveSound = (isCapture: boolean) => {
+  const playMoveSound = useCallback((isCapture: boolean) => {
     if (typeof window === "undefined") return;
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -157,7 +157,7 @@ export function ChessBoard({
     } catch (e) {
       console.warn("Audio Context failed to play move sound:", e);
     }
-  };
+  }, [soundPack]);
 
   useEffect(() => {
     // Check if the FEN changed from a previous value (skip initial render sounds)
@@ -170,7 +170,7 @@ export function ChessBoard({
       playMoveSound(isCapture);
     }
     prevFenRef.current = fen;
-  }, [fen]);
+  }, [fen, playMoveSound]);
 
   // Get board skin square colors
   const getSkinColors = () => {
