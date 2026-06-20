@@ -8,7 +8,8 @@ export interface ShopItem {
   name: string;
   cost: number;
   description: string;
-  type: "skin" | "sound";
+  type: "skin" | "sound" | "badge";
+  emoji?: string;
 }
 
 export const BOARD_SKINS: ShopItem[] = [
@@ -24,6 +25,14 @@ export const SOUND_PACKS: ShopItem[] = [
   { id: "retro", name: "8-Bit Arcade", cost: 800, description: "Retro synth blips, sweeps, and electronic chimes.", type: "sound" },
 ];
 
+export const BADGES: ShopItem[] = [
+  { id: "pawn_maestro", name: "Pawn Maestro", cost: 0, description: "Master of the opening moves.", type: "badge", emoji: "👑" },
+  { id: "speed_demon", name: "Speed Demon", cost: 300, description: "Scored 15+ in Coordinate Trainer.", type: "badge", emoji: "⚡" },
+  { id: "tactical_genius", name: "Tactical Genius", cost: 600, description: "Completed a practice session with zero blunders.", type: "badge", emoji: "🧠" },
+  { id: "caster_fan", name: "Caster Fanatic", cost: 500, description: "Fan of the AI streamer commentary.", type: "badge", emoji: "🎙️" },
+  { id: "high_roller", name: "High Spender", cost: 1000, description: "Unlocked premium board styles.", type: "badge", emoji: "💎" },
+];
+
 // Color maps for previewing skins
 export const SKIN_PREVIEWS: Record<string, { dark: string; light: string }> = {
   forest: { dark: "#769656", light: "#eeeed2" },
@@ -37,11 +46,13 @@ interface AestheticShopProps {
 }
 
 export function AestheticShop({ totalXp }: AestheticShopProps) {
-  const [activeTab, setActiveTab] = useState<"skins" | "sounds">("skins");
+  const [activeTab, setActiveTab] = useState<"skins" | "sounds" | "badges">("skins");
   const [unlockedSkins, setUnlockedSkins] = useState<string[]>(["forest"]);
   const [unlockedSounds, setUnlockedSounds] = useState<string[]>(["wood"]);
+  const [unlockedBadges, setUnlockedBadges] = useState<string[]>(["pawn_maestro"]);
   const [activeSkin, setActiveSkin] = useState<string>("forest");
   const [activeSound, setActiveSound] = useState<string>("wood");
+  const [activeBadge, setActiveBadge] = useState<string>("pawn_maestro");
   const [spentXp, setSpentXp] = useState<number>(0);
 
   // Load cosmetics state from localStorage on mount
@@ -49,14 +60,25 @@ export function AestheticShop({ totalXp }: AestheticShopProps) {
     if (typeof window !== "undefined") {
       const storedSkins = localStorage.getItem("unlocked_board_skins");
       const storedSounds = localStorage.getItem("unlocked_sound_packs");
+      const storedBadges = localStorage.getItem("unlocked_badges");
       const currentSkin = localStorage.getItem("active_board_skin");
       const currentSound = localStorage.getItem("active_sound_pack");
+      const currentBadgeStr = localStorage.getItem("active_badge");
       const spent = localStorage.getItem("chess_spent_xp");
 
       if (storedSkins) setUnlockedSkins(JSON.parse(storedSkins));
       if (storedSounds) setUnlockedSounds(JSON.parse(storedSounds));
+      if (storedBadges) setUnlockedBadges(JSON.parse(storedBadges));
       if (currentSkin) setActiveSkin(currentSkin);
       if (currentSound) setActiveSound(currentSound);
+      if (currentBadgeStr) {
+        try {
+          const parsed = JSON.parse(currentBadgeStr);
+          setActiveBadge(parsed.id);
+        } catch {
+          setActiveBadge(currentBadgeStr);
+        }
+      }
       if (spent) setSpentXp(parseInt(spent, 10));
     }
   }, []);
@@ -159,7 +181,7 @@ export function AestheticShop({ totalXp }: AestheticShopProps) {
       setActiveSkin(item.id);
       localStorage.setItem("active_board_skin", item.id);
       window.dispatchEvent(new Event("active_cosmetics_changed"));
-    } else {
+    } else if (item.type === "sound") {
       const sounds = [...unlockedSounds, item.id];
       setUnlockedSounds(sounds);
       localStorage.setItem("unlocked_sound_packs", JSON.stringify(sounds));
@@ -168,6 +190,15 @@ export function AestheticShop({ totalXp }: AestheticShopProps) {
       setActiveSound(item.id);
       localStorage.setItem("active_sound_pack", item.id);
       window.dispatchEvent(new Event("active_cosmetics_changed"));
+    } else {
+      const badges = [...unlockedBadges, item.id];
+      setUnlockedBadges(badges);
+      localStorage.setItem("unlocked_badges", JSON.stringify(badges));
+
+      // Auto-select newly unlocked badge
+      setActiveBadge(item.id);
+      localStorage.setItem("active_badge", JSON.stringify({ id: item.id, name: item.name, emoji: item.emoji }));
+      window.dispatchEvent(new Event("active_cosmetics_changed"));
     }
   };
 
@@ -175,9 +206,12 @@ export function AestheticShop({ totalXp }: AestheticShopProps) {
     if (item.type === "skin") {
       setActiveSkin(item.id);
       localStorage.setItem("active_board_skin", item.id);
-    } else {
+    } else if (item.type === "sound") {
       setActiveSound(item.id);
       localStorage.setItem("active_sound_pack", item.id);
+    } else {
+      setActiveBadge(item.id);
+      localStorage.setItem("active_badge", JSON.stringify({ id: item.id, name: item.name, emoji: item.emoji }));
     }
     // Trigger custom event to notify open chess boards to re-render
     window.dispatchEvent(new Event("active_cosmetics_changed"));
@@ -207,7 +241,7 @@ export function AestheticShop({ totalXp }: AestheticShopProps) {
       <div className="flex border-b border-slate-700">
         <button
           onClick={() => setActiveTab("skins")}
-          className={`flex-1 py-3 text-center text-sm font-semibold border-b-2 transition-all ${
+          className={`flex-1 py-3 text-center text-[11px] sm:text-sm font-semibold border-b-2 transition-all ${
             activeTab === "skins"
               ? "border-purple-500 text-purple-300 bg-purple-500/5"
               : "border-transparent text-slate-400 hover:text-slate-200"
@@ -217,7 +251,7 @@ export function AestheticShop({ totalXp }: AestheticShopProps) {
         </button>
         <button
           onClick={() => setActiveTab("sounds")}
-          className={`flex-1 py-3 text-center text-sm font-semibold border-b-2 transition-all ${
+          className={`flex-1 py-3 text-center text-[11px] sm:text-sm font-semibold border-b-2 transition-all ${
             activeTab === "sounds"
               ? "border-purple-500 text-purple-300 bg-purple-500/5"
               : "border-transparent text-slate-400 hover:text-slate-200"
@@ -225,17 +259,31 @@ export function AestheticShop({ totalXp }: AestheticShopProps) {
         >
           🔊 Move Sound Packs
         </button>
+        <button
+          onClick={() => setActiveTab("badges")}
+          className={`flex-1 py-3 text-center text-[11px] sm:text-sm font-semibold border-b-2 transition-all ${
+            activeTab === "badges"
+              ? "border-purple-500 text-purple-300 bg-purple-500/5"
+              : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          🎖️ Profile Badges
+        </button>
       </div>
 
       {/* Shop Grid */}
       <div className="grid md:grid-cols-2 gap-4">
-        {(activeTab === "skins" ? BOARD_SKINS : SOUND_PACKS).map((item) => {
+        {(activeTab === "skins" ? BOARD_SKINS : activeTab === "sounds" ? SOUND_PACKS : BADGES).map((item) => {
           const isUnlocked = activeTab === "skins" 
             ? unlockedSkins.includes(item.id) 
-            : unlockedSounds.includes(item.id);
+            : activeTab === "sounds"
+            ? unlockedSounds.includes(item.id)
+            : unlockedBadges.includes(item.id);
           const isActive = activeTab === "skins" 
             ? activeSkin === item.id 
-            : activeSound === item.id;
+            : activeTab === "sounds"
+            ? activeSound === item.id
+            : activeBadge === item.id;
           const canAfford = balance >= item.cost;
           const colors = activeTab === "skins" ? SKIN_PREVIEWS[item.id] : null;
 
@@ -257,6 +305,10 @@ export function AestheticShop({ totalXp }: AestheticShopProps) {
                     <div style={{ backgroundColor: colors.dark }} />
                     <div style={{ backgroundColor: colors.dark }} />
                     <div style={{ backgroundColor: colors.light }} />
+                  </div>
+                ) : activeTab === "badges" ? (
+                  <div className="w-14 h-14 bg-purple-950/40 border border-purple-500/25 rounded flex items-center justify-center text-3xl select-none flex-shrink-0">
+                    {item.emoji}
                   </div>
                 ) : (
                   <div className="w-14 h-14 bg-slate-900 border border-slate-800 rounded flex flex-col items-center justify-center gap-1 flex-shrink-0">

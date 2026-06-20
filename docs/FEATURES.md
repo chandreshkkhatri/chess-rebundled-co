@@ -145,3 +145,24 @@ Provides a competitive framework for daily practice using simulated divisions.
 *   **Integration**:
     *   *Profile Page* ([page.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/profile/page.tsx)): Rendered as a core dashboard widget above the Aesthetic Customization Shop.
 
+---
+
+## 🎖️ 8. Profile Badges & League Achievements
+
+To celebrate milestones and reward users, players can now unlock and equip unique Profile Badges, which are showcased dynamically across the application's competitive and social elements.
+
+### [Aesthetic Shop Integration](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/AestheticShop.tsx)
+*   Introduced a **"Profile Badges"** tab in the shop.
+*   **Available Badges**:
+    *   👑 **Pawn Maestro** (0 XP / Free): Master of the opening moves.
+    *   ⚡ **Speed Demon** (300 XP): Scored 15+ in Coordinate Trainer.
+    *   🧠 **Tactical Genius** (600 XP): Completed a practice session with zero blunders.
+    *   🎙️ **Caster Fanatic** (500 XP): Fan of the AI streamer commentary.
+    *   💎 **High Spender** (1000 XP): Unlocked premium board styles.
+*   Unlocks and selections are fully persisted to `localStorage` under `unlocked_badges` and `active_badge`, and propagate globally via the `active_cosmetics_changed` custom window event.
+
+### Standings & Social Showcases
+*   **[Weekly League Leaderboard](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/LeagueLeaderboard.tsx)**: Displays the player's equipped badge emoji right next to their name. Additionally, simulated competitors also equip randomized badges, making the leaderboard feel highly personalized and alive.
+*   **[User Menu Dropdown](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/auth/UserMenu.tsx)**: Renders the active badge emoji next to the user's name at the top of the dropdown.
+*   **[Profile Card](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/profile/page.tsx)**: Displays the equipped badge name and emoji in a sleek, glassmorphic pill next to their profile avatar and username.
+

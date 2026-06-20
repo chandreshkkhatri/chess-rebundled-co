@@ -35,11 +35,33 @@ export default function ProfilePage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Display name edit state
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [equippedBadge, setEquippedBadge] = useState<{ id: string; name: string; emoji: string } | null>(null);
+
+  // Load user equipped badge
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const loadBadge = () => {
+      const activeBadgeStr = localStorage.getItem("active_badge");
+      if (activeBadgeStr) {
+        try {
+          setEquippedBadge(JSON.parse(activeBadgeStr));
+        } catch {
+          setEquippedBadge({ id: activeBadgeStr, name: activeBadgeStr, emoji: "🎖️" });
+        }
+      } else {
+        setEquippedBadge(null);
+      }
+    };
+
+    loadBadge();
+    window.addEventListener("active_cosmetics_changed", loadBadge);
+    return () => window.removeEventListener("active_cosmetics_changed", loadBadge);
+  }, []);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -235,6 +257,12 @@ export default function ProfilePage() {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
+                    {equippedBadge && (
+                      <span className="bg-purple-900/60 text-purple-300 text-xs font-black px-2 py-0.5 rounded border border-purple-500/20 flex items-center gap-1 select-none" title={equippedBadge.name}>
+                        <span>{equippedBadge.emoji}</span>
+                        <span>{equippedBadge.name}</span>
+                      </span>
+                    )}
                     <h1 className="text-xl font-bold text-white">
                       {profile?.displayName || user?.displayName || user?.email?.split('@')[0] || 'User'}
                     </h1>

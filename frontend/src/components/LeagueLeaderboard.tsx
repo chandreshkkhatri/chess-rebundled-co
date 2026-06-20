@@ -7,6 +7,7 @@ interface Competitor {
   xp: number;
   emoji: string;
   isUser?: boolean;
+  badge?: { name: string; emoji: string } | null;
 }
 
 interface LeagueLeaderboardProps {
@@ -24,6 +25,15 @@ const MOCK_NAMES = [
 
 const EMOJIS = ["👑", "♟️", "🧙‍♂️", "🐯", "⚔️", "🦉", "🚀", "🎩", "🦊"];
 
+const MOCK_BADGES = [
+  { name: "Pawn Maestro", emoji: "👑" },
+  { name: "Speed Demon", emoji: "⚡" },
+  { name: "Tactical Genius", emoji: "🧠" },
+  { name: "Caster Fanatic", emoji: "🎙️" },
+  { name: "High Spender", emoji: "💎" },
+  null,
+];
+
 // Division thresholds and metadata
 export const DIVISIONS = [
   { id: "pawn", name: "Pawn League", minXp: 0, emoji: "♟️", color: "text-slate-400" },
@@ -38,6 +48,7 @@ export function LeagueLeaderboard({ totalXp, displayName }: LeagueLeaderboardPro
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [leagueEndTime, setLeagueEndTime] = useState<string>("");
   const [timeLeftStr, setTimeLeftStr] = useState<string>("");
+  const [equippedBadge, setEquippedBadge] = useState<{ id: string; name: string; emoji: string } | null>(null);
 
   // Determine current division based on total XP
   const currentDivision = useMemo(() => {
@@ -48,6 +59,28 @@ export function LeagueLeaderboard({ totalXp, displayName }: LeagueLeaderboardPro
     }
     return DIVISIONS[0];
   }, [totalXp]);
+
+  // Load user equipped badge
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const loadBadge = () => {
+      const activeBadgeStr = localStorage.getItem("active_badge");
+      if (activeBadgeStr) {
+        try {
+          setEquippedBadge(JSON.parse(activeBadgeStr));
+        } catch {
+          setEquippedBadge({ id: activeBadgeStr, name: activeBadgeStr, emoji: "🎖️" });
+        }
+      } else {
+        setEquippedBadge(null);
+      }
+    };
+
+    loadBadge();
+    window.addEventListener("active_cosmetics_changed", loadBadge);
+    return () => window.removeEventListener("active_cosmetics_changed", loadBadge);
+  }, []);
 
   // Load or generate weekly league data
   useEffect(() => {
@@ -79,11 +112,13 @@ export function LeagueLeaderboard({ totalXp, displayName }: LeagueLeaderboardPro
         // Distribute XP above and below the user
         const variance = (i - 4) * 80 + (Math.random() - 0.5) * 40;
         const compXp = Math.max(0, Math.round(baseXP + variance));
+        const mockBadge = MOCK_BADGES[Math.floor(Math.random() * MOCK_BADGES.length)];
         
         generated.push({
           name: shuffledNames[i],
           xp: compXp,
-          emoji: EMOJIS[i % EMOJIS.length]
+          emoji: EMOJIS[i % EMOJIS.length],
+          badge: mockBadge
         });
       }
       
@@ -285,10 +320,23 @@ export function LeagueLeaderboard({ totalXp, displayName }: LeagueLeaderboardPro
                 <span className="text-lg w-6 text-center select-none">{item.emoji}</span>
 
                 {/* Username */}
-                <span className={`text-xs sm:text-sm font-semibold truncate max-w-[120px] sm:max-w-[200px] ${
+                <span className={`text-xs sm:text-sm font-semibold truncate max-w-[120px] sm:max-w-[200px] flex items-center gap-1.5 ${
                   isUser ? "text-purple-300 font-extrabold" : "text-slate-200"
                 }`}>
-                  {item.name} {isUser && <span className="text-[10px] font-bold text-purple-400">(You)</span>}
+                  {isUser ? (
+                    equippedBadge && (
+                      <span className="bg-purple-900/60 text-purple-300 text-[10px] font-black px-1.5 py-0.5 rounded border border-purple-500/20 flex items-center gap-1 flex-shrink-0" title={equippedBadge.name}>
+                        <span>{equippedBadge.emoji}</span>
+                      </span>
+                    )
+                  ) : (
+                    item.badge && (
+                      <span className="bg-slate-900/60 text-slate-400 text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-700/50 flex items-center gap-1 flex-shrink-0" title={item.badge.name}>
+                        <span>{item.badge.emoji}</span>
+                      </span>
+                    )
+                  )}
+                  <span>{item.name}</span> {isUser && <span className="text-[10px] font-bold text-purple-400">(You)</span>}
                 </span>
               </div>
 
