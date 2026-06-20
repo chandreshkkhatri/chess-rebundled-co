@@ -166,3 +166,19 @@ To celebrate milestones and reward users, players can now unlock and equip uniqu
 *   **[User Menu Dropdown](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/auth/UserMenu.tsx)**: Renders the active badge emoji next to the user's name at the top of the dropdown.
 *   **[Profile Card](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/profile/page.tsx)**: Displays the equipped badge name and emoji in a sleek, glassmorphic pill next to their profile avatar and username.
 
+---
+
+## 💬 9. Twitch-Style Commentary Chat
+
+Brings bot play and practice mode sidebar commentary to life with an active simulated Twitch chat scroll.
+
+### [Simulated Chat Log](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/AICasterPanel.tsx)
+*   **Move Reactions**: When a move is played (categorized into checks, captures, promotions, castling, checkmates, etc.), the panel fires a staggered delay (stretching from 100ms to 1500ms) to print 3-4 reaction messages from random simulated chatters (e.g. `BlunderGod`, `SackTheQueen`).
+*   **Streamer Personalities**: The chat templates are customized to match the active commentator:
+    *   *Hikaru*: Repeat takes, speedrun references, Juicer slang, and GG spam.
+    *   *GothamChess*: Levy content hyping, ROOOOOOK sacrifices, and tactical shouting.
+    *   *Andrea Botez*: Hype chat, panic checks, and Botez Gambit spams.
+    *   *Magnus Carlsen*: GIGACHAD Norway memes, calm dry analysis, and GOAT spams.
+*   **Twitch-style Formatting**: Chatters are color-coded with Twitch username colors and equip custom badges (Mod `🛡️`, Sub `⭐`, VIP `💎`).
+*   **Interactive Input Box**: The user can type and submit their own messages into the chat, which triggers automated replies from the simulated chatters.
+
