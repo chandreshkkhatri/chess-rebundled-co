@@ -1,7 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
+import { genai, GEMINI_MODEL } from "../lib/genaiClient.js";
 import { withTimeout } from "../lib/withTimeout.js";
-
-const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
 // Audio inference is heavier than text, so allow a bit more headroom — but
 // still cap it so a hung request can't strand the client on "Processing...".
@@ -65,8 +63,8 @@ Returns:
 
   try {
     const response = await withTimeout(
-      ai.models.generateContent({
-        model: process.env.GEMINI_MODEL || "gemini-3.1-flash-lite",
+      genai.models.generateContent({
+        model: GEMINI_MODEL,
         contents: [
           {
             inlineData: {

@@ -71,7 +71,6 @@ run_remote "mkdir -p $REMOTE_DIR/backend"
 rsync -avz --delete \
     --exclude 'node_modules' \
     --exclude 'dist' \
-    --exclude '.env' \
     -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" \
     ./backend/ "$SSH_USER@$SERVER_IP:$REMOTE_DIR/backend/"
 
@@ -86,11 +85,8 @@ echo -e "${YELLOW}[6/7] Configuring environment...${NC}"
 read -p "Enter your frontend URL (e.g., https://your-app.vercel.app): " CLIENT_URL
 CLIENT_URL="${CLIENT_URL:-http://localhost:3000}"
 
-run_remote "cat > $REMOTE_DIR/backend/.env << EOF
-PORT=3001
-HOST=0.0.0.0
-CLIENT_URL=$CLIENT_URL
-EOF"
+run_remote "if [ ! -f $REMOTE_DIR/backend/.env ]; then echo 'Missing backend/.env after sync'; exit 1; fi"
+run_remote "sed -i '/^CLIENT_URL=/d' $REMOTE_DIR/backend/.env && printf '\nCLIENT_URL=%s\n' '$CLIENT_URL' >> $REMOTE_DIR/backend/.env"
 
 # Step 7: Start/restart with PM2
 echo -e "${YELLOW}[7/7] Starting application with PM2...${NC}"

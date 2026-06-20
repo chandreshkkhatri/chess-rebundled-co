@@ -1,7 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
+import { genai, GEMINI_MODEL } from "../lib/genaiClient.js";
 import { withTimeout } from "../lib/withTimeout.js";
-
-const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
 // Cap Gemini text-parse latency so a hung request surfaces as an error
 // instead of leaving the client awaiting forever.
@@ -111,8 +109,8 @@ ${
 
   try {
     const response = await withTimeout(
-      ai.models.generateContent({
-        model: process.env.GEMINI_MODEL || "gemini-3.1-flash-lite",
+      genai.models.generateContent({
+        model: GEMINI_MODEL,
         contents: prompt,
       }),
       AI_PARSE_TIMEOUT_MS,
