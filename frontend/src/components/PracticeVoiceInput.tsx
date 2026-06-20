@@ -9,6 +9,9 @@ interface PracticeVoiceInputProps {
   disabled?: boolean;
   showDebugPanel?: boolean;
   onCloseDebugPanel?: () => void;
+  onHighlightSquares?: (squares: string[]) => void;
+  wrongMoveEvaluation?: string | null;
+  isEvaluatingWrongMove?: boolean;
 }
 
 export function PracticeVoiceInput({
@@ -16,6 +19,9 @@ export function PracticeVoiceInput({
   disabled = false,
   showDebugPanel = false,
   onCloseDebugPanel,
+  onHighlightSquares,
+  wrongMoveEvaluation,
+  isEvaluatingWrongMove,
 }: PracticeVoiceInputProps) {
   const {
     status,
@@ -63,6 +69,9 @@ export function PracticeVoiceInput({
       }}
       clearAIParseState={clearAIParseState}
       clearLastMoveResult={clearLastMoveResult}
+      onHighlightSquares={onHighlightSquares}
+      wrongMoveEvaluation={wrongMoveEvaluation}
+      isEvaluatingWrongMove={isEvaluatingWrongMove}
       showDebugPanel={showDebugPanel}
       onCloseDebugPanel={onCloseDebugPanel}
     />

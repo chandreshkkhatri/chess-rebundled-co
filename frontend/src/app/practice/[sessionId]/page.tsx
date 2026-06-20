@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { usePracticeSocket } from '@/hooks/usePracticeSocket';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,6 +15,9 @@ import { DiscordIcon } from '@/components/icons/DiscordIcon';
 import { LiveGamificationBadge } from '@/components/LiveGamificationBadge';
 import { AchievementToastContainer } from '@/components/AchievementToast';
 import { useAppConfig } from '@/hooks/useAppConfig';
+import { useStockfish } from '@/hooks/useStockfish';
+import { Chess } from 'chess.js';
+import { AICasterPanel } from '@/components/AICasterPanel';
 
 // Debug flag - matches PracticeVoiceInput
 const DEBUG_AUDIO = process.env.NODE_ENV !== 'production';
@@ -30,6 +34,11 @@ export default function PracticeGamePage() {
   const [isResuming, setIsResuming] = useState(false);
   const [resumeAttempted, setResumeAttempted] = useState(false);
   const [isHeaderCompact, setIsHeaderCompact] = useState(false);
+  const [highlightSquares, setHighlightSquares] = useState<string[]>([]);
+  const [wrongMoveEvaluation, setWrongMoveEvaluation] = useState<string | null>(null);
+  const [isEvaluatingWrongMove, setIsEvaluatingWrongMove] = useState(false);
+
+  const { isReady: isStockfishReady, evaluatePosition } = useStockfish();
 
   const { submitPracticeMove, abandonPractice, resumeSession } = usePracticeSocket();
   const { user } = useAuth();
@@ -60,6 +69,7 @@ export default function PracticeGamePage() {
     pendingAchievements,
     queueAchievements,
     dismissAchievement,
+    lastMoveResult,
   } = usePracticeStore();
 
   // Calculate correct moves so far (memoized to avoid recalculating on every render)
@@ -70,6 +80,22 @@ export default function PracticeGamePage() {
     if (moveResults.length === 0) return 100;
     return Math.round((correctMoves / moveResults.length) * 100);
   }, [correctMoves, moveResults.length]);
+
+  // Compute unlocked trivia facts based on game progress
+  const unlockedTrivia = useMemo(() => {
+    if (!selectedGame || !selectedGame.trivia) return [];
+    const progress = totalMoves > 0 ? currentMoveIndex / totalMoves : 0;
+    
+    return selectedGame.trivia.map((fact, idx) => {
+      // 1st fact unlocks at 25%, 2nd at 50%, 3rd at 75%
+      const milestone = (idx + 1) * 0.25;
+      return {
+        text: fact,
+        unlocked: progress >= milestone,
+        milestone: Math.round(milestone * 100),
+      };
+    });
+  }, [selectedGame, currentMoveIndex, totalMoves]);
 
   // Determine the display name for the player
   const displayName = useMemo(() => {
@@ -97,10 +123,70 @@ export default function PracticeGamePage() {
 
   const handleMoveSubmit = useCallback(
     (move: string, confidence: number) => {
+      setWrongMoveEvaluation(null);
       submitPracticeMove(sessionId, move);
     },
     [sessionId, submitPracticeMove]
   );
+
+  useEffect(() => {
+    if (lastMoveResult && !lastMoveResult.isCorrect && isStockfishReady) {
+      const { expectedMove, submittedMove } = lastMoveResult;
+      
+      const analyze = async () => {
+        setIsEvaluatingWrongMove(true);
+        setWrongMoveEvaluation(null);
+        try {
+          // 1. Play expected move
+          const chessExpected = new Chess(currentPosition);
+          try {
+            chessExpected.move(expectedMove);
+          } catch {}
+          const expectedFen = chessExpected.fen();
+          
+          // 2. Play submitted move
+          const chessSubmitted = new Chess(currentPosition);
+          try {
+            chessSubmitted.move(submittedMove);
+          } catch {}
+          const submittedFen = chessSubmitted.fen();
+          
+          // 3. Evaluate both
+          const expectedScore = await evaluatePosition(expectedFen, 10);
+          const submittedScore = await evaluatePosition(submittedFen, 10);
+          
+          // 4. Calculate centipawn loss (from perspective of side to move)
+          const sideToMove = currentPosition.split(' ')[1];
+          const loss = sideToMove === 'w' 
+            ? expectedScore - submittedScore 
+            : submittedScore - expectedScore;
+            
+          // 5. Classify
+          let classification = '';
+          if (loss >= 150) {
+            classification = `Blunder (-${(loss / 100).toFixed(2)})`;
+          } else if (loss >= 50) {
+            classification = `Mistake (-${(loss / 100).toFixed(2)})`;
+          } else if (loss >= 20) {
+            classification = `Inaccuracy (-${(loss / 100).toFixed(2)})`;
+          } else {
+            classification = 'Playable alternative';
+          }
+          
+          setWrongMoveEvaluation(classification);
+        } catch (err) {
+          console.error('[Stockfish Eval] Error evaluating wrong move:', err);
+        } finally {
+          setIsEvaluatingWrongMove(false);
+        }
+      };
+      
+      analyze();
+    } else {
+      setWrongMoveEvaluation(null);
+      setIsEvaluatingWrongMove(false);
+    }
+  }, [lastMoveResult, isStockfishReady, currentPosition, evaluatePosition]);
 
   const handleAbandon = useCallback(() => {
     if (window.confirm('Abandon this practice session? Your progress will be lost.')) {
@@ -248,8 +334,29 @@ export default function PracticeGamePage() {
                   i
                 </button>
                 {showGameInfo && (
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-10 bg-slate-700 rounded-lg p-2 shadow-lg max-w-xs">
-                    <div className="text-white text-sm">{selectedGame.title}</div>
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-20 bg-slate-700 rounded-lg p-3 shadow-xl max-w-xs w-64 border border-slate-600 text-left">
+                    <div className="text-white font-bold text-sm border-b border-slate-600 pb-1.5 mb-2">{selectedGame.title}</div>
+                    <div className="space-y-1.5">
+                      <div className="text-xs text-slate-300"><span className="font-semibold text-slate-400">Event:</span> {selectedGame.event}</div>
+                      <div className="text-xs text-slate-300"><span className="font-semibold text-slate-400">Year:</span> {selectedGame.year}</div>
+                      
+                      {selectedGame.trivia && selectedGame.trivia.length > 0 && (
+                        <div className="mt-3 pt-2 border-t border-slate-600">
+                          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Unlocked Insights:</div>
+                          <div className="space-y-1">
+                            {unlockedTrivia.map((item, idx) => (
+                              <div key={idx} className="text-[11px]">
+                                {item.unlocked ? (
+                                  <span className="text-purple-300">💡 {item.text}</span>
+                                ) : (
+                                  <span className="text-slate-500 italic">🔒 Locked ({item.milestone}% progress)</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -300,7 +407,7 @@ export default function PracticeGamePage() {
             >
               {(mode === 'one-side' && playerColor ? playerColor : currentSide) === 'white' ? '⬜' : '⬛'}
               {user && user.photoURL ? (
-                <img src={user.photoURL} alt="" className="w-4 h-4 rounded-full" />
+                <Image src={user.photoURL} alt="" width={16} height={16} className="rounded-full" unoptimized />
               ) : null}
               {/* Hide name on mobile when compact */}
               <span className={`max-w-[60px] truncate ${isHeaderCompact ? 'hidden' : 'inline'} sm:inline`}>{displayName}</span>
@@ -407,6 +514,7 @@ export default function PracticeGamePage() {
                   </svg>
                 </button>
               )}
+
             </div>
           </div>
 
@@ -429,7 +537,7 @@ export default function PracticeGamePage() {
                   {isOpponentThinking && mode === 'one-side' && (
                     <div className="absolute top-0 left-0 right-0 h-1 bg-purple-400 z-10 animate-tubelight-top pointer-events-none rounded-t-[4px]" style={{ animationDelay: '0.1s' }}></div>
                   )}
-                  <ChessBoard
+                   <ChessBoard
                     fen={currentPosition}
                     orientation={boardOrientation}
                     lastMove={
@@ -439,6 +547,7 @@ export default function PracticeGamePage() {
                         ? { from: currentExpectedMove.from, to: currentExpectedMove.to }
                         : undefined
                     }
+                    highlightSquares={highlightSquares}
                   />
                 </div>
 
@@ -467,6 +576,9 @@ export default function PracticeGamePage() {
                 disabled={showingOpponentMove || isOpponentThinking}
                 showDebugPanel={showDebugPanel}
                 onCloseDebugPanel={() => setShowDebugPanel(false)}
+                onHighlightSquares={setHighlightSquares}
+                wrongMoveEvaluation={wrongMoveEvaluation}
+                isEvaluatingWrongMove={isEvaluatingWrongMove}
               />
             </div>
 
@@ -483,6 +595,40 @@ export default function PracticeGamePage() {
                 theme="dark"
                 maxHeight="max-h-32"
               />
+            </div>
+
+            {/* Historical Insights - desktop only */}
+            {selectedGame.trivia && selectedGame.trivia.length > 0 && (
+              <div className="hidden lg:flex lg:flex-initial bg-slate-800 rounded-lg p-3 min-h-0 flex-col border border-slate-700/50">
+                <h3 className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+                  📖 Historical Insights
+                </h3>
+                <div className="space-y-2 overflow-y-auto max-h-[160px] pr-1">
+                  {unlockedTrivia.map((item, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`p-2 rounded text-xs transition-all duration-500 border ${
+                        item.unlocked 
+                          ? 'bg-purple-900/10 border-purple-500/20 text-purple-200 animate-unlock-pulse' 
+                          : 'bg-slate-900/40 border-slate-800 text-slate-500 select-none'
+                      }`}
+                    >
+                      {item.unlocked ? (
+                        <div>{item.text}</div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 italic font-mono text-[10px]">
+                          <span>🔒 Locked</span>
+                          <span className="text-[9px] text-slate-600">({item.milestone}% progress)</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* AI Streamer Caster Commentary - desktop only */}
+            <div className="hidden lg:block">
+              <AICasterPanel moves={moveResults.filter(r => r.isCorrect).map(r => r.expectedMove)} fen={currentPosition} />
             </div>
           </div>
           </div>

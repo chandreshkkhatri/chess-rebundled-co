@@ -9,6 +9,7 @@ import {
   VoiceCalibration,
   VoiceCalibrationData,
 } from "@/components/VoiceCalibration";
+import Image from "next/image";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -272,10 +273,13 @@ export default function SettingsPage() {
             {/* Avatar and basic info */}
             <div className="flex items-center gap-4 mb-6">
               {user.photoURL ? (
-                <img
+                <Image
                   src={user.photoURL}
                   alt={user.displayName || "User"}
-                  className="w-16 h-16 rounded-full"
+                  width={64}
+                  height={64}
+                  className="rounded-full"
+                  unoptimized
                 />
               ) : (
                 <div className="w-16 h-16 rounded-full bg-purple-600 flex items-center justify-center text-white text-2xl font-bold">

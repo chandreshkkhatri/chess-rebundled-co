@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import Image from 'next/image';
 
 export function UserMenu() {
   const router = useRouter();
@@ -68,10 +69,13 @@ export function UserMenu() {
         className="flex items-center gap-2 p-1 rounded-lg hover:bg-slate-700/50 transition-colors"
       >
           {avatarUrl ? (
-            <img
+            <Image
               src={avatarUrl}
               alt={displayName}
-              className="w-8 h-8 rounded-full"
+              width={32}
+              height={32}
+              className="rounded-full"
+              unoptimized
             />
           ) : (
             <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white font-medium text-sm">

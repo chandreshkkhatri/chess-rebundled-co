@@ -18,6 +18,7 @@ export default function MultiplayerGamePage() {
   const [showResignConfirm, setShowResignConfirm] = useState(false);
   const [showMoveHistory, setShowMoveHistory] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [highlightSquares, setHighlightSquares] = useState<string[]>([]);
   const settingsRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -426,6 +427,7 @@ export default function MultiplayerGamePage() {
             lastMove={
               lastMove ? { from: lastMove.from, to: lastMove.to } : undefined
             }
+            highlightSquares={highlightSquares}
           />
           {/* Move count */}
           <div className="text-center text-xs text-slate-500 mt-2">
@@ -460,6 +462,7 @@ export default function MultiplayerGamePage() {
                 }
               }}
               clearAIParseState={clearAIParseState}
+              onHighlightSquares={setHighlightSquares}
             />
           </div>
 

@@ -7,6 +7,7 @@ import { ChessBoard } from '@/components/ChessBoard';
 import { PageLayout } from '@/components/PageLayout';
 import { useStockfish, BotDifficulty, DIFFICULTY_MAP } from '@/hooks/useStockfish';
 import { UniversalInputPanel } from '@/components/UniversalInputPanel';
+import { AICasterPanel } from '@/components/AICasterPanel';
 
 type MoveState = 'idle' | 'human-thinking' | 'bot-thinking';
 
@@ -294,8 +295,11 @@ function BotPlayContent() {
         </div>
 
         {/* 3. Sidebar Section (Right on Desktop, Hidden on Mobile) */}
-        <div className="hidden lg:flex flex-1 lg:max-w-[280px] xl:max-w-[320px] flex-col min-h-[100px] lg:min-h-0 lg:max-h-full shrink-0">
-           {renderMoveLog()}
+        <div className="hidden lg:flex flex-1 lg:max-w-[280px] xl:max-w-[320px] flex-col gap-3 min-h-[100px] lg:min-h-0 lg:max-h-full shrink-0">
+           <div className="flex-1 min-h-0 flex flex-col">
+             {renderMoveLog()}
+           </div>
+           <AICasterPanel moves={moves} fen={fen} />
         </div>
 
       </div>
@@ -307,10 +311,13 @@ function BotPlayContent() {
           onClick={() => setShowLogModal(false)}
         >
           <div 
-            className="w-full flex flex-col justify-end h-[60vh] translate-y-0 transform animate-in slide-in-from-bottom-[100%] duration-300 ease-out"
+            className="w-full flex flex-col gap-2 p-3 bg-[#0f172a] justify-end h-[75vh] rounded-t-3xl translate-y-0 transform animate-in slide-in-from-bottom-[100%] duration-300 ease-out"
             onClick={(e) => e.stopPropagation()}
           >
-            {renderMoveLog()}
+            <div className="flex-1 min-h-0 flex flex-col">
+              {renderMoveLog()}
+            </div>
+            <AICasterPanel moves={moves} fen={fen} />
           </div>
         </div>
       )}

@@ -5,6 +5,7 @@ import { useVoiceRecognition } from "@/hooks/useVoiceRecognition";
 import { useGeminiVoice } from "@/hooks/useGeminiVoice";
 import { Chess } from "chess.js";
 import { VoiceDebugOverlay } from "./VoiceDebugOverlay";
+import { AudioWaveform } from "./AudioWaveform";
 import {
   StageState,
   initialStageState,
@@ -122,6 +123,9 @@ export interface UniversalInputPanelProps {
   onParseMoveWithAudio: (audioBase64: string, mimeType: string) => void;
   clearAIParseState: () => void;
   clearLastMoveResult?: () => void;
+  onHighlightSquares?: (squares: string[]) => void;
+  wrongMoveEvaluation?: string | null;
+  isEvaluatingWrongMove?: boolean;
 
   // UI toggles
   showDebugPanel?: boolean;
@@ -146,6 +150,9 @@ export function UniversalInputPanel({
   onParseMoveWithAudio,
   clearAIParseState,
   clearLastMoveResult = () => {},
+  onHighlightSquares,
+  wrongMoveEvaluation,
+  isEvaluatingWrongMove,
   showDebugPanel = false,
   onCloseDebugPanel,
 }: UniversalInputPanelProps) {
@@ -563,6 +570,7 @@ export function UniversalInputPanel({
       isLegalMove,
       onMoveSubmit,
       autoSubmitEnabled,
+      autoSubmitConfidenceThreshold,
     ],
   );
 
@@ -754,6 +762,27 @@ export function UniversalInputPanel({
     resetStages();
   }, [fen, resetStages]);
 
+  // Trigger onHighlightSquares callback when stage changes to destination stage
+  useEffect(() => {
+    if (onHighlightSquares) {
+      if (isActive && stageState.stage === "destination" && stageState.selectedPiece) {
+        const dests = getLegalDestinations(
+          legalMoves,
+          stageState.selectedPiece,
+          stageState.selectedDisambiguation
+        );
+        onHighlightSquares(dests);
+      } else {
+        onHighlightSquares([]);
+      }
+    }
+  }, [
+    stageState,
+    legalMoves,
+    isActive,
+    onHighlightSquares,
+  ]);
+
   const handleSubmit = useCallback(() => {
     if (selectedMove && isActive && !isSubmitting) {
       onMoveSubmit(selectedMove, aiParseResult?.confidence || 0.5);
@@ -826,7 +855,7 @@ export function UniversalInputPanel({
               {getFriendlyErrorMessage(aiParseError)}
             </div>
           ) : aiParseResult ? (
-            <div className="text-xs text-center px-1 space-y-0 leading-tight">
+            <div className="text-xs text-center px-1 space-y-1 leading-tight">
               {(rawTranscript || aiParseResult.transcript) && (
                 <div className="text-slate-500 truncate">
                   <span className="text-slate-600">Heard:</span>{" "}
@@ -843,23 +872,44 @@ export function UniversalInputPanel({
                 <span className="text-slate-600 ml-1">
                   {(aiParseResult.confidence * 100).toFixed(0)}%
                 </span>
-                {aiParseResult.alternatives &&
-                  aiParseResult.alternatives.length > 0 && (
-                    <span className="text-slate-600 ml-1">
-                      or{" "}
-                      {(aiParseResult.alternatives as string[])
-                        .slice(0, 2)
-                        .join(", ")}
-                    </span>
-                  )}
               </div>
+              {/* Clickable alternatives when confidence is low */}
+              {aiParseResult.alternatives &&
+                aiParseResult.alternatives.length > 0 &&
+                aiParseResult.confidence < 0.85 && (
+                  <div className="mt-1 flex items-center justify-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] text-slate-500">Did you mean:</span>
+                    {(aiParseResult.alternatives as any[]).map((alt) => {
+                      const moveStr = typeof alt === "string" ? alt : alt.text;
+                      return (
+                        <button
+                          key={moveStr}
+                          onClick={() => {
+                            clearLastMoveResult();
+                            setSelectedMove(moveStr);
+                            if (autoSubmitEnabled && isLegalMove(moveStr)) {
+                              onMoveSubmit(moveStr, 1.0);
+                            }
+                          }}
+                          className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-slate-200 border border-slate-600 rounded text-[10px] font-mono transition-colors"
+                        >
+                          {moveStr}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
             </div>
           ) : error ? (
             <div className="text-red-400 text-xs text-center truncate px-2">
               {error}
             </div>
           ) : voiceEnabled && isListening ? (
-            <span className="text-slate-400 text-xs">Listening...</span>
+            <AudioWaveform
+              isListening={isListening}
+              isRecording={voiceParsingMode === "webspeech-haiku" ? isListening : isGeminiRecording}
+              volumeLevel={voiceParsingMode === "webspeech-haiku" ? 0 : volumeLevel}
+            />
           ) : null}
         </div>
 
@@ -979,7 +1029,30 @@ export function UniversalInputPanel({
                 <>{"\u2713"} Correct!</>
               ) : (
                 <>
-                  {"\u2717"} Missed: {lastMoveResult.expectedMove}
+                  {"\u2717"}{" "}
+                  {isEvaluatingWrongMove ? (
+                    <>
+                      Missed: {lastMoveResult.expectedMove}
+                      <span className="ml-1.5 animate-pulse text-red-300 normal-case font-medium">
+                        (Analyzing...)
+                      </span>
+                    </>
+                  ) : wrongMoveEvaluation ? (
+                    wrongMoveEvaluation === "Playable alternative" ? (
+                      <>
+                        Missed: {lastMoveResult.expectedMove}
+                        <span className="ml-1.5 text-slate-300 normal-case font-medium">
+                          (Playable alternative)
+                        </span>
+                      </>
+                    ) : (
+                      <span className="normal-case">
+                        {wrongMoveEvaluation}: <span className="uppercase font-bold">Missed {lastMoveResult.expectedMove}</span>
+                      </span>
+                    )
+                  ) : (
+                    <>Missed: {lastMoveResult.expectedMove}</>
+                  )}
                 </>
               )}
             </div>

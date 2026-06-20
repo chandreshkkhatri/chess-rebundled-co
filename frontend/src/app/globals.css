@@ -24,3 +24,21 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
+
+@keyframes unlock-pulse {
+  0% {
+    transform: scale(0.98);
+    border-color: rgba(168, 85, 247, 0.8);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.6);
+    background-color: rgba(168, 85, 247, 0.2);
+  }
+  100% {
+    transform: scale(1);
+    border-color: rgba(168, 85, 247, 0.3);
+    box-shadow: none;
+    background-color: rgba(168, 85, 247, 0.05);
+  }
+}
+.animate-unlock-pulse {
+  animation: unlock-pulse 1.2s ease-out;
+}

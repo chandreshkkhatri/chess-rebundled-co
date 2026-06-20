@@ -91,5 +91,53 @@ export function useStockfish() {
     [isReady]
   );
 
-  return { isReady, findBestMove };
+  const evaluatePosition = useCallback(
+    (fen: string, depth: number = 10): Promise<number> => {
+      return new Promise((resolve, reject) => {
+        const worker = workerRef.current;
+        if (!worker || !isReady) {
+          reject(new Error('Stockfish is not initialized.'));
+          return;
+        }
+
+        let lastScore = 0;
+        const sideToMove = fen.split(' ')[1]; // 'w' or 'b'
+
+        // Temporarily intercept onmessage to parse score
+        const oldOnMessage = worker.onmessage;
+        
+        worker.onmessage = (e) => {
+          const msg = e.data;
+          
+          if (msg.startsWith('info ')) {
+            // Parse score cp
+            const cpMatch = msg.match(/score cp (-?\d+)/);
+            if (cpMatch) {
+              const score = parseInt(cpMatch[1], 10);
+              // Normalize score to White's perspective
+              lastScore = sideToMove === 'w' ? score : -score;
+            } else {
+              const mateMatch = msg.match(/score mate (-?\d+)/);
+              if (mateMatch) {
+                const mateIn = parseInt(mateMatch[1], 10);
+                // A mate score is very large, e.g. 10000 centipawns
+                const score = mateIn > 0 ? 10000 - mateIn : -10000 - mateIn;
+                lastScore = sideToMove === 'w' ? score : -score;
+              }
+            }
+          } else if (msg.startsWith('bestmove ')) {
+            // Restore original handler and resolve
+            worker.onmessage = oldOnMessage;
+            resolve(lastScore);
+          }
+        };
+
+        worker.postMessage(`position fen ${fen}`);
+        worker.postMessage(`go depth ${depth}`);
+      });
+    },
+    [isReady]
+  );
+
+  return { isReady, findBestMove, evaluatePosition };
 }

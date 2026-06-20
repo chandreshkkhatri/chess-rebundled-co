@@ -9,6 +9,8 @@ import { PageLayout } from '@/components/PageLayout';
 import { XPProgressBar } from '@/components/XPProgressBar';
 import { StreakIndicator } from '@/components/StreakIndicator';
 import { UserGamification } from '@/types';
+import { AestheticShop } from '@/components/AestheticShop';
+import Image from 'next/image';
 
 interface UserProfile {
   displayName?: string;
@@ -175,10 +177,13 @@ export default function ProfilePage() {
           <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
             <div className="flex items-center gap-4">
               {user?.photoURL ? (
-                <img
+                <Image
                   src={user.photoURL}
                   alt={user.displayName || 'User'}
-                  className="w-16 h-16 rounded-full"
+                  width={64}
+                  height={64}
+                  className="rounded-full"
+                  unoptimized
                 />
               ) : (
                 <div className="w-16 h-16 rounded-full bg-purple-600 flex items-center justify-center text-white text-2xl font-bold">
@@ -299,6 +304,11 @@ export default function ProfilePage() {
                 )}
               </div>
             </div>
+          )}
+
+          {/* Aesthetic Customization Shop */}
+          {profile?.gamification && (
+            <AestheticShop totalXp={profile.gamification.totalXp} />
           )}
 
           {/* Stats */}

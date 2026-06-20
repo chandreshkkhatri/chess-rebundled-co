@@ -46,7 +46,7 @@ export default function Home() {
             </div>
 
             {/* Action cards */}
-            <div className="grid md:grid-cols-2 gap-4 mb-6">
+            <div className="grid md:grid-cols-3 gap-4 mb-6">
               <button
                 onClick={() => router.push('/practice')}
                 disabled={!isConnected}
@@ -74,6 +74,19 @@ export default function Home() {
                   Challenge another player using chess notation
                 </p>
               </button>
+
+              <button
+                onClick={() => router.push('/trainer')}
+                className="bg-slate-800 rounded-2xl p-6 text-left hover:bg-slate-750 hover:ring-2 hover:ring-indigo-500/50 transition-all group"
+              >
+                <div className="text-3xl mb-3">🎯</div>
+                <h2 className="text-xl font-bold text-white mb-1 group-hover:text-indigo-300 transition-colors">
+                  Coordinate Trainer
+                </h2>
+                <p className="text-sm text-slate-400">
+                  Build lightning-fast notation recall with a 30-second speed game
+                </p>
+              </button>
             </div>
 
             {/* Quick links */}
@@ -83,6 +96,9 @@ export default function Home() {
               </Link>
               <Link href="/history" className="text-slate-400 hover:text-purple-300 transition-colors">
                 Practice History
+              </Link>
+              <Link href="/trainer" className="text-slate-400 hover:text-purple-300 transition-colors">
+                Notation Trainer
               </Link>
               <Link href="/settings" className="text-slate-400 hover:text-purple-300 transition-colors">
                 Settings
