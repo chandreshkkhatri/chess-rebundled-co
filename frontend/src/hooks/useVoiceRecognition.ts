@@ -61,6 +61,15 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     recognition.lang = "en-US";
     recognition.maxAlternatives = 3;
 
+    // Boost accuracy for chess commands using a custom JSGF grammar list
+    const SpeechGrammarList = (window as any).SpeechGrammarList || (window as any).webkitSpeechGrammarList;
+    if (SpeechGrammarList) {
+      const grammar = '#JSGF V1.0; grammar chess; public <move> = a | b | c | d | e | f | g | h | one | two | three | four | five | six | seven | eight | king | queen | rook | bishop | knight | castle | takes | captures | alpha | bravo | charlie | delta | echo | foxtrot | golf | hotel ;';
+      const speechRecognitionList = new SpeechGrammarList();
+      speechRecognitionList.addFromString(grammar, 1);
+      recognition.grammars = speechRecognitionList;
+    }
+
     recognition.onstart = () => {
       setIsListening(true);
       setError(null);

@@ -68,7 +68,32 @@ function isLegalMove(notation: string, legalMoves: string[]): boolean {
 }
 
 export function parseVoiceInput(transcript: string, legalMoves?: string[]): ParsedMove {
-  const normalized = transcript.toLowerCase().trim();
+  let normalized = transcript.toLowerCase().trim();
+
+  // Pre-process transcript to map common homophones to standard chess notations
+  normalized = normalized
+    .replace(/\bsee\s*(\d)\b/g, 'c$1')      // "see 4" -> "c4"
+    .replace(/\bsea\s*(\d)\b/g, 'c$1')      // "sea 4" -> "c4"
+    .replace(/\bbe\s*(\d)\b/g, 'b$1')       // "be 4" -> "b4"
+    .replace(/\bbefore\b/g, 'b4')           // "before" -> "b4"
+    .replace(/\bbee\s*(\d)\b/g, 'b$1')      // "bee 4" -> "b4"
+    .replace(/\beff\s*(\d)\b/g, 'f$1')      // "eff 4" -> "f4"
+    .replace(/\bhalf\s*(\d)\b/g, 'f$1')     // "half 4" -> "f4"
+    .replace(/\bgee\s*(\d)\b/g, 'g$1')      // "gee 4" -> "g4"
+    .replace(/\beach\s*(\d)\b/g, 'h$1')     // "each 3" -> "h3"
+    .replace(/\bage\s*(\d)\b/g, 'h$1')      // "age 3" -> "h3"
+    .replace(/\bay\s*(\d)\b/g, 'a$1')       // "ay 1" -> "a1"
+    .replace(/\baye\s*(\d)\b/g, 'a$1')      // "aye 1" -> "a1"
+    .replace(/\bdate\b/g, 'd8')             // "date" -> "d8"
+    .replace(/\btoo\b/g, 'two')             // homophones for ranks
+    .replace(/\bto\b/g, 'two')
+    .replace(/\bfor\b/g, 'four')
+    .replace(/\bfore\b/g, 'four')
+    .replace(/\bate\b/g, 'eight')
+    .replace(/\bnight\b/g, 'knight')
+    .replace(/\bbrooke\b/g, 'rook')
+    .replace(/\bbrook\b/g, 'rook');
+
   let alternatives: string[] = [];
   let hasAmbiguity = false;
 

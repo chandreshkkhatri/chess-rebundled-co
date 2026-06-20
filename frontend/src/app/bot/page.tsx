@@ -225,7 +225,12 @@ function BotPlayContent() {
               {/* Thinking animation overlay */}
               {moveState === 'bot-thinking' && (
                  <div className="absolute inset-x-0 top-0 pointer-events-none z-10">
-                    <div className="h-1 bg-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)] animate-tubelight-top w-full" />
+                    <div className="h-1 bg-purple-400 animate-tubelight-top w-full rounded-t-[4px]" />
+                 </div>
+              )}
+              {moveState === 'human-thinking' && !isGameOver && (
+                 <div className="absolute inset-x-0 bottom-0 pointer-events-none z-10">
+                    <div className="h-1 bg-emerald-400 animate-tubelight-bottom w-full rounded-b-[4px]" />
                  </div>
               )}
               

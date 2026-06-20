@@ -533,9 +533,12 @@ export default function PracticeGamePage() {
                   </div>
                 </div>
 
-                <div className="w-full relative self-center">
+                <div className="w-full relative self-center bg-slate-850 rounded-[4px]">
                   {isOpponentThinking && mode === 'one-side' && (
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-purple-400 z-10 animate-tubelight-top pointer-events-none rounded-t-[4px]" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-purple-400 z-10 animate-tubelight-top pointer-events-none rounded-t-[4px]"></div>
+                  )}
+                  {!isOpponentThinking && status === 'playing' && mode === 'one-side' && (
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-400 z-10 animate-tubelight-bottom pointer-events-none rounded-b-[4px]"></div>
                   )}
                    <ChessBoard
                     fen={currentPosition}

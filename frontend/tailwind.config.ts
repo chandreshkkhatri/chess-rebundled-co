@@ -16,7 +16,8 @@ const config: Config = {
       animation: {
         'pulse-fast': 'pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'shake': 'shake 0.3s ease-in-out',
-        'tubelight-top': 'tubelightTop 1s ease-in-out 2',
+        'tubelight-top': 'tubelightTop 1.5s ease-in-out infinite',
+        'tubelight-bottom': 'tubelightBottom 1.5s ease-in-out infinite',
       },
       keyframes: {
         shake: {
@@ -26,12 +27,22 @@ const config: Config = {
         },
         tubelightTop: {
           '0%, 100%': {
-            opacity: '0.3', 
-            boxShadow: '0 -2px 15px 0px rgba(168, 85, 247, 0.1), inset 0 2px 10px 0px rgba(168, 85, 247, 0.1)'
+            opacity: '0.4', 
+            boxShadow: '0 -2px 15px 0px rgba(168, 85, 247, 0.15), inset 0 2px 10px 0px rgba(168, 85, 247, 0.15)'
           },
           '50%': { 
             opacity: '1',
-            boxShadow: '0 -8px 25px 6px rgba(168, 85, 247, 0.9), inset 0 3px 12px 1px rgba(168, 85, 247, 0.6)'
+            boxShadow: '0 -8px 25px 6px rgba(168, 85, 247, 0.85), inset 0 3px 12px 1px rgba(168, 85, 247, 0.6)'
+          },
+        },
+        tubelightBottom: {
+          '0%, 100%': {
+            opacity: '0.4', 
+            boxShadow: '0 2px 15px 0px rgba(16, 185, 129, 0.15), inset 0 -2px 10px 0px rgba(16, 185, 129, 0.15)'
+          },
+          '50%': { 
+            opacity: '1',
+            boxShadow: '0 8px 25px 6px rgba(16, 185, 129, 0.85), inset 0 -3px 12px 1px rgba(16, 185, 129, 0.6)'
           },
         },
       },

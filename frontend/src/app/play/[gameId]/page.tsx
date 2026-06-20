@@ -420,7 +420,17 @@ export default function MultiplayerGamePage() {
       {/* Main content: Board + Controls */}
       <div className="flex-1 flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 p-3 lg:p-6">
         {/* Board */}
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 relative bg-slate-800 rounded-sm">
+          {isGameActive && !isMyTurn && (
+            <div className="absolute inset-x-0 top-0 pointer-events-none z-10">
+              <div className="h-1 bg-purple-400 animate-tubelight-top w-full rounded-t-[4px]" />
+            </div>
+          )}
+          {isGameActive && isMyTurn && (
+            <div className="absolute inset-x-0 bottom-0 pointer-events-none z-10">
+              <div className="h-1 bg-emerald-400 animate-tubelight-bottom w-full rounded-b-[4px]" />
+            </div>
+          )}
           <ChessBoard
             fen={fen}
             orientation={orientation}
