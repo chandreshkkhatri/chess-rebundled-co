@@ -166,6 +166,249 @@ const COMMENTARY_TEMPLATES: Record<string, Record<string, string[]>> = {
   },
 };
 
+const CHAT_COLORS = [
+  "text-red-400", "text-blue-400", "text-green-400", "text-yellow-400",
+  "text-pink-400", "text-purple-400", "text-orange-400", "text-teal-400"
+];
+
+const MOCK_CHATTERS = [
+  "ChessStar", "BlunderGod", "PawnHustler", "ForkMaster", "SackTheQueen",
+  "RookRider", "StockfishLevel9", "MagnusJunior", "TwitchChatGM", "SubGiga",
+  "KnightRider", "SicilianPro", "KingCastle", "DeepBlue9", "HikaruMod", "LevySub"
+];
+
+const CHAT_TEMPLATES: Record<string, Record<string, string[]>> = {
+  hikaru: {
+    opening: [
+      "literally playing standard book moves LUL",
+      "speedrun hype! 🚀",
+      "What is this opening called?",
+      "takes takes takes takes",
+      "hikaru stream is vibes tonight",
+      "poggers opening",
+      "Is this the king's gambit?",
+      "juiced opening"
+    ],
+    capture: [
+      "EZ CLAP",
+      "Takes takes takes LUL",
+      "clean capture Pog",
+      "material advantage acquired",
+      "POGGERS",
+      "that bishop was juicy",
+      "no way they let him take that",
+      "GG piece"
+    ],
+    check: [
+      "monkaS check",
+      "Uh oh, check!",
+      "widepeepoHappy block it!",
+      "EZ defense incoming",
+      "King under pressure!",
+      "Not worried, it's Hikaru",
+      "checkmate next? Kappa",
+      "block with bishop!"
+    ],
+    checkmate: [
+      "GG SPEEDRUN! 🏆",
+      "literally checkmate LUL",
+      "EASY GAME GGs",
+      "GG WP",
+      "Hikaru is too good",
+      "100% accuracy incoming",
+      "GIGACHAD HIKARU",
+      "absolute destruction"
+    ],
+    castling: [
+      "King safety Pog",
+      "Castled! 🏰",
+      "Standard castle",
+      "rooks connected!"
+    ],
+    promotion: [
+      "QUEEN PROMOTION Pog",
+      "another queen LUL",
+      "GG, promotion is too much",
+      "devastating queen"
+    ],
+    quiet: [
+      "what was that move? 🤔",
+      "looks winning",
+      "consolidating the position",
+      "literally doing nothing Kappa",
+      "boring move yawn",
+      "Hikaru logic is 200 IQ",
+      "Pog",
+      "LUL"
+    ]
+  },
+  gotham: {
+    opening: [
+      "THE JEWELS! e4",
+      "danger levels guys!!",
+      "Levy e4 content is best content",
+      "classic theory",
+      "1600 rated opening",
+      "pog opening",
+      "here we go!"
+    ],
+    capture: [
+      "HE SACRIFICED THE ROOOOOOK!!!",
+      "THE ROOOOOOK!!!",
+      "OMG HE TOOK IT",
+      "Levy shouting imminent LUL",
+      "PogChamp capture!",
+      "clean tactics",
+      "danger levels high"
+    ],
+    check: [
+      "CHECK! monkaS",
+      "where is the king going?!",
+      "Levy screaming incoming",
+      "direct check! 💥",
+      "Oh no, the king is naked!",
+      "tactical check"
+    ],
+    checkmate: [
+      "CHECKMATE! THE ROOOOOOK! 💥",
+      "HE ACTUALLY MATED HIM",
+      "GG! Brilliant game!",
+      "Levy deserves a sub for this",
+      "GG WP",
+      "What a finish!",
+      "masterpiece!"
+    ],
+    castling: [
+      "Castled! King safe",
+      "sensible move Levy",
+      "🏰 safety first",
+      "rooks ready to roll"
+    ],
+    promotion: [
+      "PROMOTION! 👑",
+      "Queen incoming!",
+      "Devastating push",
+      "GG, queen is active"
+    ],
+    quiet: [
+      "is that a blunder? monkaS",
+      "preparing the trap!",
+      "danger levels is 100",
+      "guessing the move: e4",
+      "LUL did he hang a pawn?",
+      "solid positional stuff"
+    ]
+  },
+  botez: {
+    opening: [
+      "Andrea stream is lit tonight 🔥",
+      "poggers opening",
+      "Botez Gambit when? LUL",
+      "Andrea concentrate!",
+      "chat is fast today",
+      "hello from Europe!"
+    ],
+    capture: [
+      "OMG capture!",
+      "Botez Gambit incoming?? LUL",
+      "Wait, she captured! Pog",
+      "Andrea is cracked today",
+      "EZ captures",
+      "rip that knight"
+    ],
+    check: [
+      "RUN ANDREA RUN",
+      "check monkaS",
+      "Panic in chat LUL",
+      "is she safe??",
+      "bishop block!"
+    ],
+    checkmate: [
+      "WE WON! Pog",
+      "BOTEZ STREAM WINS!",
+      "GG GGs",
+      "Andrea carried by chat LUL",
+      "clean checkmate!"
+    ],
+    castling: [
+      "Castled! 🏰",
+      "Finally king safety",
+      "Andrea remembered castle LUL"
+    ],
+    promotion: [
+      "QUEEN PROMOTION!!!",
+      "pog queen",
+      "GG game over"
+    ],
+    quiet: [
+      "blunder? Kappa",
+      "Andrea is playing so sneaky",
+      "chat says d4 was better",
+      "LUL what is this move",
+      "looks solid",
+      "Andrea big brain"
+    ]
+  },
+  magnus: {
+    opening: [
+      "goat e4",
+      "Magnus is chill",
+      "standard Magnus game",
+      "EZ win for Magnus",
+      "Magnus sleeping and winning LUL",
+      "solid opening"
+    ],
+    capture: [
+      "clean exchange",
+      "structurally superior",
+      "goat calculations",
+      "EZ piece trade",
+      "Magnus logic too good",
+      "GG chess"
+    ],
+    check: [
+      "check, easy block",
+      "Magnus doesn't care LUL",
+      "neutralized instantly",
+      "king moves"
+    ],
+    checkmate: [
+      "goat checkmate 🐐",
+      "GG WP",
+      "endgame masterclass",
+      "unbelievable technique",
+      "Magnus Carlsen is the GOAT"
+    ],
+    castling: [
+      "🏰 castle",
+      "sensible positional play",
+      "rooks ready"
+    ],
+    promotion: [
+      "queen promotion",
+      "straightforward win",
+      "endgame decided"
+    ],
+    quiet: [
+      "positional squeeze",
+      "slowly improving pieces",
+      "Magnus GIGACHAD",
+      "no counterplay for black",
+      "boring but 100% winning",
+      "goat moves"
+    ]
+  }
+};
+
+interface ChatMessage {
+  id: string;
+  username: string;
+  text: string;
+  badge?: string;
+  isUser?: boolean;
+  color: string;
+}
+
 interface AICasterPanelProps {
   moves: string[];
   fen: string;
@@ -177,14 +420,17 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
     "Welcome! I am your commentator today. Make a move to start!"
   );
   const [ttsEnabled, setTtsEnabled] = useState<boolean>(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [userChatText, setUserChatText] = useState("");
   const prevMoveCountRef = useRef<number>(0);
   const lastCommentsRef = useRef<Record<string, string>>({});
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
 
   // TTS utility
   const speakComment = useCallback((text: string, casterId: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
 
-    // Cancel any ongoing speech
     window.speechSynthesis.cancel();
 
     const caster = CASTERS.find((c) => c.id === casterId) || CASTERS[0];
@@ -192,12 +438,10 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
     utterance.pitch = caster.voicePitch;
     utterance.rate = caster.voiceRate;
     
-    // Attempt to find a suitable English voice
     const voices = window.speechSynthesis.getVoices();
     let preferredVoice = null;
     
     if (casterId === "magnus") {
-      // Find a deeper voice or UK/Norwegian if available
       preferredVoice = voices.find((v) => v.lang.includes("en-GB") && v.name.toLowerCase().includes("male"));
     } else if (casterId === "gotham") {
       preferredVoice = voices.find((v) => v.lang.includes("en-US") && v.name.toLowerCase().includes("male"));
@@ -205,7 +449,6 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
       preferredVoice = voices.find((v) => v.lang.includes("en-US") && v.name.toLowerCase().includes("female"));
     }
     
-    // Fallback English voice
     if (!preferredVoice) {
       preferredVoice = voices.find((v) => v.lang.startsWith("en"));
     }
@@ -215,6 +458,53 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
     }
 
     window.speechSynthesis.speak(utterance);
+  }, []);
+
+  // Scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      timeoutsRef.current.forEach(clearTimeout);
+    };
+  }, []);
+
+  // Generate chat messages on move
+  const triggerChatMessages = useCallback((casterId: string, category: string, lastMove: string) => {
+    // Clear pending timeouts
+    timeoutsRef.current.forEach(clearTimeout);
+    timeoutsRef.current = [];
+
+    const templates = CHAT_TEMPLATES[casterId][category] || CHAT_TEMPLATES[casterId].quiet;
+    const shuffledChatters = [...MOCK_CHATTERS].sort(() => 0.5 - Math.random());
+    const count = Math.floor(Math.random() * 2) + 3; // 3 to 4 messages
+
+    const badges = ["🛡️", "💎", "⭐", undefined];
+
+    for (let i = 0; i < count; i++) {
+      const delay = Math.random() * 800 + i * 350 + 100;
+      const t = setTimeout(() => {
+        const chatter = shuffledChatters[i % shuffledChatters.length];
+        const template = templates[Math.floor(Math.random() * templates.length)];
+        const text = template.replace(/e4/g, lastMove);
+        const color = CHAT_COLORS[Math.floor(Math.random() * CHAT_COLORS.length)];
+        const badge = badges[Math.floor(Math.random() * badges.length)];
+
+        const newMessage: ChatMessage = {
+          id: Math.random().toString(),
+          username: chatter,
+          text,
+          badge,
+          color
+        };
+
+        setChatMessages((prev) => [...prev, newMessage].slice(-25));
+      }, delay);
+      timeoutsRef.current.push(t);
+    }
   }, []);
 
   // Generate commentary based on the latest move
@@ -228,13 +518,19 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
       };
       setCommentaryText(welcomeMessages[casterId]);
       if (ttsEnabled) speakComment(welcomeMessages[casterId], casterId);
+      
+      // Initialize welcome chat messages
+      setChatMessages([
+        { id: "welcome-1", username: "TwitchChatGM", text: "Pog! Stream is online!", badge: "⭐", color: "text-green-400" },
+        { id: "welcome-2", username: "PawnPusher", text: "let's gooooo! 🙌", badge: "🛡️", color: "text-blue-400" },
+        { id: "welcome-3", username: "SackTheQueen", text: "Predicting a massive blunder today Kappa", color: "text-yellow-400" }
+      ]);
       return;
     }
 
     const lastMove = moves[moves.length - 1];
     const moveIndex = moves.length;
 
-    // Classify move type from SAN notation
     let category = "quiet";
     if (lastMove.includes("#")) {
       category = "checkmate";
@@ -251,11 +547,7 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
     }
 
     const templates = COMMENTARY_TEMPLATES[casterId][category] || COMMENTARY_TEMPLATES[casterId].quiet;
-    
-    // Choose a random template that is different from what was said last if possible
     let comment = templates[Math.floor(Math.random() * templates.length)];
-    
-    // Customize template variables
     comment = comment.replace(/e4/g, lastMove);
 
     setCommentaryText(comment);
@@ -264,7 +556,11 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
     if (ttsEnabled) {
       speakComment(comment, casterId);
     }
-  }, [moves, ttsEnabled, speakComment]);
+
+    // Trigger chat reaction
+    triggerChatMessages(casterId, category, lastMove);
+
+  }, [moves, ttsEnabled, speakComment, triggerChatMessages]);
 
   // Update when moves change
   useEffect(() => {
@@ -278,7 +574,11 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
   const handleCasterChange = (casterId: string) => {
     setActiveCaster(casterId);
     
-    // If we have a cached comment for this caster on this move, show it, else regenerate
+    // Clear chat on caster change to fresh Twitch channel vibes
+    setChatMessages([
+      { id: "switch-1", username: "System", text: `Switched to ${casterId}'s stream chat...`, color: "text-slate-500" }
+    ]);
+
     if (moves.length === 0) {
       updateCommentary(casterId);
     } else {
@@ -286,6 +586,9 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
       if (cached) {
         setCommentaryText(cached);
         if (ttsEnabled) speakComment(cached, casterId);
+        
+        // Trigger small batch of chat messages
+        triggerChatMessages(casterId, "quiet", moves[moves.length - 1]);
       } else {
         updateCommentary(casterId);
       }
@@ -295,10 +598,49 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
   // Trigger TTS voice load
   useEffect(() => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      // Trigger voice load
       window.speechSynthesis.getVoices();
     }
   }, []);
+
+  const handleSendUserChat = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userChatText.trim()) return;
+
+    const userMsg: ChatMessage = {
+      id: Math.random().toString(),
+      username: "You",
+      text: userChatText.trim(),
+      badge: "👑",
+      isUser: true,
+      color: "text-purple-400"
+    };
+
+    setChatMessages((prev) => [...prev, userMsg].slice(-25));
+    setUserChatText("");
+
+    // Stagger a funny reply from a mock chatter
+    const replyTimeout = setTimeout(() => {
+      const fanNames = ["ChessFan123", "TwitchChatGM", "KnightHype", "PawnStar99", "StockfishEnthusiast"];
+      const fanReplies = [
+        "True! @You is speaking facts.",
+        "Kappa, I think you're right.",
+        "Exactly! Let's goooo! 🚀",
+        "LUL @You is 100% correct.",
+        "Pog, nice analysis!",
+      ];
+
+      const replyMsg: ChatMessage = {
+        id: Math.random().toString(),
+        username: fanNames[Math.floor(Math.random() * fanNames.length)],
+        text: fanReplies[Math.floor(Math.random() * fanReplies.length)],
+        badge: Math.random() > 0.5 ? "⭐" : undefined,
+        color: CHAT_COLORS[Math.floor(Math.random() * CHAT_COLORS.length)]
+      };
+      setChatMessages((prev) => [...prev, replyMsg].slice(-25));
+    }, 850);
+    
+    timeoutsRef.current.push(replyTimeout);
+  };
 
   const currentCaster = CASTERS.find((c) => c.id === activeCaster) || CASTERS[0];
 
@@ -373,6 +715,55 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
           </p>
         </div>
       </div>
+
+      {/* Simulated Live Stream Chat Panel */}
+      <div className="flex flex-col gap-2 border-t border-slate-700/40 pt-3">
+        <h4 className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+          <span>💬</span> Live Stream Chat
+        </h4>
+
+        {/* Chat Log View */}
+        <div className="h-36 bg-slate-900/80 rounded-xl p-2.5 border border-slate-850/80 overflow-y-auto flex flex-col gap-1.5 custom-scrollbar font-mono text-[10px]">
+          {chatMessages.length === 0 ? (
+            <div className="text-slate-500 italic text-center my-auto">Chat is quiet...</div>
+          ) : (
+            chatMessages.map((msg) => (
+              <div key={msg.id} className="flex items-start gap-1 leading-normal break-all">
+                {msg.badge && (
+                  <span className="text-[9px] flex-shrink-0 mr-0.5 select-none" title={msg.badge}>
+                    {msg.badge}
+                  </span>
+                )}
+                <span className={`font-bold mr-1 flex-shrink-0 ${msg.color}`}>
+                  {msg.username}:
+                </span>
+                <span className={msg.isUser ? "text-purple-300 font-medium" : "text-slate-300"}>
+                  {msg.text}
+                </span>
+              </div>
+            ))
+          )}
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* User Chat Input Box */}
+        <form onSubmit={handleSendUserChat} className="flex gap-2">
+          <input
+            type="text"
+            value={userChatText}
+            onChange={(e) => setUserChatText(e.target.value)}
+            placeholder="Send a chat message..."
+            className="flex-1 bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-[10px] text-slate-200 outline-none focus:ring-1 focus:ring-purple-500 focus:border-transparent font-sans"
+          />
+          <button
+            type="submit"
+            className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-3 py-1.5 text-[10px] font-bold transition-all hover:shadow-[0_0_8px_rgba(168,85,247,0.25)] flex items-center justify-center"
+          >
+            Chat
+          </button>
+        </form>
+      </div>
+
     </div>
   );
 }
