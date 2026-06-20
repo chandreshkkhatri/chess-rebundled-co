@@ -1,11 +1,23 @@
-import { Server, Socket } from 'socket.io';
-import { PracticeService } from '../services/practiceService.js';
-import { parseChessMoveWithAI, AIParsedMove } from '../services/aiMoveParser.js';
-import { parseChessMoveFromAudio } from '../services/geminiAudioParser.js';
-import { ClientToServerEvents, ServerToClientEvents } from '../types/index.js';
-import { saveCompletedSession, ensureUserExists, processGamification } from '../services/firestoreService.js';
-import { getPlayerList, getRandomGameByPlayer, getRandomGame } from '../services/gameRepository.js';
-import crypto from 'crypto';
+import { Server, Socket } from "socket.io";
+import { PracticeService } from "../services/practiceService.js";
+import {
+  parseChessMoveWithAI,
+  AIParsedMove,
+} from "../services/aiMoveParser.js";
+import { parseChessMoveFromAudio } from "../services/geminiAudioParser.js";
+import { ClientToServerEvents, ServerToClientEvents } from "../types/index.js";
+import {
+  saveCompletedSession,
+  ensureUserExists,
+  processGamification,
+} from "../services/firestoreService.js";
+import { getVoiceCalibration } from "../services/firestoreService.js";
+import {
+  getPlayerList,
+  getRandomGameByPlayer,
+  getRandomGame,
+} from "../services/gameRepository.js";
+import crypto from "crypto";
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 
@@ -19,8 +31,14 @@ export class GameHandler {
   private practiceService: PracticeService;
   // AI parsing response cache (keyed by hash of transcript + fen)
   private aiParseCache: Map<string, AIParseCacheEntry> = new Map();
+  // Voice calibration cache (keyed by user uid)
+  private calibrationCache: Map<
+    string,
+    { confusionMap: Record<string, string[]> | null; loadedAt: number }
+  > = new Map();
   private static readonly AI_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
   private static readonly AI_CACHE_MAX_SIZE = 500;
+  private static readonly CALIBRATION_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
   constructor(private io: Server<ClientToServerEvents, ServerToClientEvents>) {
     this.practiceService = new PracticeService();
@@ -29,11 +47,14 @@ export class GameHandler {
   // Generate cache key for AI parsing
   private getAIParseCacheKey(transcript: string, fen: string): string {
     const data = `${transcript.toLowerCase().trim()}:${fen}`;
-    return crypto.createHash('md5').update(data).digest('hex');
+    return crypto.createHash("md5").update(data).digest("hex");
   }
 
   // Get cached AI parse result if valid
-  private getCachedAIParse(transcript: string, fen: string): AIParsedMove | null {
+  private getCachedAIParse(
+    transcript: string,
+    fen: string,
+  ): AIParsedMove | null {
     const key = this.getAIParseCacheKey(transcript, fen);
     const entry = this.aiParseCache.get(key);
     if (entry && Date.now() - entry.timestamp < GameHandler.AI_CACHE_TTL_MS) {
@@ -47,7 +68,11 @@ export class GameHandler {
   }
 
   // Cache AI parse result
-  private cacheAIParse(transcript: string, fen: string, result: AIParsedMove): void {
+  private cacheAIParse(
+    transcript: string,
+    fen: string,
+    result: AIParsedMove,
+  ): void {
     const key = this.getAIParseCacheKey(transcript, fen);
     this.aiParseCache.set(key, { result, timestamp: Date.now() });
 
@@ -60,22 +85,70 @@ export class GameHandler {
     }
   }
 
+  // Get user's voice calibration confusion map (cached)
+  private async getUserConfusionMap(
+    uid: string | undefined,
+  ): Promise<Record<string, string[]> | undefined> {
+    if (!uid) return undefined;
+
+    const cached = this.calibrationCache.get(uid);
+    if (
+      cached &&
+      Date.now() - cached.loadedAt < GameHandler.CALIBRATION_CACHE_TTL_MS
+    ) {
+      return cached.confusionMap || undefined;
+    }
+
+    try {
+      const calibration = await getVoiceCalibration(uid);
+      const confusionMap = calibration?.confusionMap || null;
+      this.calibrationCache.set(uid, { confusionMap, loadedAt: Date.now() });
+      return confusionMap || undefined;
+    } catch (error) {
+      console.warn(
+        "[GameHandler] Failed to load calibration for user",
+        uid,
+        error,
+      );
+      return undefined;
+    }
+  }
+
   register(socket: GameSocket): void {
-
     // Practice mode events
-    socket.on('start-practice', (data) => this.handleStartPractice(socket, data));
-    socket.on('start-practice-random', (data) => this.handleStartPracticeRandom(socket, data));
-    socket.on('start-practice-by-player', (data) => this.handleStartPracticeByPlayer(socket, data));
-    socket.on('get-random-practice-game', () => this.handleGetRandomPracticeGame(socket));
-    socket.on('get-player-practice-game', (data) => this.handleGetPlayerPracticeGame(socket, data));
-    socket.on('get-player-list', () => this.handleGetPlayerList(socket));
-    socket.on('submit-practice-move', (data) => this.handleSubmitPracticeMove(socket, data));
-    socket.on('abandon-practice', (data) => this.handleAbandonPractice(socket, data));
-    socket.on('resume-session', (data) => this.handleResumeSession(socket, data));
-    socket.on('parse-move-with-ai', (data) => this.handleParseMoveWithAI(socket, data));
-    socket.on('parse-audio-move-with-gemini', (data) => this.handleParseAudioMoveWithGemini(socket, data));
+    socket.on("start-practice", (data) =>
+      this.handleStartPractice(socket, data),
+    );
+    socket.on("start-practice-random", (data) =>
+      this.handleStartPracticeRandom(socket, data),
+    );
+    socket.on("start-practice-by-player", (data) =>
+      this.handleStartPracticeByPlayer(socket, data),
+    );
+    socket.on("get-random-practice-game", () =>
+      this.handleGetRandomPracticeGame(socket),
+    );
+    socket.on("get-player-practice-game", (data) =>
+      this.handleGetPlayerPracticeGame(socket, data),
+    );
+    socket.on("get-player-list", () => this.handleGetPlayerList(socket));
+    socket.on("submit-practice-move", (data) =>
+      this.handleSubmitPracticeMove(socket, data),
+    );
+    socket.on("abandon-practice", (data) =>
+      this.handleAbandonPractice(socket, data),
+    );
+    socket.on("resume-session", (data) =>
+      this.handleResumeSession(socket, data),
+    );
+    socket.on("parse-move-with-ai", (data) =>
+      this.handleParseMoveWithAI(socket, data),
+    );
+    socket.on("parse-audio-move-with-gemini", (data) =>
+      this.handleParseAudioMoveWithGemini(socket, data),
+    );
 
-    socket.on('disconnect', () => this.handleDisconnect(socket));
+    socket.on("disconnect", () => this.handleDisconnect(socket));
   }
 
   private async handleDisconnect(socket: GameSocket): Promise<void> {
@@ -86,7 +159,12 @@ export class GameHandler {
 
   private async handleStartPractice(
     socket: GameSocket,
-    data: { gameId?: string; playerName: string; mode?: 'both-sides' | 'one-side'; playerColor?: 'white' | 'black' }
+    data: {
+      gameId?: string;
+      playerName: string;
+      mode?: "both-sides" | "one-side";
+      playerColor?: "white" | "black";
+    },
   ): Promise<void> {
     try {
       // Get uid from socket auth data
@@ -96,7 +174,7 @@ export class GameHandler {
       // Ensure user exists in Firestore (if authenticated) - non-blocking
       if (uid) {
         ensureUserExists(uid, email ?? null).catch((err) => {
-          console.warn('[GameHandler] Failed to ensure user exists:', err);
+          console.warn("[GameHandler] Failed to ensure user exists:", err);
         });
       }
 
@@ -113,26 +191,34 @@ export class GameHandler {
         socket.id,
         data.playerName,
         data.gameId,
-        data.mode || 'both-sides',
+        data.mode || "both-sides",
         data.playerColor || null,
-        uid
+        uid,
       );
 
       if (!startData) {
-        socket.emit('practice-error', { message: 'Could not start practice session' });
+        socket.emit("practice-error", {
+          message: "Could not start practice session",
+        });
         return;
       }
 
-      socket.emit('practice-started', startData);
+      socket.emit("practice-started", startData);
     } catch (error) {
-      console.error('Error starting practice session:', error);
-      socket.emit('practice-error', { message: 'Failed to start practice session due to server error' });
+      console.error("Error starting practice session:", error);
+      socket.emit("practice-error", {
+        message: "Failed to start practice session due to server error",
+      });
     }
   }
 
   private async handleStartPracticeRandom(
     socket: GameSocket,
-    data: { playerName: string; mode?: 'both-sides' | 'one-side'; playerColor?: 'white' | 'black' }
+    data: {
+      playerName: string;
+      mode?: "both-sides" | "one-side";
+      playerColor?: "white" | "black";
+    },
   ): Promise<void> {
     try {
       // Get uid from socket auth data
@@ -142,43 +228,53 @@ export class GameHandler {
       // Ensure user exists in Firestore (if authenticated) - non-blocking
       if (uid) {
         ensureUserExists(uid, email ?? null).catch((err) => {
-          console.warn('[GameHandler] Failed to ensure user exists:', err);
+          console.warn("[GameHandler] Failed to ensure user exists:", err);
         });
       }
 
       const startData = await this.practiceService.startSessionWithRandomGame(
         socket.id,
         data.playerName,
-        data.mode || 'both-sides',
+        data.mode || "both-sides",
         data.playerColor || null,
-        uid
+        uid,
       );
 
       if (!startData) {
-        socket.emit('practice-error', { message: 'Could not start practice session - no games available' });
+        socket.emit("practice-error", {
+          message: "Could not start practice session - no games available",
+        });
         return;
       }
 
-      socket.emit('practice-started', startData);
+      socket.emit("practice-started", startData);
     } catch (error) {
-      console.error('Error starting random practice session:', error);
-      socket.emit('practice-error', { message: 'Failed to start practice session due to server error' });
+      console.error("Error starting random practice session:", error);
+      socket.emit("practice-error", {
+        message: "Failed to start practice session due to server error",
+      });
     }
   }
 
   private async handleGetPlayerList(socket: GameSocket): Promise<void> {
     try {
       const playerList = await getPlayerList();
-      socket.emit('player-list', playerList);
+      socket.emit("player-list", playerList);
     } catch (error) {
-      console.error('Error fetching player list:', error);
-      socket.emit('practice-error', { message: 'Failed to fetch player list' });
+      console.error("Error fetching player list:", error);
+      socket.emit("practice-error", { message: "Failed to fetch player list" });
     }
   }
 
   private async handleStartPracticeByPlayer(
     socket: GameSocket,
-    data: { playerName: string; historicalPlayerName: string; role: 'white' | 'black'; mode?: 'both-sides' | 'one-side'; playerColor?: 'white' | 'black' }
+    data: {
+      playerName: string;
+      historicalPlayerName: string;
+      role: "white" | "black";
+      mode?: "both-sides" | "one-side";
+      playerColor?: "white" | "black";
+    },
   ): Promise<void> {
     try {
       const uid = socket.data.uid;
@@ -186,13 +282,18 @@ export class GameHandler {
 
       if (uid) {
         ensureUserExists(uid, email ?? null).catch((err) => {
-          console.warn('[GameHandler] Failed to ensure user exists:', err);
+          console.warn("[GameHandler] Failed to ensure user exists:", err);
         });
       }
 
-      const game = await getRandomGameByPlayer(data.historicalPlayerName, data.role);
+      const game = await getRandomGameByPlayer(
+        data.historicalPlayerName,
+        data.role,
+      );
       if (!game) {
-        socket.emit('practice-error', { message: `No games found for player "${data.historicalPlayerName}" as ${data.role}` });
+        socket.emit("practice-error", {
+          message: `No games found for player "${data.historicalPlayerName}" as ${data.role}`,
+        });
         return;
       }
 
@@ -200,20 +301,24 @@ export class GameHandler {
         socket.id,
         data.playerName,
         game.id,
-        data.mode || 'both-sides',
+        data.mode || "both-sides",
         data.playerColor || null,
-        uid
+        uid,
       );
 
       if (!startData) {
-        socket.emit('practice-error', { message: 'Could not start practice session' });
+        socket.emit("practice-error", {
+          message: "Could not start practice session",
+        });
         return;
       }
 
-      socket.emit('practice-started', startData);
+      socket.emit("practice-started", startData);
     } catch (error) {
-      console.error('Error starting practice by player:', error);
-      socket.emit('practice-error', { message: 'Failed to start practice session due to server error' });
+      console.error("Error starting practice by player:", error);
+      socket.emit("practice-error", {
+        message: "Failed to start practice session due to server error",
+      });
     }
   }
 
@@ -221,55 +326,76 @@ export class GameHandler {
     try {
       const game = await getRandomGame();
       if (!game) {
-        socket.emit('practice-error', { message: 'No games available' });
+        socket.emit("practice-error", { message: "No games available" });
         return;
       }
-      socket.emit('practice-game-details', game);
+      socket.emit("practice-game-details", game);
     } catch (error) {
-      console.error('Error fetching random practice game:', error);
-      socket.emit('practice-error', { message: 'Failed to fetch game details' });
+      console.error("Error fetching random practice game:", error);
+      socket.emit("practice-error", {
+        message: "Failed to fetch game details",
+      });
     }
   }
 
   private async handleGetPlayerPracticeGame(
     socket: GameSocket,
-    data: { historicalPlayerName: string; role: 'white' | 'black' }
+    data: { historicalPlayerName: string; role: "white" | "black" },
   ): Promise<void> {
     try {
-      const game = await getRandomGameByPlayer(data.historicalPlayerName, data.role);
+      const game = await getRandomGameByPlayer(
+        data.historicalPlayerName,
+        data.role,
+      );
       if (!game) {
-        socket.emit('practice-error', { message: `No games found for player "${data.historicalPlayerName}" as ${data.role}` });
+        socket.emit("practice-error", {
+          message: `No games found for player "${data.historicalPlayerName}" as ${data.role}`,
+        });
         return;
       }
-      socket.emit('practice-game-details', game);
+      socket.emit("practice-game-details", game);
     } catch (error) {
-      console.error('Error fetching player practice game:', error);
-      socket.emit('practice-error', { message: 'Failed to fetch game details' });
+      console.error("Error fetching player practice game:", error);
+      socket.emit("practice-error", {
+        message: "Failed to fetch game details",
+      });
     }
   }
 
   private async handleSubmitPracticeMove(
     socket: GameSocket,
-    data: { sessionId: string; move: string }
+    data: { sessionId: string; move: string },
   ): Promise<void> {
     try {
       // Update socket ID if reconnected
       const session = await this.practiceService.getSession(data.sessionId);
       if (session && session.socketId !== socket.id) {
-        await this.practiceService.updateSessionSocketId(data.sessionId, socket.id);
+        await this.practiceService.updateSessionSocketId(
+          data.sessionId,
+          socket.id,
+        );
       }
 
-      const result = await this.practiceService.processMove(data.sessionId, data.move);
+      const result = await this.practiceService.processMove(
+        data.sessionId,
+        data.move,
+      );
 
       if (!result) {
-        socket.emit('practice-error', { message: 'Could not process move' });
+        socket.emit("practice-error", { message: "Could not process move" });
         return;
       }
 
       // Check if session is complete and prepare response data
-      const isComplete = await this.practiceService.isSessionComplete(data.sessionId);
-      const completedData = isComplete ? await this.practiceService.completeSession(data.sessionId) : null;
-      const nextMoveData = !isComplete ? await this.practiceService.getNextMoveData(data.sessionId) : null;
+      const isComplete = await this.practiceService.isSessionComplete(
+        data.sessionId,
+      );
+      const completedData = isComplete
+        ? await this.practiceService.completeSession(data.sessionId)
+        : null;
+      const nextMoveData = !isComplete
+        ? await this.practiceService.getNextMoveData(data.sessionId)
+        : null;
 
       // Save to Firestore and process gamification if session completed and user is authenticated
       let gamificationResult = null;
@@ -285,12 +411,15 @@ export class GameHandler {
           ]);
           gamificationResult = gamification;
         } catch (err) {
-          console.error('[GameHandler] Failed to save session/gamification to Firestore:', err);
+          console.error(
+            "[GameHandler] Failed to save session/gamification to Firestore:",
+            err,
+          );
         }
       }
 
       // Emit combined response (single round-trip instead of 2)
-      socket.emit('practice-move-response', {
+      socket.emit("practice-move-response", {
         result,
         nextMove: nextMoveData || undefined,
         completed: completedData || undefined,
@@ -298,43 +427,45 @@ export class GameHandler {
       });
 
       // Also emit legacy events for backward compatibility
-      socket.emit('practice-move-result', result);
+      socket.emit("practice-move-result", result);
       if (completedData) {
-        socket.emit('practice-completed', completedData);
+        socket.emit("practice-completed", completedData);
       } else if (nextMoveData) {
-        socket.emit('practice-next-move', nextMoveData);
+        socket.emit("practice-next-move", nextMoveData);
       }
     } catch (error) {
-       console.error('Error submitting practice move:', error);
-       socket.emit('practice-error', { message: 'Server error processing move' });
+      console.error("Error submitting practice move:", error);
+      socket.emit("practice-error", {
+        message: "Server error processing move",
+      });
     }
   }
 
   private async handleAbandonPractice(
     socket: GameSocket,
-    data: { sessionId: string }
+    data: { sessionId: string },
   ): Promise<void> {
     await this.practiceService.abandonSession(data.sessionId);
   }
 
   private async handleResumeSession(
     socket: GameSocket,
-    data: { sessionId: string }
+    data: { sessionId: string },
   ): Promise<void> {
     const session = await this.practiceService.getSession(data.sessionId);
 
     if (!session) {
-      socket.emit('session-not-found', {
+      socket.emit("session-not-found", {
         sessionId: data.sessionId,
-        reason: 'Session not found or expired',
+        reason: "Session not found or expired",
       });
       return;
     }
 
-    if (session.status !== 'playing') {
-      socket.emit('session-not-found', {
+    if (session.status !== "playing") {
+      socket.emit("session-not-found", {
         sessionId: data.sessionId,
-        reason: 'Session is no longer active',
+        reason: "Session is no longer active",
       });
       return;
     }
@@ -342,54 +473,67 @@ export class GameHandler {
     // Update socket ID for reconnection
     await this.practiceService.updateSessionSocketId(data.sessionId, socket.id);
 
-    const resumeData = await this.practiceService.getSessionResumeData(data.sessionId);
+    const resumeData = await this.practiceService.getSessionResumeData(
+      data.sessionId,
+    );
 
     if (!resumeData) {
-      socket.emit('session-not-found', {
+      socket.emit("session-not-found", {
         sessionId: data.sessionId,
-        reason: 'Could not restore session state',
+        reason: "Could not restore session state",
       });
       return;
     }
 
-    console.log(`[GameHandler] Session ${data.sessionId} resumed for socket ${socket.id}`);
-    socket.emit('session-resumed', resumeData);
+    console.log(
+      `[GameHandler] Session ${data.sessionId} resumed for socket ${socket.id}`,
+    );
+    socket.emit("session-resumed", resumeData);
   }
 
   private async handleParseMoveWithAI(
     socket: GameSocket,
-    data: { sessionId: string; transcript: string }
+    data: { sessionId: string; transcript: string; rawTranscript?: string },
   ): Promise<void> {
     const session = await this.practiceService.getSession(data.sessionId);
     if (!session) {
-      socket.emit('parse-error', { message: 'Session not found' });
+      socket.emit("parse-error", { message: "Session not found" });
       return;
     }
 
     // Update socket ID if reconnected
     if (session.socketId !== socket.id) {
-      await this.practiceService.updateSessionSocketId(data.sessionId, socket.id);
+      await this.practiceService.updateSessionSocketId(
+        data.sessionId,
+        socket.id,
+      );
     }
 
-    const currentFen = await this.practiceService.getCurrentPosition(data.sessionId);
+    const currentFen = await this.practiceService.getCurrentPosition(
+      data.sessionId,
+    );
     const legalMoves = await this.practiceService.getLegalMoves(data.sessionId);
 
     try {
       // Check cache first for AI parsing results
-      let parsed = this.getCachedAIParse(data.transcript, currentFen);
+      // Use rawTranscript for AI when available (gives better context than locally-parsed move)
+      const transcriptForAI = data.rawTranscript || data.transcript;
+      let parsed = this.getCachedAIParse(transcriptForAI, currentFen);
 
       if (!parsed) {
         // Cache miss - call AI
+        const confusionMap = await this.getUserConfusionMap(socket.data.uid);
         parsed = await parseChessMoveWithAI(
-          data.transcript,
+          transcriptForAI,
           currentFen,
-          legalMoves
+          legalMoves,
+          { confusionMap },
         );
         // Cache the result
-        this.cacheAIParse(data.transcript, currentFen, parsed);
+        this.cacheAIParse(transcriptForAI, currentFen, parsed);
       }
 
-      socket.emit('move-parsed', {
+      socket.emit("move-parsed", {
         transcript: data.transcript,
         parsedMove: parsed.move,
         confidence: parsed.confidence,
@@ -397,41 +541,48 @@ export class GameHandler {
         reasoning: parsed.reasoning,
       });
     } catch (error) {
-      console.error('[GameHandler] AI parse error:', error);
-      socket.emit('parse-error', {
-        message: `AI parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      console.error("[GameHandler] AI parse error:", error);
+      socket.emit("parse-error", {
+        message: `AI parsing failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       });
     }
   }
 
   private async handleParseAudioMoveWithGemini(
     socket: GameSocket,
-    data: { sessionId: string; audioBase64: string; mimeType: string }
+    data: { sessionId: string; audioBase64: string; mimeType: string },
   ): Promise<void> {
     const session = await this.practiceService.getSession(data.sessionId);
     if (!session) {
-      socket.emit('audio-parse-error', { message: 'Session not found' });
+      socket.emit("audio-parse-error", { message: "Session not found" });
       return;
     }
 
     // Update socket ID if reconnected
     if (session.socketId !== socket.id) {
-      await this.practiceService.updateSessionSocketId(data.sessionId, socket.id);
+      await this.practiceService.updateSessionSocketId(
+        data.sessionId,
+        socket.id,
+      );
     }
 
-    const currentFen = await this.practiceService.getCurrentPosition(data.sessionId);
+    const currentFen = await this.practiceService.getCurrentPosition(
+      data.sessionId,
+    );
     const legalMoves = await this.practiceService.getLegalMoves(data.sessionId);
 
     try {
+      const confusionMap = await this.getUserConfusionMap(socket.data.uid);
       const parsed = await parseChessMoveFromAudio(
         data.audioBase64,
         data.mimeType,
         currentFen,
-        legalMoves
+        legalMoves,
+        { confusionMap },
       );
 
-      socket.emit('audio-move-parsed', {
-        transcript: parsed.transcription || '[audio input]',
+      socket.emit("audio-move-parsed", {
+        transcript: parsed.transcription || "[audio input]",
         parsedMove: parsed.move,
         confidence: parsed.confidence,
         alternatives: parsed.alternatives,
@@ -439,9 +590,9 @@ export class GameHandler {
         transcription: parsed.transcription,
       });
     } catch (error) {
-      console.error('[GameHandler] Gemini audio parse error:', error);
-      socket.emit('audio-parse-error', {
-        message: `Audio parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      console.error("[GameHandler] Gemini audio parse error:", error);
+      socket.emit("audio-parse-error", {
+        message: `Audio parsing failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       });
     }
   }

@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { usePracticeStore } from '@/stores/practiceStore';
-import { usePracticeSocket } from '@/hooks/usePracticeSocket';
-import { UniversalInputPanel } from './UniversalInputPanel';
+import { usePracticeStore } from "@/stores/practiceStore";
+import { usePracticeSocket } from "@/hooks/usePracticeSocket";
+import { UniversalInputPanel } from "./UniversalInputPanel";
 
 interface PracticeVoiceInputProps {
   onMoveSubmit: (move: string, confidence: number) => void;
@@ -11,13 +11,12 @@ interface PracticeVoiceInputProps {
   onCloseDebugPanel?: () => void;
 }
 
-export function PracticeVoiceInput({ 
-  onMoveSubmit, 
-  disabled = false, 
-  showDebugPanel = false, 
-  onCloseDebugPanel 
+export function PracticeVoiceInput({
+  onMoveSubmit,
+  disabled = false,
+  showDebugPanel = false,
+  onCloseDebugPanel,
 }: PracticeVoiceInputProps) {
-  
   const {
     status,
     lastMoveResult,
@@ -36,11 +35,11 @@ export function PracticeVoiceInput({
   } = usePracticeStore();
 
   const { parseMoveWithAI, parseAudioMoveWithGemini } = usePracticeSocket();
-  const isActive = status === 'playing' && !disabled;
+  const isActive = status === "playing" && !disabled;
 
   return (
     <UniversalInputPanel
-      fen={currentPosition || ''}
+      fen={currentPosition || ""}
       isActive={isActive}
       isSubmitting={isSubmitting}
       inputMode={inputMode}
@@ -52,9 +51,9 @@ export function PracticeVoiceInput({
       aiParseError={aiParseError}
       isAIParsing={isAIParsing}
       onMoveSubmit={onMoveSubmit}
-      onParseMoveWithText={(text) => {
+      onParseMoveWithText={(text, rawTranscript) => {
         if (sessionId) {
-          parseMoveWithAI(sessionId, text);
+          parseMoveWithAI(sessionId, text, rawTranscript);
         }
       }}
       onParseMoveWithAudio={(audioBase64, mimeType) => {

@@ -1,16 +1,24 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { verifyIdToken } from '../lib/firebase-admin.js';
-import { getUserProfile, getUserSessions, getSession, updateUserDisplayName } from '../services/firestoreService.js';
+import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { verifyIdToken } from "../lib/firebase-admin.js";
+import {
+  getUserProfile,
+  getUserSessions,
+  getSession,
+  updateUserDisplayName,
+  saveVoiceCalibration,
+  getVoiceCalibration,
+  VoiceCalibration,
+} from "../services/firestoreService.js";
 
 // Auth middleware for Fastify
 async function authenticateRequest(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<{ uid: string } | null> {
   const authHeader = request.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    reply.code(401).send({ error: 'Unauthorized - Missing or invalid token' });
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    reply.code(401).send({ error: "Unauthorized - Missing or invalid token" });
     return null;
   }
 
@@ -18,7 +26,7 @@ async function authenticateRequest(
   const decodedToken = await verifyIdToken(token);
 
   if (!decodedToken) {
-    reply.code(401).send({ error: 'Unauthorized - Invalid token' });
+    reply.code(401).send({ error: "Unauthorized - Invalid token" });
     return null;
   }
 
@@ -27,7 +35,7 @@ async function authenticateRequest(
 
 export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   // Get user profile and stats
-  fastify.get('/api/user/profile', async (request, reply) => {
+  fastify.get("/api/user/profile", async (request, reply) => {
     const auth = await authenticateRequest(request, reply);
     if (!auth) return;
 
@@ -44,8 +52,8 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           lastPlayedAt: null,
         },
         preferences: {
-          voiceParsingMode: 'gemini-audio',
-          defaultPracticeMode: 'both-sides',
+          voiceParsingMode: "gemini-audio",
+          defaultPracticeMode: "both-sides",
         },
       };
     }
@@ -68,44 +76,46 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
 
   // Update user profile (display name)
   fastify.put<{ Body: { displayName?: string } }>(
-    '/api/user/profile',
+    "/api/user/profile",
     async (request, reply) => {
       const auth = await authenticateRequest(request, reply);
       if (!auth) return;
 
       const { displayName } = request.body || {};
 
-      if (!displayName || typeof displayName !== 'string') {
-        reply.code(400).send({ error: 'displayName is required' });
+      if (!displayName || typeof displayName !== "string") {
+        reply.code(400).send({ error: "displayName is required" });
         return;
       }
 
       const sanitizedName = displayName.trim().slice(0, 20);
       if (!sanitizedName) {
-        reply.code(400).send({ error: 'displayName cannot be empty' });
+        reply.code(400).send({ error: "displayName cannot be empty" });
         return;
       }
 
       // Validate characters: allow alphanumeric, spaces, hyphens, underscores, periods
       const validNamePattern = /^[\w\s.\-]+$/;
       if (!validNamePattern.test(sanitizedName)) {
-        reply.code(400).send({ error: 'displayName contains invalid characters' });
+        reply
+          .code(400)
+          .send({ error: "displayName contains invalid characters" });
         return;
       }
 
       await updateUserDisplayName(auth.uid, sanitizedName);
       return { success: true, displayName: sanitizedName };
-    }
+    },
   );
 
   // Get user's practice history
   fastify.get<{ Querystring: { limit?: string } }>(
-    '/api/user/sessions',
+    "/api/user/sessions",
     async (request, reply) => {
       const auth = await authenticateRequest(request, reply);
       if (!auth) return;
 
-      const limit = parseInt(request.query.limit || '20', 10);
+      const limit = parseInt(request.query.limit || "20", 10);
       const sessions = await getUserSessions(auth.uid, Math.min(limit, 100));
 
       return sessions.map((session) => ({
@@ -119,12 +129,12 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         completedAt: session.completedAt?.toDate?.() || null,
         summary: session.summary,
       }));
-    }
+    },
   );
 
   // Get a specific session with full move history
   fastify.get<{ Params: { sessionId: string } }>(
-    '/api/user/sessions/:sessionId',
+    "/api/user/sessions/:sessionId",
     async (request, reply) => {
       const auth = await authenticateRequest(request, reply);
       if (!auth) return;
@@ -132,7 +142,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
       const session = await getSession(auth.uid, request.params.sessionId);
 
       if (!session) {
-        reply.code(404).send({ error: 'Session not found' });
+        reply.code(404).send({ error: "Session not found" });
         return;
       }
 
@@ -148,6 +158,76 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         moves: session.moves,
         summary: session.summary,
       };
-    }
+    },
   );
+
+  // Save voice calibration data
+  fastify.put<{
+    Body: {
+      entries?: unknown[];
+      confusionMap?: Record<string, string[]>;
+      calibratedAt?: number;
+    };
+  }>("/api/user/voice-calibration", async (request, reply) => {
+    const auth = await authenticateRequest(request, reply);
+    if (!auth) return;
+
+    const { entries, confusionMap, calibratedAt } = request.body || {};
+
+    if (
+      !Array.isArray(entries) ||
+      !confusionMap ||
+      typeof calibratedAt !== "number"
+    ) {
+      reply.code(400).send({ error: "Invalid calibration data" });
+      return;
+    }
+
+    // Validate entries structure and limit size
+    if (entries.length > 50) {
+      reply.code(400).send({ error: "Too many calibration entries (max 50)" });
+      return;
+    }
+
+    const validatedEntries = entries.map((e: unknown) => {
+      const entry = e as Record<string, unknown>;
+      return {
+        target: String(entry.target || "").slice(0, 100),
+        heard: String(entry.heard || "").slice(0, 100),
+        timestamp:
+          typeof entry.timestamp === "number" ? entry.timestamp : Date.now(),
+      };
+    });
+
+    // Limit confusion map size
+    const validatedMap: Record<string, string[]> = {};
+    const mapKeys = Object.keys(confusionMap).slice(0, 100);
+    for (const key of mapKeys) {
+      const safeKey = key.slice(0, 100);
+      const values = confusionMap[key];
+      if (Array.isArray(values)) {
+        validatedMap[safeKey] = values
+          .slice(0, 10)
+          .map((v) => String(v).slice(0, 100));
+      }
+    }
+
+    const calibration: VoiceCalibration = {
+      entries: validatedEntries,
+      confusionMap: validatedMap,
+      calibratedAt,
+    };
+
+    await saveVoiceCalibration(auth.uid, calibration);
+    return { success: true };
+  });
+
+  // Get voice calibration data
+  fastify.get("/api/user/voice-calibration", async (request, reply) => {
+    const auth = await authenticateRequest(request, reply);
+    if (!auth) return;
+
+    const calibration = await getVoiceCalibration(auth.uid);
+    return { calibration };
+  });
 }

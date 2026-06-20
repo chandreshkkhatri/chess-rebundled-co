@@ -29,10 +29,10 @@ export interface Achievement {
   id: string;
   name: string;
   description: string;
-  category: 'accuracy' | 'volume' | 'streak' | 'mastery' | 'milestone';
+  category: "accuracy" | "volume" | "streak" | "mastery" | "milestone";
   icon: string;
   xpReward: number;
-  tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  tier: "bronze" | "silver" | "gold" | "platinum";
   isHidden: boolean;
   criteria: {
     type: string;
@@ -65,7 +65,13 @@ export interface GamificationResult {
   newStreak: number;
 }
 
-export type LevelTier = 'Pawn' | 'Knight' | 'Bishop' | 'Rook' | 'Queen' | 'Grandmaster';
+export type LevelTier =
+  | "Pawn"
+  | "Knight"
+  | "Bishop"
+  | "Rook"
+  | "Queen"
+  | "Grandmaster";
 
 // Game Types
 export interface HistoricalGame {
@@ -81,10 +87,10 @@ export interface HistoricalGame {
     name: string;
     shortName: string;
   };
-  result: '1-0' | '0-1' | '1/2-1/2';
+  result: "1-0" | "0-1" | "1/2-1/2";
   pgn: string;
   moves: string[]; // SAN notation
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  difficulty: "beginner" | "intermediate" | "advanced";
   trivia: string[];
 }
 
@@ -92,7 +98,7 @@ export interface HistoricalGame {
 export interface PlayerInfo {
   name: string;
   shortName: string;
-  role: 'white' | 'black';
+  role: "white" | "black";
   gameCount: number;
   notableGames: string[]; // up to 3 game titles
   yearRange: { from: number; to: number };
@@ -106,7 +112,7 @@ export interface MoveDetails {
 }
 
 // Practice Mode Types
-export type PracticeMode = 'both-sides' | 'one-side';
+export type PracticeMode = "both-sides" | "one-side";
 
 export interface PracticeSession {
   id: string;
@@ -117,9 +123,9 @@ export interface PracticeSession {
   currentMoveIndex: number;
   moveResults: PracticeMoveResult[];
   startedAt: number;
-  status: 'playing' | 'completed' | 'abandoned';
+  status: "playing" | "completed" | "abandoned";
   mode: PracticeMode;
-  playerColor: 'white' | 'black' | null; // null for both-sides mode
+  playerColor: "white" | "black" | null; // null for both-sides mode
 }
 
 export interface PracticeMoveResult {
@@ -128,7 +134,7 @@ export interface PracticeMoveResult {
   submittedMove: string;
   isCorrect: boolean;
   timeSpent: number;
-  side: 'white' | 'black';
+  side: "white" | "black";
 }
 
 export interface PracticeStartedData {
@@ -136,11 +142,11 @@ export interface PracticeStartedData {
   game: HistoricalGame;
   position: string;
   currentMoveIndex: number;
-  currentSide: 'white' | 'black';
+  currentSide: "white" | "black";
   expectedMove: MoveDetails;
   totalMoves: number;
   mode: PracticeMode;
-  playerColor: 'white' | 'black' | null;
+  playerColor: "white" | "black" | null;
 }
 
 export interface PracticeCompletedData {
@@ -169,7 +175,7 @@ export interface AIParsedMoveResult {
 export interface PracticeNextMoveData {
   position: string;
   currentMoveIndex: number;
-  currentSide: 'white' | 'black';
+  currentSide: "white" | "black";
   expectedMove: MoveDetails;
   opponentMove?: MoveDetails;
 }
@@ -187,11 +193,11 @@ export interface SessionResumedData {
   game: HistoricalGame;
   position: string;
   currentMoveIndex: number;
-  currentSide: 'white' | 'black';
+  currentSide: "white" | "black";
   expectedMove: MoveDetails;
   totalMoves: number;
   mode: PracticeMode;
-  playerColor: 'white' | 'black' | null;
+  playerColor: "white" | "black" | null;
   moveResults: PracticeMoveResult[];
 }
 
@@ -207,7 +213,7 @@ export type {
   MultiplayerGameOverData,
   MultiplayerGameResumedData,
   QueueEntry,
-} from './multiplayer.js';
+} from "./multiplayer.js";
 
 import type {
   TimeControl,
@@ -215,85 +221,127 @@ import type {
   MultiplayerMoveMadeData,
   MultiplayerGameOverData,
   MultiplayerGameResumedData,
-} from './multiplayer.js';
+} from "./multiplayer.js";
 
 // Socket Event Types
 export interface ServerToClientEvents {
   // Practice mode events
-  'practice-games-list': (games: HistoricalGame[]) => void;
-  'practice-started': (data: PracticeStartedData) => void;
-  'practice-move-result': (result: PracticeMoveResult) => void;
-  'practice-next-move': (data: PracticeNextMoveData) => void;
-  'practice-completed': (data: PracticeCompletedData) => void;
-  'practice-move-response': (data: PracticeMoveResponseData) => void; // Combined event
-  'practice-error': (data: { message: string }) => void;
-  'practice-game-details': (game: HistoricalGame) => void;
+  "practice-games-list": (games: HistoricalGame[]) => void;
+  "practice-started": (data: PracticeStartedData) => void;
+  "practice-move-result": (result: PracticeMoveResult) => void;
+  "practice-next-move": (data: PracticeNextMoveData) => void;
+  "practice-completed": (data: PracticeCompletedData) => void;
+  "practice-move-response": (data: PracticeMoveResponseData) => void; // Combined event
+  "practice-error": (data: { message: string }) => void;
+  "practice-game-details": (game: HistoricalGame) => void;
   // Session resume events
-  'session-resumed': (data: SessionResumedData) => void;
-  'session-not-found': (data: { sessionId: string; reason: string }) => void;
+  "session-resumed": (data: SessionResumedData) => void;
+  "session-not-found": (data: { sessionId: string; reason: string }) => void;
   // Player list event
-  'player-list': (data: { asWhite: PlayerInfo[]; asBlack: PlayerInfo[] }) => void;
+  "player-list": (data: {
+    asWhite: PlayerInfo[];
+    asBlack: PlayerInfo[];
+  }) => void;
   // AI move parsing events (Web Speech + Haiku)
-  'move-parsed': (data: AIParsedMoveResult) => void;
-  'parse-error': (data: { message: string }) => void;
+  "move-parsed": (data: AIParsedMoveResult) => void;
+  "parse-error": (data: { message: string }) => void;
   // Gemini audio parsing events
-  'audio-move-parsed': (data: AIParsedMoveResult) => void;
-  'audio-parse-error': (data: { message: string }) => void;
+  "audio-move-parsed": (data: AIParsedMoveResult) => void;
+  "audio-parse-error": (data: { message: string }) => void;
 
   // Multiplayer events
-  'mp-searching': () => void;
-  'mp-search-cancelled': () => void;
-  'mp-invite-created': (data: { inviteCode: string; gameId: string }) => void;
-  'mp-game-found': (data: MultiplayerGameStartedData) => void;
-  'mp-move-made': (data: MultiplayerMoveMadeData) => void;
-  'mp-game-over': (data: MultiplayerGameOverData) => void;
-  'mp-clock-update': (data: { white: number; black: number }) => void;
-  'mp-draw-offered': (data: { by: 'white' | 'black' }) => void;
-  'mp-draw-declined': () => void;
-  'mp-illegal-move': (data: { move: string; reason: string }) => void;
-  'mp-opponent-connected': (data: { displayName: string }) => void;
-  'mp-opponent-disconnected': () => void;
-  'mp-game-resumed': (data: MultiplayerGameResumedData) => void;
-  'mp-game-not-found': (data: { gameId: string; reason: string }) => void;
-  'mp-move-parsed': (data: AIParsedMoveResult) => void;
-  'mp-parse-error': (data: { message: string }) => void;
-  'mp-audio-move-parsed': (data: AIParsedMoveResult) => void;
-  'mp-audio-parse-error': (data: { message: string }) => void;
-  'mp-error': (data: { message: string }) => void;
-  'mp-lobby-stats': (data: {
+  "mp-searching": () => void;
+  "mp-search-cancelled": () => void;
+  "mp-invite-created": (data: { inviteCode: string; gameId: string }) => void;
+  "mp-game-found": (data: MultiplayerGameStartedData) => void;
+  "mp-move-made": (data: MultiplayerMoveMadeData) => void;
+  "mp-game-over": (data: MultiplayerGameOverData) => void;
+  "mp-clock-update": (data: { white: number; black: number }) => void;
+  "mp-draw-offered": (data: { by: "white" | "black" }) => void;
+  "mp-draw-declined": () => void;
+  "mp-illegal-move": (data: { move: string; reason: string }) => void;
+  "mp-opponent-connected": (data: { displayName: string }) => void;
+  "mp-opponent-disconnected": () => void;
+  "mp-game-resumed": (data: MultiplayerGameResumedData) => void;
+  "mp-game-not-found": (data: { gameId: string; reason: string }) => void;
+  "mp-move-parsed": (data: AIParsedMoveResult) => void;
+  "mp-parse-error": (data: { message: string }) => void;
+  "mp-audio-move-parsed": (data: AIParsedMoveResult) => void;
+  "mp-audio-parse-error": (data: { message: string }) => void;
+  "mp-error": (data: { message: string }) => void;
+  "mp-lobby-stats": (data: {
     onlineCount: number;
-    waitingPlayers: { uid: string; displayName: string; timeControl: string; waitingSince: number }[];
+    waitingPlayers: {
+      uid: string;
+      displayName: string;
+      timeControl: string;
+      waitingSince: number;
+    }[];
   }) => void;
 }
 
 export interface ClientToServerEvents {
   // Practice mode events
-  'get-practice-games': () => void;
-  'start-practice': (data: { gameId?: string; playerName: string; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
-  'start-practice-random': (data: { playerName: string; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
-  'start-practice-by-player': (data: { playerName: string; historicalPlayerName: string; role: 'white' | 'black'; mode?: PracticeMode; playerColor?: 'white' | 'black' }) => void;
-  'get-random-practice-game': () => void;
-  'get-player-practice-game': (data: { historicalPlayerName: string; role: 'white' | 'black' }) => void;
-  'get-player-list': () => void;
-  'submit-practice-move': (data: { sessionId: string; move: string }) => void;
-  'abandon-practice': (data: { sessionId: string }) => void;
+  "get-practice-games": () => void;
+  "start-practice": (data: {
+    gameId?: string;
+    playerName: string;
+    mode?: PracticeMode;
+    playerColor?: "white" | "black";
+  }) => void;
+  "start-practice-random": (data: {
+    playerName: string;
+    mode?: PracticeMode;
+    playerColor?: "white" | "black";
+  }) => void;
+  "start-practice-by-player": (data: {
+    playerName: string;
+    historicalPlayerName: string;
+    role: "white" | "black";
+    mode?: PracticeMode;
+    playerColor?: "white" | "black";
+  }) => void;
+  "get-random-practice-game": () => void;
+  "get-player-practice-game": (data: {
+    historicalPlayerName: string;
+    role: "white" | "black";
+  }) => void;
+  "get-player-list": () => void;
+  "submit-practice-move": (data: { sessionId: string; move: string }) => void;
+  "abandon-practice": (data: { sessionId: string }) => void;
   // Session resume
-  'resume-session': (data: { sessionId: string }) => void;
+  "resume-session": (data: { sessionId: string }) => void;
   // AI move parsing events (Web Speech + Haiku)
-  'parse-move-with-ai': (data: { sessionId: string; transcript: string }) => void;
+  "parse-move-with-ai": (data: {
+    sessionId: string;
+    transcript: string;
+    rawTranscript?: string;
+  }) => void;
   // Gemini audio parsing events
-  'parse-audio-move-with-gemini': (data: { sessionId: string; audioBase64: string; mimeType: string }) => void;
+  "parse-audio-move-with-gemini": (data: {
+    sessionId: string;
+    audioBase64: string;
+    mimeType: string;
+  }) => void;
 
   // Multiplayer events
-  'mp-find-game': (data: { timeControl: TimeControl | null | 'any' }) => void;
-  'mp-cancel-find': () => void;
-  'mp-create-invite': (data: { timeControl: TimeControl | null }) => void;
-  'mp-join-invite': (data: { inviteCode: string }) => void;
-  'mp-submit-move': (data: { gameId: string; move: string }) => void;
-  'mp-resign': (data: { gameId: string }) => void;
-  'mp-offer-draw': (data: { gameId: string }) => void;
-  'mp-respond-draw': (data: { gameId: string; accept: boolean }) => void;
-  'mp-reconnect': (data: { gameId: string }) => void;
-  'mp-parse-move-with-ai': (data: { gameId: string; transcript: string }) => void;
-  'mp-parse-audio-move-with-gemini': (data: { gameId: string; audioBase64: string; mimeType: string }) => void;
+  "mp-find-game": (data: { timeControl: TimeControl | null | "any" }) => void;
+  "mp-cancel-find": () => void;
+  "mp-create-invite": (data: { timeControl: TimeControl | null }) => void;
+  "mp-join-invite": (data: { inviteCode: string }) => void;
+  "mp-submit-move": (data: { gameId: string; move: string }) => void;
+  "mp-resign": (data: { gameId: string }) => void;
+  "mp-offer-draw": (data: { gameId: string }) => void;
+  "mp-respond-draw": (data: { gameId: string; accept: boolean }) => void;
+  "mp-reconnect": (data: { gameId: string }) => void;
+  "mp-parse-move-with-ai": (data: {
+    gameId: string;
+    transcript: string;
+    rawTranscript?: string;
+  }) => void;
+  "mp-parse-audio-move-with-gemini": (data: {
+    gameId: string;
+    audioBase64: string;
+    mimeType: string;
+  }) => void;
 }

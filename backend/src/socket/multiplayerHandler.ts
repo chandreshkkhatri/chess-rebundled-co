@@ -1,12 +1,16 @@
-import { Server, Socket } from 'socket.io';
-import { MultiplayerService } from '../services/multiplayerService.js';
-import { MatchmakingService } from '../services/matchmakingService.js';
-import { parseChessMoveWithAI, AIParsedMove } from '../services/aiMoveParser.js';
-import { parseChessMoveFromAudio } from '../services/geminiAudioParser.js';
-import { ClientToServerEvents, ServerToClientEvents } from '../types/index.js';
-import { TimeControl } from '../types/multiplayer.js';
-import { WaitingPlayer } from '../services/matchmakingService.js';
-import crypto from 'crypto';
+import { Server, Socket } from "socket.io";
+import { MultiplayerService } from "../services/multiplayerService.js";
+import { MatchmakingService } from "../services/matchmakingService.js";
+import {
+  parseChessMoveWithAI,
+  AIParsedMove,
+} from "../services/aiMoveParser.js";
+import { parseChessMoveFromAudio } from "../services/geminiAudioParser.js";
+import { ClientToServerEvents, ServerToClientEvents } from "../types/index.js";
+import { TimeControl } from "../types/multiplayer.js";
+import { WaitingPlayer } from "../services/matchmakingService.js";
+import { getVoiceCalibration } from "../services/firestoreService.js";
+import crypto from "crypto";
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 
@@ -20,8 +24,13 @@ export class MultiplayerHandler {
   private multiplayerService: MultiplayerService;
   private matchmakingService: MatchmakingService;
   private aiParseCache: Map<string, AIParseCacheEntry> = new Map();
+  private calibrationCache: Map<
+    string,
+    { confusionMap: Record<string, string[]> | null; loadedAt: number }
+  > = new Map();
   private static readonly AI_CACHE_TTL_MS = 5 * 60 * 1000;
   private static readonly AI_CACHE_MAX_SIZE = 500;
+  private static readonly CALIBRATION_CACHE_TTL_MS = 30 * 60 * 1000;
 
   // Track socket -> gameId for disconnect handling
   private socketToGame: Map<string, string> = new Map();
@@ -42,54 +51,64 @@ export class MultiplayerHandler {
 
   register(socket: GameSocket): void {
     // Matchmaking
-    socket.on('mp-find-game', (data) => this.handleFindGame(socket, data));
-    socket.on('mp-cancel-find', () => this.handleCancelFind(socket));
-    socket.on('mp-create-invite', (data) => this.handleCreateInvite(socket, data));
-    socket.on('mp-join-invite', (data) => this.handleJoinInvite(socket, data));
+    socket.on("mp-find-game", (data) => this.handleFindGame(socket, data));
+    socket.on("mp-cancel-find", () => this.handleCancelFind(socket));
+    socket.on("mp-create-invite", (data) =>
+      this.handleCreateInvite(socket, data),
+    );
+    socket.on("mp-join-invite", (data) => this.handleJoinInvite(socket, data));
 
     // Gameplay
-    socket.on('mp-submit-move', (data) => this.handleSubmitMove(socket, data));
-    socket.on('mp-resign', (data) => this.handleResign(socket, data));
-    socket.on('mp-offer-draw', (data) => this.handleOfferDraw(socket, data));
-    socket.on('mp-respond-draw', (data) => this.handleRespondDraw(socket, data));
+    socket.on("mp-submit-move", (data) => this.handleSubmitMove(socket, data));
+    socket.on("mp-resign", (data) => this.handleResign(socket, data));
+    socket.on("mp-offer-draw", (data) => this.handleOfferDraw(socket, data));
+    socket.on("mp-respond-draw", (data) =>
+      this.handleRespondDraw(socket, data),
+    );
 
     // Connection
-    socket.on('mp-reconnect', (data) => this.handleReconnect(socket, data));
+    socket.on("mp-reconnect", (data) => this.handleReconnect(socket, data));
 
     // AI parsing
-    socket.on('mp-parse-move-with-ai', (data) => this.handleParseMoveWithAI(socket, data));
-    socket.on('mp-parse-audio-move-with-gemini', (data) => this.handleParseAudioMove(socket, data));
+    socket.on("mp-parse-move-with-ai", (data) =>
+      this.handleParseMoveWithAI(socket, data),
+    );
+    socket.on("mp-parse-audio-move-with-gemini", (data) =>
+      this.handleParseAudioMove(socket, data),
+    );
 
     // Disconnect
-    socket.on('disconnect', () => this.handleDisconnect(socket));
+    socket.on("disconnect", () => this.handleDisconnect(socket));
   }
 
   // --- Matchmaking ---
 
   private async handleFindGame(
     socket: GameSocket,
-    data: { timeControl: TimeControl | null | 'any' }
+    data: { timeControl: TimeControl | null | "any" },
   ): Promise<void> {
     const uid = socket.data.uid;
     if (!uid) {
-      socket.emit('mp-error', { message: 'Authentication required for multiplayer' });
+      socket.emit("mp-error", {
+        message: "Authentication required for multiplayer",
+      });
       return;
     }
 
-    const displayName = socket.data.email?.split('@')[0] || 'Player';
+    const displayName = socket.data.email?.split("@")[0] || "Player";
 
     // Check if already in a game
-    const existingGameId = await this.multiplayerService.getGame(
-      (await this.getActiveGameId(uid)) || ''
-    ).then(g => g?.id);
+    const existingGameId = await this.multiplayerService
+      .getGame((await this.getActiveGameId(uid)) || "")
+      .then((g) => g?.id);
     if (existingGameId) {
-      socket.emit('mp-error', { message: 'You already have an active game' });
+      socket.emit("mp-error", { message: "You already have an active game" });
       return;
     }
 
     const matchResult = this.matchmakingService.addToQueue(
       { uid, displayName, socketId: socket.id, joinedAt: Date.now() },
-      data.timeControl
+      data.timeControl,
     );
 
     if (matchResult) {
@@ -100,18 +119,18 @@ export class MultiplayerHandler {
         opponent.uid,
         opponent.displayName,
         opponent.socketId,
-        matchedTimeControl
+        matchedTimeControl,
       );
 
       const joinResult = await this.multiplayerService.joinGame(
         game.id,
         uid,
         displayName,
-        socket.id
+        socket.id,
       );
 
       if (!joinResult) {
-        socket.emit('mp-error', { message: 'Failed to create game' });
+        socket.emit("mp-error", { message: "Failed to create game" });
         return;
       }
 
@@ -128,12 +147,17 @@ export class MultiplayerHandler {
 
       // Emit to creator (opponent in queue)
       if (opponentSocket) {
-        const creatorColor = fullGame.white.uid === opponent.uid ? 'white' : 'black';
-        const creatorOpponent = creatorColor === 'white' ? fullGame.black : fullGame.white;
-        opponentSocket.emit('mp-game-found', {
+        const creatorColor =
+          fullGame.white.uid === opponent.uid ? "white" : "black";
+        const creatorOpponent =
+          creatorColor === "white" ? fullGame.black : fullGame.white;
+        opponentSocket.emit("mp-game-found", {
           gameId: fullGame.id,
           playerColor: creatorColor,
-          opponent: { uid: creatorOpponent.uid, displayName: creatorOpponent.displayName },
+          opponent: {
+            uid: creatorOpponent.uid,
+            displayName: creatorOpponent.displayName,
+          },
           fen: fullGame.fen,
           timeControl: fullGame.timeControl,
           whiteTimeMs: fullGame.white.timeRemainingMs,
@@ -142,23 +166,29 @@ export class MultiplayerHandler {
       }
 
       // Emit to joiner (this socket)
-      const joinerColor = fullGame.white.uid === uid ? 'white' : 'black';
-      const joinerOpponent = joinerColor === 'white' ? fullGame.black : fullGame.white;
-      socket.emit('mp-game-found', {
+      const joinerColor = fullGame.white.uid === uid ? "white" : "black";
+      const joinerOpponent =
+        joinerColor === "white" ? fullGame.black : fullGame.white;
+      socket.emit("mp-game-found", {
         gameId: fullGame.id,
         playerColor: joinerColor,
-        opponent: { uid: joinerOpponent.uid, displayName: joinerOpponent.displayName },
+        opponent: {
+          uid: joinerOpponent.uid,
+          displayName: joinerOpponent.displayName,
+        },
         fen: fullGame.fen,
         timeControl: fullGame.timeControl,
         whiteTimeMs: fullGame.white.timeRemainingMs,
         blackTimeMs: fullGame.black.timeRemainingMs,
       });
 
-      console.log(`[Multiplayer] Game ${fullGame.id} started: ${fullGame.white.displayName} vs ${fullGame.black.displayName}`);
+      console.log(
+        `[Multiplayer] Game ${fullGame.id} started: ${fullGame.white.displayName} vs ${fullGame.black.displayName}`,
+      );
       this.onLobbyChange?.();
     } else {
       // Queued, waiting for opponent
-      socket.emit('mp-searching');
+      socket.emit("mp-searching");
       this.onLobbyChange?.();
     }
   }
@@ -168,60 +198,76 @@ export class MultiplayerHandler {
     if (!uid) return;
 
     this.matchmakingService.removeFromQueue(uid);
-    socket.emit('mp-search-cancelled');
+    socket.emit("mp-search-cancelled");
     this.onLobbyChange?.();
   }
 
   private async handleCreateInvite(
     socket: GameSocket,
-    data: { timeControl: TimeControl | null }
+    data: { timeControl: TimeControl | null },
   ): Promise<void> {
     const uid = socket.data.uid;
     if (!uid) {
-      socket.emit('mp-error', { message: 'Authentication required for multiplayer' });
+      socket.emit("mp-error", {
+        message: "Authentication required for multiplayer",
+      });
       return;
     }
 
-    const displayName = socket.data.email?.split('@')[0] || 'Player';
-    const inviteCode = crypto.randomBytes(4).toString('hex'); // 8 char code
+    const displayName = socket.data.email?.split("@")[0] || "Player";
+    const inviteCode = crypto.randomBytes(4).toString("hex"); // 8 char code
 
     const game = await this.multiplayerService.createGame(
       uid,
       displayName,
       socket.id,
       data.timeControl,
-      inviteCode
+      inviteCode,
     );
 
     socket.join(`mp:${game.id}`);
     this.socketToGame.set(socket.id, game.id);
 
-    socket.emit('mp-invite-created', { inviteCode, gameId: game.id });
-    console.log(`[Multiplayer] Invite created: ${inviteCode} for game ${game.id}`);
+    socket.emit("mp-invite-created", { inviteCode, gameId: game.id });
+    console.log(
+      `[Multiplayer] Invite created: ${inviteCode} for game ${game.id}`,
+    );
   }
 
   private async handleJoinInvite(
     socket: GameSocket,
-    data: { inviteCode: string }
+    data: { inviteCode: string },
   ): Promise<void> {
     const uid = socket.data.uid;
     if (!uid) {
-      socket.emit('mp-error', { message: 'Authentication required for multiplayer' });
+      socket.emit("mp-error", {
+        message: "Authentication required for multiplayer",
+      });
       return;
     }
 
-    const { multiplayerStore } = await import('../services/multiplayerSessionStore.js');
-    const gameId = await multiplayerStore.getGameIdByInviteCode(data.inviteCode);
+    const { multiplayerStore } =
+      await import("../services/multiplayerSessionStore.js");
+    const gameId = await multiplayerStore.getGameIdByInviteCode(
+      data.inviteCode,
+    );
     if (!gameId) {
-      socket.emit('mp-error', { message: 'Invite code not found or expired' });
+      socket.emit("mp-error", { message: "Invite code not found or expired" });
       return;
     }
 
-    const displayName = socket.data.email?.split('@')[0] || 'Player';
-    const joinResult = await this.multiplayerService.joinGame(gameId, uid, displayName, socket.id);
+    const displayName = socket.data.email?.split("@")[0] || "Player";
+    const joinResult = await this.multiplayerService.joinGame(
+      gameId,
+      uid,
+      displayName,
+      socket.id,
+    );
 
     if (!joinResult) {
-      socket.emit('mp-error', { message: 'Could not join game. It may have already started.' });
+      socket.emit("mp-error", {
+        message: "Could not join game. It may have already started.",
+      });
       return;
     }
 
@@ -231,17 +277,22 @@ export class MultiplayerHandler {
     this.socketToGame.set(socket.id, game.id);
 
     // Notify creator
-    const creatorSocket = game.white.uid !== uid
-      ? this.io.sockets.sockets.get(game.white.socketId!)
-      : this.io.sockets.sockets.get(game.black.socketId!);
+    const creatorSocket =
+      game.white.uid !== uid
+        ? this.io.sockets.sockets.get(game.white.socketId!)
+        : this.io.sockets.sockets.get(game.black.socketId!);
 
     if (creatorSocket) {
-      const creatorColor = game.white.uid !== uid ? 'white' : 'black';
-      const creatorOpponent = creatorColor === 'white' ? game.black : game.white;
-      creatorSocket.emit('mp-game-found', {
+      const creatorColor = game.white.uid !== uid ? "white" : "black";
+      const creatorOpponent =
+        creatorColor === "white" ? game.black : game.white;
+      creatorSocket.emit("mp-game-found", {
         gameId: game.id,
         playerColor: creatorColor,
-        opponent: { uid: creatorOpponent.uid, displayName: creatorOpponent.displayName },
+        opponent: {
+          uid: creatorOpponent.uid,
+          displayName: creatorOpponent.displayName,
+        },
         fen: game.fen,
         timeControl: game.timeControl,
         whiteTimeMs: game.white.timeRemainingMs,
@@ -250,12 +301,15 @@ export class MultiplayerHandler {
     }
 
     // Notify joiner
-    const joinerColor = game.white.uid === uid ? 'white' : 'black';
-    const joinerOpponent = joinerColor === 'white' ? game.black : game.white;
-    socket.emit('mp-game-found', {
+    const joinerColor = game.white.uid === uid ? "white" : "black";
+    const joinerOpponent = joinerColor === "white" ? game.black : game.white;
+    socket.emit("mp-game-found", {
       gameId: game.id,
       playerColor: joinerColor,
-      opponent: { uid: joinerOpponent.uid, displayName: joinerOpponent.displayName },
+      opponent: {
+        uid: joinerOpponent.uid,
+        displayName: joinerOpponent.displayName,
+      },
       fen: game.fen,
       timeControl: game.timeControl,
       whiteTimeMs: game.white.timeRemainingMs,
@@ -269,23 +323,30 @@ export class MultiplayerHandler {
 
   private async handleSubmitMove(
     socket: GameSocket,
-    data: { gameId: string; move: string }
+    data: { gameId: string; move: string },
   ): Promise<void> {
     const uid = socket.data.uid;
     if (!uid) {
-      socket.emit('mp-error', { message: 'Authentication required' });
+      socket.emit("mp-error", { message: "Authentication required" });
       return;
     }
 
-    const result = await this.multiplayerService.processMove(data.gameId, uid, data.move);
+    const result = await this.multiplayerService.processMove(
+      data.gameId,
+      uid,
+      data.move,
+    );
 
     if (!result.success) {
-      socket.emit('mp-illegal-move', { move: data.move, reason: result.error || 'Invalid move' });
+      socket.emit("mp-illegal-move", {
+        move: data.move,
+        reason: result.error || "Invalid move",
+      });
       return;
     }
 
     // Broadcast move to both players
-    this.io.to(`mp:${data.gameId}`).emit('mp-move-made', {
+    this.io.to(`mp:${data.gameId}`).emit("mp-move-made", {
       gameId: data.gameId,
       move: result.move!,
       fen: result.fen!,
@@ -300,12 +361,16 @@ export class MultiplayerHandler {
     if (result.gameOver) {
       const game = await this.multiplayerService.getGame(data.gameId);
       if (game) {
-        const { Chess } = await import('chess.js');
+        const { Chess } = await import("chess.js");
         const chess = new Chess();
         for (const m of game.moves) {
-          try { chess.move(m); } catch { break; }
+          try {
+            chess.move(m);
+          } catch {
+            break;
+          }
         }
-        this.io.to(`mp:${data.gameId}`).emit('mp-game-over', {
+        this.io.to(`mp:${data.gameId}`).emit("mp-game-over", {
           gameId: data.gameId,
           result: result.gameOver.result,
           endReason: result.gameOver.reason,
@@ -322,44 +387,50 @@ export class MultiplayerHandler {
 
   private async handleResign(
     socket: GameSocket,
-    data: { gameId: string }
+    data: { gameId: string },
   ): Promise<void> {
     const uid = socket.data.uid;
     if (!uid) return;
 
     const gameOverData = await this.multiplayerService.resign(data.gameId, uid);
     if (gameOverData) {
-      this.io.to(`mp:${data.gameId}`).emit('mp-game-over', gameOverData);
+      this.io.to(`mp:${data.gameId}`).emit("mp-game-over", gameOverData);
     }
   }
 
   private async handleOfferDraw(
     socket: GameSocket,
-    data: { gameId: string }
+    data: { gameId: string },
   ): Promise<void> {
     const uid = socket.data.uid;
     if (!uid) return;
 
     const offeredBy = await this.multiplayerService.offerDraw(data.gameId, uid);
     if (offeredBy) {
-      this.io.to(`mp:${data.gameId}`).emit('mp-draw-offered', { by: offeredBy });
+      this.io
+        .to(`mp:${data.gameId}`)
+        .emit("mp-draw-offered", { by: offeredBy });
     }
   }
 
   private async handleRespondDraw(
     socket: GameSocket,
-    data: { gameId: string; accept: boolean }
+    data: { gameId: string; accept: boolean },
   ): Promise<void> {
     const uid = socket.data.uid;
     if (!uid) return;
 
-    const gameOverData = await this.multiplayerService.respondToDraw(data.gameId, uid, data.accept);
+    const gameOverData = await this.multiplayerService.respondToDraw(
+      data.gameId,
+      uid,
+      data.accept,
+    );
     if (gameOverData) {
       // Draw accepted
-      this.io.to(`mp:${data.gameId}`).emit('mp-game-over', gameOverData);
+      this.io.to(`mp:${data.gameId}`).emit("mp-game-over", gameOverData);
     } else if (!data.accept) {
       // Draw declined
-      this.io.to(`mp:${data.gameId}`).emit('mp-draw-declined');
+      this.io.to(`mp:${data.gameId}`).emit("mp-draw-declined");
     }
   }
 
@@ -367,30 +438,38 @@ export class MultiplayerHandler {
 
   private async handleReconnect(
     socket: GameSocket,
-    data: { gameId: string }
+    data: { gameId: string },
   ): Promise<void> {
     const uid = socket.data.uid;
     if (!uid) {
-      socket.emit('mp-game-not-found', { gameId: data.gameId, reason: 'Authentication required' });
+      socket.emit("mp-game-not-found", {
+        gameId: data.gameId,
+        reason: "Authentication required",
+      });
       return;
     }
 
     const resumeData = await this.multiplayerService.handlePlayerReconnect(
-      data.gameId, uid, socket.id
+      data.gameId,
+      uid,
+      socket.id,
     );
 
     if (!resumeData) {
-      socket.emit('mp-game-not-found', { gameId: data.gameId, reason: 'Game not found or already completed' });
+      socket.emit("mp-game-not-found", {
+        gameId: data.gameId,
+        reason: "Game not found or already completed",
+      });
       return;
     }
 
     socket.join(`mp:${data.gameId}`);
     this.socketToGame.set(socket.id, data.gameId);
 
-    socket.emit('mp-game-resumed', resumeData);
+    socket.emit("mp-game-resumed", resumeData);
 
     // Notify opponent
-    socket.to(`mp:${data.gameId}`).emit('mp-opponent-connected', {
+    socket.to(`mp:${data.gameId}`).emit("mp-opponent-connected", {
       displayName: resumeData.opponent.displayName,
     });
 
@@ -413,7 +492,7 @@ export class MultiplayerHandler {
       await this.multiplayerService.handlePlayerDisconnect(gameId, uid);
 
       // Notify opponent
-      socket.to(`mp:${gameId}`).emit('mp-opponent-disconnected');
+      socket.to(`mp:${gameId}`).emit("mp-opponent-disconnected");
     }
   }
 
@@ -421,29 +500,43 @@ export class MultiplayerHandler {
 
   private async handleParseMoveWithAI(
     socket: GameSocket,
-    data: { gameId: string; transcript: string }
+    data: { gameId: string; transcript: string; rawTranscript?: string },
   ): Promise<void> {
     const game = await this.multiplayerService.getGame(data.gameId);
     if (!game) {
-      socket.emit('mp-parse-error', { message: 'Game not found' });
+      socket.emit("mp-parse-error", { message: "Game not found" });
       return;
     }
 
     const legalMoves = this.multiplayerService.getLegalMoves(game.fen);
 
     try {
-      const cacheKey = this.getAIParseCacheKey(data.transcript, game.fen);
+      // Use rawTranscript for AI when available (gives better context than locally-parsed move)
+      const transcriptForAI = data.rawTranscript || data.transcript;
+      const cacheKey = this.getAIParseCacheKey(transcriptForAI, game.fen);
       let cached = this.aiParseCache.get(cacheKey);
       let parsed: AIParsedMove;
 
-      if (cached && Date.now() - cached.timestamp < MultiplayerHandler.AI_CACHE_TTL_MS) {
+      if (
+        cached &&
+        Date.now() - cached.timestamp < MultiplayerHandler.AI_CACHE_TTL_MS
+      ) {
         parsed = cached.result;
       } else {
-        parsed = await parseChessMoveWithAI(data.transcript, game.fen, legalMoves);
+        const confusionMap = await this.getUserConfusionMap(socket.data.uid);
+        parsed = await parseChessMoveWithAI(
+          transcriptForAI,
+          game.fen,
+          legalMoves,
+          {
+            allowGuessOnUnclear: false,
+            confusionMap,
+          },
+        );
         this.cacheAIParse(cacheKey, parsed);
       }
 
-      socket.emit('mp-move-parsed', {
+      socket.emit("mp-move-parsed", {
         transcript: data.transcript,
         parsedMove: parsed.move,
         confidence: parsed.confidence,
@@ -451,53 +544,87 @@ export class MultiplayerHandler {
         reasoning: parsed.reasoning,
       });
     } catch (error) {
-      socket.emit('mp-parse-error', {
-        message: `AI parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      socket.emit("mp-parse-error", {
+        message: `AI parsing failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       });
     }
   }
 
   private async handleParseAudioMove(
     socket: GameSocket,
-    data: { gameId: string; audioBase64: string; mimeType: string }
+    data: { gameId: string; audioBase64: string; mimeType: string },
   ): Promise<void> {
     const game = await this.multiplayerService.getGame(data.gameId);
     if (!game) {
-      socket.emit('mp-audio-parse-error', { message: 'Game not found' });
+      socket.emit("mp-audio-parse-error", { message: "Game not found" });
       return;
     }
 
     const legalMoves = this.multiplayerService.getLegalMoves(game.fen);
 
     try {
+      const confusionMap = await this.getUserConfusionMap(socket.data.uid);
       const parsed = await parseChessMoveFromAudio(
-        data.audioBase64, data.mimeType, game.fen, legalMoves
+        data.audioBase64,
+        data.mimeType,
+        game.fen,
+        legalMoves,
+        { allowGuessOnUnclear: false, confusionMap },
       );
 
-      socket.emit('mp-audio-move-parsed', {
-        transcript: parsed.transcription || '[audio input]',
+      socket.emit("mp-audio-move-parsed", {
+        transcript: parsed.transcription || "[audio input]",
         parsedMove: parsed.move,
         confidence: parsed.confidence,
         alternatives: parsed.alternatives,
         reasoning: parsed.reasoning,
       });
     } catch (error) {
-      socket.emit('mp-audio-parse-error', {
-        message: `Audio parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      socket.emit("mp-audio-parse-error", {
+        message: `Audio parsing failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       });
     }
   }
 
   // --- Helpers ---
 
+  private async getUserConfusionMap(
+    uid: string | undefined,
+  ): Promise<Record<string, string[]> | undefined> {
+    if (!uid) return undefined;
+
+    const cached = this.calibrationCache.get(uid);
+    if (
+      cached &&
+      Date.now() - cached.loadedAt < MultiplayerHandler.CALIBRATION_CACHE_TTL_MS
+    ) {
+      return cached.confusionMap || undefined;
+    }
+
+    try {
+      const calibration = await getVoiceCalibration(uid);
+      const confusionMap = calibration?.confusionMap || null;
+      this.calibrationCache.set(uid, { confusionMap, loadedAt: Date.now() });
+      return confusionMap || undefined;
+    } catch (error) {
+      console.warn(
+        "[MultiplayerHandler] Failed to load calibration for user",
+        uid,
+        error,
+      );
+      return undefined;
+    }
+  }
+
   private async getActiveGameId(uid: string): Promise<string | undefined> {
-    const { multiplayerStore } = await import('../services/multiplayerSessionStore.js');
+    const { multiplayerStore } =
+      await import("../services/multiplayerSessionStore.js");
     return multiplayerStore.getGameIdByUid(uid);
   }
 
   private getAIParseCacheKey(transcript: string, fen: string): string {
     const data = `${transcript.toLowerCase().trim()}:${fen}`;
-    return crypto.createHash('md5').update(data).digest('hex');
+    return crypto.createHash("md5").update(data).digest("hex");
   }
 
   private cacheAIParse(key: string, result: AIParsedMove): void {

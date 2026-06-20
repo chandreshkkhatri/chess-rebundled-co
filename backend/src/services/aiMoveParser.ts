@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
@@ -9,6 +9,11 @@ export interface AIParsedMove {
   reasoning?: string;
 }
 
+export interface AIParseOptions {
+  allowGuessOnUnclear?: boolean;
+  confusionMap?: Record<string, string[]>;
+}
+
 /**
  * Parse a spoken chess move transcript using Gemini 2.5 Flash Lite.
  * Takes the raw speech-to-text transcript and the current board position,
@@ -17,12 +22,27 @@ export interface AIParsedMove {
 export async function parseChessMoveWithAI(
   transcript: string,
   currentFen: string,
-  legalMoves: string[]
+  legalMoves: string[],
+  options: AIParseOptions = {},
 ): Promise<AIParsedMove> {
+  const { allowGuessOnUnclear = true, confusionMap } = options;
+
+  // Build user-specific confusion context if calibration data exists
+  let userConfusionContext = "";
+  if (confusionMap && Object.keys(confusionMap).length > 0) {
+    const mappings = Object.entries(confusionMap)
+      .map(
+        ([target, heardAs]) =>
+          `- "${target}" is often transcribed as: ${heardAs.map((h) => `"${h}"`).join(", ")}`,
+      )
+      .join("\n");
+    userConfusionContext = `\n**User-Specific Speech Patterns (from calibration):**\n${mappings}\n`;
+  }
+
   const prompt = `You are a chess move parser. Convert spoken text to standard algebraic notation (SAN).
 
 Current position (FEN): ${currentFen}
-Legal moves in this position: ${legalMoves.join(', ')}
+Legal moves in this position: ${legalMoves.join(", ")}
 Spoken text: "${transcript}"
 
 Parse the spoken text and return the chess move. Consider these common speech patterns:
@@ -69,7 +89,7 @@ Parse the spoken text and return the chess move. Consider these common speech pa
 - "to" = 2, "two"
 - "won" = 1, "one"
 - "ate" = 8, "eight"
-
+${userConfusionContext}
 Return ONLY valid JSON in this exact format, no other text:
 {"move": "e4", "confidence": 0.95, "alternatives": ["d4"], "reasoning": "Echo=e, four=4"}
 
@@ -78,22 +98,30 @@ Rules:
 2. "confidence" should be 0.0-1.0 based on how clear the transcript is
 3. "alternatives" should list 0-3 other possible legal moves if ambiguous
 4. "reasoning" briefly explains the interpretation
-
-If the transcript is unclear, pick the most likely legal move based on common chess patterns.`;
+${
+  allowGuessOnUnclear
+    ? "If the transcript is unclear, pick the most likely legal move based on common chess patterns."
+    : "If the transcript is unclear or multiple legal moves are plausible, return an empty move with low confidence instead of guessing."
+}`;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-lite',
+      model: "gemini-2.5-flash-lite",
       contents: prompt,
     });
 
-    const text = response.text || '';
+    const text = response.text || "";
 
     // Extract JSON from response (in case there's any extra text)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error('[AI Parser] No JSON found in response:', text);
-      return { move: '', confidence: 0, alternatives: [], reasoning: 'Failed to parse AI response' };
+      console.error("[AI Parser] No JSON found in response:", text);
+      return {
+        move: "",
+        confidence: 0,
+        alternatives: [],
+        reasoning: "Failed to parse AI response",
+      };
     }
 
     const parsed = JSON.parse(jsonMatch[0]) as AIParsedMove;
@@ -101,33 +129,43 @@ If the transcript is unclear, pick the most likely legal move based on common ch
     // Validate that the move is in the legal moves list
     if (parsed.move && !legalMoves.includes(parsed.move)) {
       // Try to find a matching legal move (case-insensitive, ignore check symbols)
-      const cleanParsedMove = parsed.move.replace(/[+#]/g, '');
-      const matchingMove = legalMoves.find(m => m.replace(/[+#]/g, '') === cleanParsedMove);
+      const cleanParsedMove = parsed.move.replace(/[+#]/g, "");
+      const matchingMove = legalMoves.find(
+        (m) => m.replace(/[+#]/g, "") === cleanParsedMove,
+      );
       if (matchingMove) {
         parsed.move = matchingMove;
       } else {
-        console.warn('[AI Parser] Move not in legal moves list:', parsed.move, 'Legal:', legalMoves);
+        console.warn(
+          "[AI Parser] Move not in legal moves list:",
+          parsed.move,
+          "Legal:",
+          legalMoves,
+        );
         // Keep the parsed move but lower confidence
         parsed.confidence = Math.min(parsed.confidence, 0.3);
-        parsed.reasoning = (parsed.reasoning || '') + ' [Warning: move may not be legal]';
+        parsed.reasoning =
+          (parsed.reasoning || "") + " [Warning: move may not be legal]";
       }
     }
 
     // Filter alternatives to only include legal moves
     if (parsed.alternatives) {
       parsed.alternatives = parsed.alternatives.filter((alt: string) =>
-        legalMoves.some(m => m.replace(/[+#]/g, '') === alt.replace(/[+#]/g, ''))
+        legalMoves.some(
+          (m) => m.replace(/[+#]/g, "") === alt.replace(/[+#]/g, ""),
+        ),
       );
     }
 
     return parsed;
   } catch (error) {
-    console.error('[AI Parser] Error calling Gemini API:', error);
+    console.error("[AI Parser] Error calling Gemini API:", error);
     return {
-      move: '',
+      move: "",
       confidence: 0,
       alternatives: [],
-      reasoning: `AI parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      reasoning: `AI parsing failed: ${error instanceof Error ? error.message : "Unknown error"}`,
     };
   }
 }

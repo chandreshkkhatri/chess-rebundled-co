@@ -1,9 +1,24 @@
-import { firestore } from '../lib/firebase-admin.js';
-import { Timestamp } from 'firebase-admin/firestore';
-import { PracticeSession, PracticeCompletedData, PracticeMoveResult, PracticeMode, UserGamification, Achievement, GamificationResult } from '../types/index.js';
-import { calculateSessionXP, calculateXpToNextLevel, createDefaultGamification } from './gamificationService.js';
-import { checkAchievements, calculateAchievementXpReward } from './achievementService.js';
-import { updateStreak, getTodayInTimezone } from './streakService.js';
+import { firestore } from "../lib/firebase-admin.js";
+import { Timestamp } from "firebase-admin/firestore";
+import {
+  PracticeSession,
+  PracticeCompletedData,
+  PracticeMoveResult,
+  PracticeMode,
+  UserGamification,
+  Achievement,
+  GamificationResult,
+} from "../types/index.js";
+import {
+  calculateSessionXP,
+  calculateXpToNextLevel,
+  createDefaultGamification,
+} from "./gamificationService.js";
+import {
+  checkAchievements,
+  calculateAchievementXpReward,
+} from "./achievementService.js";
+import { updateStreak, getTodayInTimezone } from "./streakService.js";
 
 // Firestore document types
 export interface FirestoreUser {
@@ -20,10 +35,23 @@ export interface FirestoreUser {
     lastPlayedAt: Timestamp | null;
   };
   preferences: {
-    voiceParsingMode: 'webspeech-haiku' | 'gemini-audio';
-    defaultPracticeMode: 'both-sides' | 'one-side';
+    voiceParsingMode: "webspeech-haiku" | "gemini-audio";
+    defaultPracticeMode: "both-sides" | "one-side";
   };
   gamification?: UserGamification;
+  voiceCalibration?: VoiceCalibration;
+}
+
+export interface VoiceCalibrationEntry {
+  target: string;
+  heard: string;
+  timestamp: number;
+}
+
+export interface VoiceCalibration {
+  entries: VoiceCalibrationEntry[];
+  confusionMap: Record<string, string[]>;
+  calibratedAt: number;
 }
 
 export interface FirestoreSessionMove {
@@ -32,7 +60,7 @@ export interface FirestoreSessionMove {
   submittedMove: string;
   isCorrect: boolean;
   timeSpent: number;
-  side: 'white' | 'black';
+  side: "white" | "black";
 }
 
 export interface FirestoreSession {
@@ -40,8 +68,8 @@ export interface FirestoreSession {
   gameId: string;
   gameTitle: string;
   mode: PracticeMode;
-  playerColor: 'white' | 'black' | null;
-  status: 'playing' | 'completed' | 'abandoned';
+  playerColor: "white" | "black" | null;
+  status: "playing" | "completed" | "abandoned";
   startedAt: Timestamp;
   completedAt: Timestamp | null;
   moves: FirestoreSessionMove[];
@@ -65,11 +93,13 @@ export interface AppConfig {
  */
 export async function getAppConfig(): Promise<AppConfig> {
   if (!firestore) {
-    console.warn('[Firestore] Firestore not initialized, returning default config');
+    console.warn(
+      "[Firestore] Firestore not initialized, returning default config",
+    );
     return { discordInviteUrl: null };
   }
 
-  const doc = await firestore.collection('appConfig').doc('settings').get();
+  const doc = await firestore.collection("appConfig").doc("settings").get();
   if (!doc.exists) {
     return { discordInviteUrl: null };
   }
@@ -86,20 +116,22 @@ export async function getAppConfig(): Promise<AppConfig> {
  */
 export async function ensureUserExists(
   uid: string,
-  email: string | null
+  email: string | null,
 ): Promise<void> {
   if (!firestore) {
-    console.warn('[Firestore] Firestore not initialized, skipping user creation');
+    console.warn(
+      "[Firestore] Firestore not initialized, skipping user creation",
+    );
     return;
   }
 
-  const userRef = firestore.collection('users').doc(uid);
+  const userRef = firestore.collection("users").doc(uid);
   const userDoc = await userRef.get();
 
   if (!userDoc.exists) {
     const newUser: FirestoreUser = {
       email,
-      displayName: email?.split('@')[0] || 'Player',
+      displayName: email?.split("@")[0] || "Player",
       photoURL: null,
       createdAt: Timestamp.now(),
       lastLoginAt: Timestamp.now(),
@@ -111,8 +143,8 @@ export async function ensureUserExists(
         lastPlayedAt: null,
       },
       preferences: {
-        voiceParsingMode: 'gemini-audio',
-        defaultPracticeMode: 'both-sides',
+        voiceParsingMode: "gemini-audio",
+        defaultPracticeMode: "both-sides",
       },
       gamification: createDefaultGamification(),
     };
@@ -133,18 +165,20 @@ export async function ensureUserExists(
 export async function saveCompletedSession(
   uid: string,
   session: PracticeSession,
-  completedData: PracticeCompletedData
+  completedData: PracticeCompletedData,
 ): Promise<string | null> {
   if (!firestore) {
-    console.warn('[Firestore] Firestore not initialized, skipping session save');
+    console.warn(
+      "[Firestore] Firestore not initialized, skipping session save",
+    );
     return null;
   }
 
   try {
     const sessionRef = firestore
-      .collection('users')
+      .collection("users")
       .doc(uid)
-      .collection('sessions')
+      .collection("sessions")
       .doc(session.id);
 
     const firestoreSession: FirestoreSession = {
@@ -152,7 +186,7 @@ export async function saveCompletedSession(
       gameTitle: session.historicalGame.title,
       mode: session.mode,
       playerColor: session.playerColor,
-      status: 'completed',
+      status: "completed",
       startedAt: Timestamp.fromMillis(session.startedAt),
       completedAt: Timestamp.now(),
       moves: session.moveResults.map((r) => ({
@@ -180,7 +214,7 @@ export async function saveCompletedSession(
     console.log(`[Firestore] Saved session ${session.id} for user ${uid}`);
     return session.id;
   } catch (error) {
-    console.error('[Firestore] Error saving session:', error);
+    console.error("[Firestore] Error saving session:", error);
     return null;
   }
 }
@@ -190,11 +224,11 @@ export async function saveCompletedSession(
  */
 async function updateUserStats(
   uid: string,
-  completedData: PracticeCompletedData
+  completedData: PracticeCompletedData,
 ): Promise<void> {
   if (!firestore) return;
 
-  const userRef = firestore.collection('users').doc(uid);
+  const userRef = firestore.collection("users").doc(uid);
 
   // Use a transaction to safely update aggregate stats
   await firestore.runTransaction(async (transaction) => {
@@ -210,14 +244,15 @@ async function updateUserStats(
     const newTotalSessions = stats.totalSessions + 1;
     const newTotalMoves = stats.totalMoves + completedData.totalMoves;
     const newCorrectMoves = stats.correctMoves + completedData.correctMoves;
-    const newOverallAccuracy = newTotalMoves > 0 ? newCorrectMoves / newTotalMoves : 0;
+    const newOverallAccuracy =
+      newTotalMoves > 0 ? newCorrectMoves / newTotalMoves : 0;
 
     transaction.update(userRef, {
-      'stats.totalSessions': newTotalSessions,
-      'stats.totalMoves': newTotalMoves,
-      'stats.correctMoves': newCorrectMoves,
-      'stats.overallAccuracy': newOverallAccuracy,
-      'stats.lastPlayedAt': Timestamp.now(),
+      "stats.totalSessions": newTotalSessions,
+      "stats.totalMoves": newTotalMoves,
+      "stats.correctMoves": newCorrectMoves,
+      "stats.overallAccuracy": newOverallAccuracy,
+      "stats.lastPlayedAt": Timestamp.now(),
     });
   });
 
@@ -227,10 +262,12 @@ async function updateUserStats(
 /**
  * Get user profile and stats from Firestore.
  */
-export async function getUserProfile(uid: string): Promise<FirestoreUser | null> {
+export async function getUserProfile(
+  uid: string,
+): Promise<FirestoreUser | null> {
   if (!firestore) return null;
 
-  const userDoc = await firestore.collection('users').doc(uid).get();
+  const userDoc = await firestore.collection("users").doc(uid).get();
   if (!userDoc.exists) return null;
 
   return userDoc.data() as FirestoreUser;
@@ -239,13 +276,18 @@ export async function getUserProfile(uid: string): Promise<FirestoreUser | null>
 /**
  * Update user's display name.
  */
-export async function updateUserDisplayName(uid: string, displayName: string): Promise<void> {
+export async function updateUserDisplayName(
+  uid: string,
+  displayName: string,
+): Promise<void> {
   if (!firestore) {
-    console.warn('[Firestore] Firestore not initialized, skipping display name update');
+    console.warn(
+      "[Firestore] Firestore not initialized, skipping display name update",
+    );
     return;
   }
 
-  const userRef = firestore.collection('users').doc(uid);
+  const userRef = firestore.collection("users").doc(uid);
   await userRef.update({ displayName });
   console.log(`[Firestore] Updated display name for user ${uid}`);
 }
@@ -255,15 +297,15 @@ export async function updateUserDisplayName(uid: string, displayName: string): P
  */
 export async function getUserSessions(
   uid: string,
-  limit: number = 20
+  limit: number = 20,
 ): Promise<FirestoreSession[]> {
   if (!firestore) return [];
 
   const sessionsSnapshot = await firestore
-    .collection('users')
+    .collection("users")
     .doc(uid)
-    .collection('sessions')
-    .orderBy('completedAt', 'desc')
+    .collection("sessions")
+    .orderBy("completedAt", "desc")
     .limit(limit)
     .get();
 
@@ -278,14 +320,14 @@ export async function getUserSessions(
  */
 export async function getSession(
   uid: string,
-  sessionId: string
+  sessionId: string,
 ): Promise<FirestoreSession | null> {
   if (!firestore) return null;
 
   const sessionDoc = await firestore
-    .collection('users')
+    .collection("users")
     .doc(uid)
-    .collection('sessions')
+    .collection("sessions")
     .doc(sessionId)
     .get();
 
@@ -302,14 +344,16 @@ export async function processGamification(
   uid: string,
   session: PracticeSession,
   completedData: PracticeCompletedData,
-  timezone?: string
+  timezone?: string,
 ): Promise<GamificationResult | null> {
   if (!firestore) {
-    console.warn('[Firestore] Firestore not initialized, skipping gamification');
+    console.warn(
+      "[Firestore] Firestore not initialized, skipping gamification",
+    );
     return null;
   }
 
-  const userRef = firestore.collection('users').doc(uid);
+  const userRef = firestore.collection("users").doc(uid);
 
   try {
     return await firestore.runTransaction(async (transaction) => {
@@ -320,21 +364,26 @@ export async function processGamification(
       }
 
       const userData = userDoc.data() as FirestoreUser;
-      const gamification = userData.gamification || createDefaultGamification(timezone);
+      const gamification =
+        userData.gamification || createDefaultGamification(timezone);
 
       // Ensure timezone is set
-      if (timezone && gamification.streaks.timezone === 'UTC') {
+      if (timezone && gamification.streaks.timezone === "UTC") {
         gamification.streaks.timezone = timezone;
       }
 
-      const tz = gamification.streaks.timezone || 'UTC';
+      const tz = gamification.streaks.timezone || "UTC";
       const todayDate = getTodayInTimezone(tz);
 
       // 1. Update streak
       const streakResult = updateStreak(gamification.streaks);
 
       // 2. Calculate XP
-      const xpResult = calculateSessionXP(completedData, gamification, todayDate);
+      const xpResult = calculateSessionXP(
+        completedData,
+        gamification,
+        todayDate,
+      );
 
       // 3. Check achievements
       const newAchievements = checkAchievements({
@@ -364,11 +413,13 @@ export async function processGamification(
         achievements: {
           unlocked: [
             ...gamification.achievements.unlocked,
-            ...newAchievements.map(a => a.id),
+            ...newAchievements.map((a) => a.id),
           ],
           progress: gamification.achievements.progress,
         },
-        gamesCompleted: gamification.gamesCompleted.includes(completedData.game.id)
+        gamesCompleted: gamification.gamesCompleted.includes(
+          completedData.game.id,
+        )
           ? gamification.gamesCompleted
           : [...gamification.gamesCompleted, completedData.game.id],
         dailyXpDate: todayDate,
@@ -379,7 +430,9 @@ export async function processGamification(
         gamification: updatedGamification,
       });
 
-      console.log(`[Firestore] Gamification updated for user ${uid}: +${xpResult.totalXp} XP, level ${xpResult.newLevel}, streak ${streakResult.newStreak}`);
+      console.log(
+        `[Firestore] Gamification updated for user ${uid}: +${xpResult.totalXp} XP, level ${xpResult.newLevel}, streak ${streakResult.newStreak}`,
+      );
 
       return {
         xp: {
@@ -392,7 +445,7 @@ export async function processGamification(
       };
     });
   } catch (error) {
-    console.error('[Firestore] Error processing gamification:', error);
+    console.error("[Firestore] Error processing gamification:", error);
     return null;
   }
 }
@@ -400,12 +453,51 @@ export async function processGamification(
 /**
  * Get user's gamification data
  */
-export async function getUserGamification(uid: string): Promise<UserGamification | null> {
+export async function getUserGamification(
+  uid: string,
+): Promise<UserGamification | null> {
   if (!firestore) return null;
 
-  const userDoc = await firestore.collection('users').doc(uid).get();
+  const userDoc = await firestore.collection("users").doc(uid).get();
   if (!userDoc.exists) return null;
 
   const userData = userDoc.data() as FirestoreUser;
   return userData.gamification || createDefaultGamification();
+}
+
+/**
+ * Save voice calibration data for a user.
+ */
+export async function saveVoiceCalibration(
+  uid: string,
+  calibration: VoiceCalibration,
+): Promise<void> {
+  if (!firestore) {
+    console.warn(
+      "[Firestore] Firestore not initialized, skipping calibration save",
+    );
+    return;
+  }
+
+  await firestore.collection("users").doc(uid).update({
+    voiceCalibration: calibration,
+  });
+  console.log(
+    `[Firestore] Voice calibration saved for user ${uid} (${calibration.entries.length} entries)`,
+  );
+}
+
+/**
+ * Get voice calibration data for a user.
+ */
+export async function getVoiceCalibration(
+  uid: string,
+): Promise<VoiceCalibration | null> {
+  if (!firestore) return null;
+
+  const userDoc = await firestore.collection("users").doc(uid).get();
+  if (!userDoc.exists) return null;
+
+  const userData = userDoc.data() as FirestoreUser;
+  return userData.voiceCalibration || null;
 }
