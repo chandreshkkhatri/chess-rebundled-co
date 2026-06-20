@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { withTimeout } from "../lib/withTimeout";
+import { withTimeout } from "../lib/withTimeout.js";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
