@@ -3,25 +3,40 @@ import { GoogleGenAI, type GoogleGenAIOptions } from "@google/genai";
 /**
  * Shared Google Gen AI client.
  *
- * Supports two backends via env, selected without code changes:
+ * Two backends, selected via env without code changes:
  *
- *  - Gemini Developer API (AI Studio) — default. Uses GOOGLE_API_KEY.
+ *  - Gemini Developer API (AI Studio) — default. Uses GOOGLE_API_KEY and hits
+ *    generativelanguage.googleapis.com.
  *  - Gemini Enterprise Agent Platform (formerly Vertex AI) — set
- *    GOOGLE_GENAI_USE_VERTEXAI=true. Authenticates as a GCP service account
- *    (NOT an API key) and requires GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION.
+ *    GOOGLE_GENAI_USE_VERTEXAI=true. Hits aiplatform.googleapis.com. Two auth
+ *    modes are supported here:
  *
- * Vertex auth: rather than relying on Application Default Credentials being
- * present in the environment, we reuse the Firebase Admin service account
- * (FIREBASE_* env vars) — a Firebase service account is a GCP service account,
- * so the same key authenticates to Vertex once it's granted roles/aiplatform.user.
- * If those vars are absent we fall back to ADC (e.g. an attached GCP identity).
+ *      a) Express mode (preferred when GOOGLE_API_KEY is set): pass the API key
+ *         WITHOUT project/location. An Agent Platform API key authenticates
+ *         directly against aiplatform.googleapis.com — no service account / ADC.
+ *         NOTE: the SDK gives project+location precedence over apiKey and will
+ *         null the key if both are set, so express mode must omit them.
  *
- * The `generateContent` surface is identical across both backends, so callers
+ *      b) Service-account mode (no API key): project + location + credentials.
+ *         We reuse the Firebase Admin service account (FIREBASE_* env vars) — a
+ *         Firebase SA is a GCP SA, so it works once granted roles/aiplatform.user.
+ *         Falls back to ADC if those vars are absent.
+ *
+ * The `generateContent` surface is identical across all of these, so callers
  * don't need to know which one is active.
  */
 const useVertex = process.env.GOOGLE_GENAI_USE_VERTEXAI === "true";
 
 function buildVertexOptions(): GoogleGenAIOptions {
+  const apiKey = process.env.GOOGLE_API_KEY;
+
+  // (a) Express mode — API key against the Agent Platform endpoint. Must NOT
+  // include project/location, or the SDK discards the key and falls back to ADC.
+  if (apiKey) {
+    return { vertexai: true, apiKey };
+  }
+
+  // (b) Service-account mode.
   const options: GoogleGenAIOptions = {
     vertexai: true,
     project: process.env.GOOGLE_CLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID,
