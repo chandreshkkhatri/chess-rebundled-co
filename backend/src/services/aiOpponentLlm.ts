@@ -35,15 +35,18 @@ export function createLineProtocolParser() {
   function classify(line: string): AiStreamEvent | null {
     const trimmed = line.trim();
     if (!trimmed || moveSeen) return null;
-    if (trimmed.startsWith("CHAT ")) {
-      return { type: "chat", text: trimmed.slice(5).trim() };
-    }
-    if (trimmed.startsWith("THINK ")) {
-      return { type: "think", text: trimmed.slice(6).trim() };
-    }
-    if (trimmed.startsWith("MOVE ")) {
-      moveSeen = true;
-      return { type: "move", san: trimmed.slice(5).trim() };
+    // Tolerate the tag variants models actually produce: "CHAT ", "CHAT:",
+    // "**CHAT:**" etc. Unmatched lines fall through to THINK (private, safe).
+    const match = trimmed.match(/^\**(CHAT|THINK|MOVE)\**:?\s*(.*)$/);
+    if (match) {
+      const [, tag, rest] = match;
+      const text = rest.trim();
+      if (tag === "CHAT" && text) return { type: "chat", text };
+      if (tag === "THINK") return text ? { type: "think", text } : null;
+      if (tag === "MOVE" && text) {
+        moveSeen = true;
+        return { type: "move", san: text };
+      }
     }
     return { type: "think", text: trimmed };
   }

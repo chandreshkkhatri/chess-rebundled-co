@@ -162,14 +162,15 @@ export default function PlayAiGamePage() {
             </div>
           )}
 
-          <div className="grid lg:grid-cols-[1fr_340px] gap-6">
-            {/* Board column */}
-            <div>
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-6 items-start">
+            {/* Board column — board capped to viewport height so the whole
+                position is always visible without scrolling */}
+            <div className="w-full max-w-[min(100%,calc(100vh-240px))] mx-auto">
               {/* Status bar */}
               <div className="flex items-center justify-between mb-3">
-                <div className="text-sm text-slate-300">
+                <div className="text-sm text-slate-300 flex items-center gap-2 min-w-0">
                   {isGameOver ? (
-                    <span className="font-semibold">{resultText}</span>
+                    <span className="font-semibold truncate">{resultText}</span>
                   ) : botTurnInProgress ? (
                     <span className="text-purple-300 animate-pulse">
                       {persona?.name || "AI"} is thinking…
@@ -180,6 +181,11 @@ export default function PlayAiGamePage() {
                     </span>
                   ) : (
                     <span>Waiting…</span>
+                  )}
+                  {playerColor && !isGameOver && (
+                    <span className="text-xs text-slate-500 whitespace-nowrap">
+                      · you play {playerColor}
+                    </span>
                   )}
                 </div>
                 {!isGameOver && (
@@ -224,14 +230,14 @@ export default function PlayAiGamePage() {
               </div>
             </div>
 
-            {/* Chat column */}
+            {/* Chat column — sticky on desktop so it stays in view */}
             <AiChatPanel
               persona={persona}
               chat={chat}
               botTyping={botTyping}
               disabled={isGameOver}
               onSend={handleSendChat}
-              className="h-[420px] lg:h-auto lg:min-h-[520px]"
+              className="h-[420px] lg:h-[calc(100vh-140px)] lg:max-h-[720px] lg:sticky lg:top-4"
             />
           </div>
         </div>

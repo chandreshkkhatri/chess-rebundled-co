@@ -213,8 +213,17 @@ export function ChessBoard({
             boardOrientation: orientation,
             allowDragging: draggable,
             arrows,
-            onPieceDrop: onPieceDrop as any,
-            onSquareClick: onSquareClick as any,
+            // react-chessboard v5 passes a single args object; adapt to the
+            // positional signature this component's props document.
+            onPieceDrop: onPieceDrop
+              ? ({ piece, sourceSquare, targetSquare }: any) =>
+                  targetSquare
+                    ? onPieceDrop(sourceSquare, targetSquare, piece?.pieceType ?? '')
+                    : false
+              : undefined,
+            onSquareClick: onSquareClick
+              ? ({ square, piece }: any) => onSquareClick(square, piece?.pieceType)
+              : undefined,
             boardStyle: {
               borderRadius: '4px',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',

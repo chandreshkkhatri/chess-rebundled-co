@@ -85,9 +85,9 @@ export default function PlayAiReviewPage() {
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-[1fr_420px] gap-6">
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_420px] gap-6 items-start">
             {/* Board + scrubber */}
-            <div>
+            <div className="w-full max-w-[min(100%,calc(100vh-280px))] mx-auto lg:sticky lg:top-4">
               <ChessBoard
                 fen={fenAtPly}
                 orientation={review.playerColor}
