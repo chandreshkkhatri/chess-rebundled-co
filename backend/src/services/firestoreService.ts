@@ -9,6 +9,7 @@ import {
   Achievement,
   GamificationResult,
 } from "../types/index.js";
+import type { AiGameState } from "../types/aiGame.js";
 import {
   calculateSessionXP,
   calculateXpToNextLevel,
@@ -500,4 +501,78 @@ export async function getVoiceCalibration(
 
   const userData = userDoc.data() as FirestoreUser;
   return userData.voiceCalibration || null;
+}
+
+/**
+ * Persist a completed AI-opponent game (moves, chat, per-turn thinking) so
+ * the post-game review outlives the Redis TTL.
+ */
+export async function saveCompletedAiGame(
+  uid: string,
+  state: AiGameState,
+): Promise<string | null> {
+  if (!firestore) {
+    console.warn(
+      "[Firestore] Firestore not initialized, skipping AI game save",
+    );
+    return null;
+  }
+
+  try {
+    await firestore
+      .collection("users")
+      .doc(uid)
+      .collection("aiGames")
+      .doc(state.id)
+      .set({
+        ...state,
+        createdAt: Timestamp.fromMillis(state.createdAt),
+        completedAt: state.completedAt
+          ? Timestamp.fromMillis(state.completedAt)
+          : Timestamp.now(),
+      });
+
+    console.log(`[Firestore] Saved AI game ${state.id} for user ${uid}`);
+    return state.id;
+  } catch (error) {
+    console.error("[Firestore] Error saving AI game:", error);
+    return null;
+  }
+}
+
+/**
+ * Load a completed AI-opponent game for the review screen (fallback when it
+ * has expired from Redis).
+ */
+export async function getAiGame(
+  uid: string,
+  gameId: string,
+): Promise<AiGameState | null> {
+  if (!firestore) return null;
+
+  try {
+    const doc = await firestore
+      .collection("users")
+      .doc(uid)
+      .collection("aiGames")
+      .doc(gameId)
+      .get();
+    if (!doc.exists) return null;
+
+    const data = doc.data()!;
+    return {
+      ...data,
+      createdAt:
+        data.createdAt instanceof Timestamp
+          ? data.createdAt.toMillis()
+          : data.createdAt,
+      completedAt:
+        data.completedAt instanceof Timestamp
+          ? data.completedAt.toMillis()
+          : data.completedAt,
+    } as AiGameState;
+  } catch (error) {
+    console.error("[Firestore] Error loading AI game:", error);
+    return null;
+  }
 }

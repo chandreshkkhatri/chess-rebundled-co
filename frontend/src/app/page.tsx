@@ -108,7 +108,7 @@ export default function Home() {
             )}
 
             {/* Action cards */}
-            <div className="grid md:grid-cols-3 gap-4 mb-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <button
                 onClick={() => router.push('/practice')}
                 disabled={!isConnected}
@@ -134,6 +134,20 @@ export default function Home() {
                 </h2>
                 <p className="text-sm text-slate-400">
                   Challenge another player using chess notation
+                </p>
+              </button>
+
+              <button
+                onClick={() => router.push('/play-ai')}
+                disabled={!isConnected}
+                className="bg-slate-800 rounded-2xl p-6 text-left hover:bg-slate-750 hover:ring-2 hover:ring-pink-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+              >
+                <div className="text-3xl mb-3">🤖</div>
+                <h2 className="text-xl font-bold text-white mb-1 group-hover:text-pink-300 transition-colors">
+                  Play vs AI
+                </h2>
+                <p className="text-sm text-slate-400">
+                  Face an AI opponent that thinks out loud and talks back while it plays
                 </p>
               </button>
 

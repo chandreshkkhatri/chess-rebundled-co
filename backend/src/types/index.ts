@@ -223,6 +223,35 @@ import type {
   MultiplayerGameResumedData,
 } from "./multiplayer.js";
 
+// AI opponent types re-export
+export type {
+  AiGameStatus,
+  AiGameEndReason,
+  AiMoveSource,
+  AiChatMessage,
+  AiTurnRecord,
+  AiGameState,
+  AiPersonaPublic,
+  AiGameStartedData,
+  AiMoveMadeData,
+  AiGameOverData,
+  AiGameResumedData,
+  AiReviewTurn,
+  AiReviewData,
+  AiErrorCode,
+  AiErrorData,
+} from "./aiGame.js";
+
+import type {
+  AiChatMessage,
+  AiGameStartedData,
+  AiMoveMadeData,
+  AiGameOverData,
+  AiGameResumedData,
+  AiReviewData,
+  AiErrorData,
+} from "./aiGame.js";
+
 // Socket Event Types
 export interface ServerToClientEvents {
   // Practice mode events
@@ -278,6 +307,27 @@ export interface ServerToClientEvents {
       waitingSince: number;
     }[];
   }) => void;
+
+  // AI opponent events
+  "ai-game-started": (data: AiGameStartedData) => void;
+  "ai-move-made": (data: AiMoveMadeData) => void;
+  "ai-typing": (data: { gameId: string; typing: boolean }) => void;
+  "ai-chat-message": (data: {
+    gameId: string;
+    message: AiChatMessage;
+  }) => void;
+  "ai-bot-turn-started": (data: { gameId: string }) => void;
+  "ai-bot-turn-ended": (data: { gameId: string }) => void;
+  "ai-game-over": (data: AiGameOverData) => void;
+  "ai-game-resumed": (data: AiGameResumedData) => void;
+  "ai-review-data": (data: AiReviewData) => void;
+  "ai-illegal-move": (data: {
+    gameId: string;
+    move: string;
+    reason: string;
+  }) => void;
+  "ai-game-not-found": (data: { gameId: string; reason: string }) => void;
+  "ai-error": (data: AiErrorData) => void;
 }
 
 export interface ClientToServerEvents {
@@ -344,4 +394,15 @@ export interface ClientToServerEvents {
     audioBase64: string;
     mimeType: string;
   }) => void;
+
+  // AI opponent events
+  "ai-start": (data: {
+    personaId: string;
+    playerColor: "white" | "black" | "random";
+  }) => void;
+  "ai-submit-move": (data: { gameId: string; move: string }) => void;
+  "ai-send-chat": (data: { gameId: string; text: string }) => void;
+  "ai-resign": (data: { gameId: string }) => void;
+  "ai-reconnect": (data: { gameId: string }) => void;
+  "ai-get-review": (data: { gameId: string }) => void;
 }

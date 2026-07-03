@@ -2,6 +2,7 @@ import { Server as HttpServer } from 'http';
 import { Server } from 'socket.io';
 import { GameHandler } from './gameHandler.js';
 import { MultiplayerHandler } from './multiplayerHandler.js';
+import { AiGameHandler } from './aiGameHandler.js';
 import { ClientToServerEvents, ServerToClientEvents } from '../types/index.js';
 import { firebaseAuthMiddleware } from '../middleware/socketAuth.js';
 
@@ -21,6 +22,7 @@ export function initializeSocket(httpServer: HttpServer): Server {
 
   const gameHandler = new GameHandler(io);
   const multiplayerHandler = new MultiplayerHandler(io);
+  const aiGameHandler = new AiGameHandler(io);
 
   // Throttled lobby stats broadcast (at most once per 2 seconds)
   let lobbyBroadcastScheduled = false;
@@ -48,6 +50,7 @@ export function initializeSocket(httpServer: HttpServer): Server {
 
     gameHandler.register(socket);
     multiplayerHandler.register(socket);
+    aiGameHandler.register(socket);
 
     // Send lobby stats on connect and schedule broadcast for others
     const onlineCount = io.engine.clientsCount;

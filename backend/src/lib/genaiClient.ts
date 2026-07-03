@@ -52,7 +52,7 @@ function buildVertexOptions(): GoogleGenAIOptions {
 
   if (clientEmail && privateKey) {
     options.googleAuthOptions = {
-      credentials: { client_email: moclientEmail, private_key: privateKey },
+      credentials: { client_email: clientEmail, private_key: privateKey },
     };
   }
 
