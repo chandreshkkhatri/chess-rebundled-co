@@ -11,6 +11,7 @@ import {
 import { PgnService } from './pgnService.js';
 import { getRandomGame, getGameById as getGameByIdFromDb } from './gameRepository.js';
 import { sessionStore } from './redisSessionStore.js';
+import { guestTokenHash } from '../lib/practiceOwnership.js';
 
 export class PracticeService {
   private pgnService: PgnService;
@@ -30,12 +31,13 @@ export class PracticeService {
     playerName: string,
     mode: PracticeMode = 'both-sides',
     playerColor: 'white' | 'black' | null = null,
-    uid?: string
+    uid?: string,
+    guestToken?: unknown,
   ): Promise<PracticeStartedData | null> {
     const game = await getRandomGame();
     if (!game) return null;
 
-    return this.createSession(socketId, playerName, game, mode, playerColor, uid);
+    return this.createSession(socketId, playerName, game, mode, playerColor, uid, guestToken);
   }
 
   // Start session with a specific game (for backward compatibility)
@@ -45,12 +47,13 @@ export class PracticeService {
     gameId: string,
     mode: PracticeMode = 'both-sides',
     playerColor: 'white' | 'black' | null = null,
-    uid?: string
+    uid?: string,
+    guestToken?: unknown,
   ): Promise<PracticeStartedData | null> {
     const game = await getGameByIdFromDb(gameId);
     if (!game) return null;
 
-    return this.createSession(socketId, playerName, game, mode, playerColor, uid);
+    return this.createSession(socketId, playerName, game, mode, playerColor, uid, guestToken);
   }
 
   private async createSession(
@@ -59,7 +62,8 @@ export class PracticeService {
     game: HistoricalGame,
     mode: PracticeMode = 'both-sides',
     playerColor: 'white' | 'black' | null = null,
-    uid?: string
+    uid?: string,
+    guestToken?: unknown,
   ): Promise<PracticeStartedData | null> {
     const sessionId = `practice-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -70,6 +74,7 @@ export class PracticeService {
       id: sessionId,
       socketId,
       uid,
+      guestTokenHash: uid ? undefined : guestTokenHash(guestToken),
       playerName,
       historicalGame: game,
       currentMoveIndex: startingMoveIndex,

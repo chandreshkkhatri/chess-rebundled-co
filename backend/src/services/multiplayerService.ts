@@ -1,4 +1,5 @@
 import { Chess } from 'chess.js';
+import { chessFromHistory } from '../lib/chessHistory.js';
 import { Server } from 'socket.io';
 import { ClientToServerEvents, ServerToClientEvents } from '../types/index.js';
 import {
@@ -170,7 +171,7 @@ export class MultiplayerService {
     }
 
     // Validate and apply the move
-    const chess = new Chess(game.fen);
+    const chess = chessFromHistory(game.moves);
     let moveResult;
     try {
       moveResult = chess.move(moveSan);

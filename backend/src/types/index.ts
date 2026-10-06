@@ -118,6 +118,7 @@ export interface PracticeSession {
   id: string;
   socketId: string;
   uid?: string; // Firebase user ID (for session persistence)
+  guestTokenHash?: string; // Reconnect credential for anonymous practice, never sent to clients
   playerName: string;
   historicalGame: HistoricalGame;
   currentMoveIndex: number;

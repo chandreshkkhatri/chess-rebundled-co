@@ -25,6 +25,15 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function hasStringFields(data: unknown, fields: string[]): data is Record<string, string> {
+  return typeof data === "object" && data !== null && !Array.isArray(data) &&
+    fields.every((field) => typeof (data as Record<string, unknown>)[field] === "string");
+}
+
+function hasGameId(data: unknown): data is Record<string, string> {
+  return hasStringFields(data, ["gameId"]) && data.gameId.length > 0 && data.gameId.length <= 128;
+}
+
 function isGenAiConfigured(): boolean {
   if (process.env.GOOGLE_API_KEY) return true;
   return (
@@ -158,12 +167,31 @@ export class AiGameHandler {
   constructor(private io: GameServer) {}
 
   register(socket: GameSocket): void {
-    socket.on("ai-start", (data) => this.handleStart(socket, data));
-    socket.on("ai-submit-move", (data) => this.handleSubmitMove(socket, data));
-    socket.on("ai-send-chat", (data) => this.handleSendChat(socket, data));
-    socket.on("ai-resign", (data) => this.handleResign(socket, data));
-    socket.on("ai-reconnect", (data) => this.handleReconnect(socket, data));
-    socket.on("ai-get-review", (data) => this.handleGetReview(socket, data));
+    // Socket.io does not consume promises returned by event listeners.
+    const guard = <T>(handler: (data: T) => Promise<void>, valid: (data: unknown) => boolean) =>
+      (data: T): void => {
+        if (!valid(data)) {
+          socket.emit("ai-error", { message: "Invalid AI request" });
+          return;
+        }
+        void Promise.resolve().then(() => handler(data)).catch((error) => {
+          console.error("[AiGame] Request failed:", error);
+          socket.emit("ai-error", { message: "Unable to process AI request. Please try again." });
+        });
+      };
+
+    socket.on("ai-start", guard(this.handleStart.bind(this, socket), (data) =>
+      hasStringFields(data, ["personaId", "playerColor"]) &&
+      data.personaId.length > 0 && data.personaId.length <= 128 &&
+      ["white", "black", "random"].includes(data.playerColor)));
+    socket.on("ai-submit-move", guard(this.handleSubmitMove.bind(this, socket), (data) =>
+      hasGameId(data) && hasStringFields(data, ["move"]) &&
+      data.move.length > 0 && data.move.length <= 100));
+    socket.on("ai-send-chat", guard(this.handleSendChat.bind(this, socket), (data) =>
+      hasGameId(data) && hasStringFields(data, ["text"])));
+    socket.on("ai-resign", guard(this.handleResign.bind(this, socket), hasGameId));
+    socket.on("ai-reconnect", guard(this.handleReconnect.bind(this, socket), hasGameId));
+    socket.on("ai-get-review", guard(this.handleGetReview.bind(this, socket), hasGameId));
   }
 
   private room(gameId: string): string {

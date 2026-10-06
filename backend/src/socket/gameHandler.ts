@@ -18,6 +18,7 @@ import {
   getRandomGame,
 } from "../services/gameRepository.js";
 import crypto from "crypto";
+import { ownsPracticeSession } from "../lib/practiceOwnership.js";
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 
@@ -42,6 +43,13 @@ export class GameHandler {
 
   constructor(private io: Server<ClientToServerEvents, ServerToClientEvents>) {
     this.practiceService = new PracticeService();
+  }
+
+  private async getOwnedSession(socket: GameSocket, sessionId: string) {
+    const session = await this.practiceService.getSession(sessionId);
+    return session && ownsPracticeSession(
+      session, socket.id, socket.data.uid, socket.handshake.auth?.guestToken,
+    ) ? session : undefined;
   }
 
   // Generate cache key for AI parsing
@@ -194,6 +202,7 @@ export class GameHandler {
         data.mode || "both-sides",
         data.playerColor || null,
         uid,
+        socket.handshake.auth?.guestToken,
       );
 
       if (!startData) {
@@ -238,6 +247,7 @@ export class GameHandler {
         data.mode || "both-sides",
         data.playerColor || null,
         uid,
+        socket.handshake.auth?.guestToken,
       );
 
       if (!startData) {
@@ -304,6 +314,7 @@ export class GameHandler {
         data.mode || "both-sides",
         data.playerColor || null,
         uid,
+        socket.handshake.auth?.guestToken,
       );
 
       if (!startData) {
@@ -368,8 +379,12 @@ export class GameHandler {
   ): Promise<void> {
     try {
       // Update socket ID if reconnected
-      const session = await this.practiceService.getSession(data.sessionId);
-      if (session && session.socketId !== socket.id) {
+      const session = await this.getOwnedSession(socket, data.sessionId);
+      if (!session) {
+        socket.emit("practice-error", { message: "Session not found or access denied" });
+        return;
+      }
+      if (session.socketId !== socket.id) {
         await this.practiceService.updateSessionSocketId(
           data.sessionId,
           socket.id,
@@ -445,6 +460,10 @@ export class GameHandler {
     socket: GameSocket,
     data: { sessionId: string },
   ): Promise<void> {
+    if (!(await this.getOwnedSession(socket, data.sessionId))) {
+      socket.emit("practice-error", { message: "Session not found or access denied" });
+      return;
+    }
     await this.practiceService.abandonSession(data.sessionId);
   }
 
@@ -452,12 +471,12 @@ export class GameHandler {
     socket: GameSocket,
     data: { sessionId: string },
   ): Promise<void> {
-    const session = await this.practiceService.getSession(data.sessionId);
+    const session = await this.getOwnedSession(socket, data.sessionId);
 
     if (!session) {
       socket.emit("session-not-found", {
         sessionId: data.sessionId,
-        reason: "Session not found or expired",
+        reason: "Session not found, expired, or access denied",
       });
       return;
     }
@@ -495,9 +514,9 @@ export class GameHandler {
     socket: GameSocket,
     data: { sessionId: string; transcript: string; rawTranscript?: string },
   ): Promise<void> {
-    const session = await this.practiceService.getSession(data.sessionId);
+    const session = await this.getOwnedSession(socket, data.sessionId);
     if (!session) {
-      socket.emit("parse-error", { message: "Session not found" });
+      socket.emit("parse-error", { message: "Session not found or access denied" });
       return;
     }
 
@@ -552,9 +571,9 @@ export class GameHandler {
     socket: GameSocket,
     data: { sessionId: string; audioBase64: string; mimeType: string },
   ): Promise<void> {
-    const session = await this.practiceService.getSession(data.sessionId);
+    const session = await this.getOwnedSession(socket, data.sessionId);
     if (!session) {
-      socket.emit("audio-parse-error", { message: "Session not found" });
+      socket.emit("audio-parse-error", { message: "Session not found or access denied" });
       return;
     }
 

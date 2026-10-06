@@ -1,4 +1,5 @@
 import { Chess, type Move } from "chess.js";
+import { chessFromHistory } from "../lib/chessHistory.js";
 import crypto from "crypto";
 import {
   AiChatMessage,
@@ -171,7 +172,7 @@ export class AiGameService {
       return { ok: false, error: "not-your-turn" };
     }
 
-    const chess = new Chess(state.fen);
+    const chess = chessFromHistory(state.moves);
     let moveResult: Move | null = null;
     try {
       moveResult = chess.move(moveInput, { strict: false });
@@ -248,7 +249,7 @@ export class AiGameService {
     state.status = "bot-thinking";
     await aiGameStore.setGame(gameId, state);
 
-    const chess = new Chess(state.fen);
+    const chess = chessFromHistory(state.moves);
     const legalMoves = chess.moves();
     const botColor = this.botColor(state);
 

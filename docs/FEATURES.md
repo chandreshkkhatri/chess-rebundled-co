@@ -2,6 +2,32 @@
 
 This document provides a comprehensive overview of the pedagogical, interactive, and gamified features added to **Chess Rebundled** to improve user experience, learning speed, and player retention.
 
+## Session ownership and game correctness
+
+Practice socket handlers authorize every resume, move, abandonment, text parse,
+and audio parse before reading game data or changing a socket mapping. Signed-in
+sessions require the stored Firebase UID. New guest sessions use a per-tab random
+credential in the Socket.io handshake; the server stores only its SHA-256 hash.
+Auth-token updates preserve that guest credential. Legacy guest sessions without
+a credential remain limited to their original socket and need restarting after a
+disconnect. If browser session storage is unavailable, the credential lasts only
+for the current page load.
+
+AI socket requests validate payload types and catch async handler failures so
+malformed messages cannot produce unhandled promise rejections. The AI game page
+requests authoritative state and rejoins its game room on every restored
+connection, including when the opponent was thinking at disconnect time.
+
+AI and multiplayer move validation rebuild chess.js state from the stored SAN
+history. This retains prior positions needed for threefold-repetition draws.
+
+Run `pnpm test`, `pnpm lint`, `pnpm typecheck`, and `pnpm build` from the repository
+root. Backend regressions cover all practice access paths, owner and guest
+reconnection, malformed AI requests, async failures, and repetition after player,
+bot, and multiplayer moves. Frontend regressions cover AI reconnection and guest
+credential persistence. Tests use local stores and mocked cloud operations.
+See [README.md](../README.md) for environment and service setup.
+
 ---
 
 ## 🎙️ 1. Voice & Waveform UX
@@ -202,4 +228,3 @@ Brings bot play and practice mode sidebar commentary to life with an active simu
 *   **Colour-Coded Cards**: Each difficulty tier now uses its own border and background accent — green for Easy, yellow for Medium, orange for Hard, red for Expert — providing instant visual scanning.
 *   **Richer Descriptions**: Each difficulty card shows an icon, label, a one-line description, and the Stockfish skill label for transparency.
 *   **`useStockfish` Updated**: The `BotDifficulty` type and `DIFFICULTY_MAP` now include `expert` with appropriate engine parameters.
-

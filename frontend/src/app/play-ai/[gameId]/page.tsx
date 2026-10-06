@@ -47,12 +47,12 @@ export default function PlayAiGamePage() {
   const isMyTurn =
     status === "active" && turn === playerColor && !botTurnInProgress;
 
-  // Resume the game after a refresh (or when landing here directly).
+  // Rejoin the game room and resync on every connection, including reconnects.
   useEffect(() => {
-    if (gameId && status === "idle" && isConnected) {
+    if (gameId && isConnected) {
       reconnect(gameId);
     }
-  }, [gameId, status, isConnected, reconnect]);
+  }, [gameId, isConnected, reconnect]);
 
   // Unknown/expired game — back to setup.
   useEffect(() => {
