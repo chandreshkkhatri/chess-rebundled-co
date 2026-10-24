@@ -14,6 +14,7 @@ process.env.GOOGLE_API_KEY = 'test-placeholder';
 initializeApp({ projectId: 'repo-tests' });
 const { GameHandler } = await import('../src/socket/gameHandler.js');
 const { PracticeService } = await import('../src/services/practiceService.js');
+const { saveCompletedSession } = await import('../src/services/firestoreService.js');
 
 function socket(uid?: string, guestToken?: string, id = randomUUID()) {
   const listeners = new Map<string, (data: any) => unknown>();
@@ -109,7 +110,7 @@ test('new guest sessions store only the credential hash, and return no credentia
 });
 
 
-test('finishing practice saves every move and updates statistics without changing legacy profile data', async () => {
+test('concurrent completion and repeated saves count practice once and preserve legacy profile data', async () => {
   const stored = session({ historicalGame: { ...HISTORICAL_GAMES[0], moves: ['e4'], pgn: '1. e4 *' } });
   await sessionStore.set(stored.id, stored);
   const profile = {
@@ -121,11 +122,13 @@ test('finishing practice saves every move and updates statistics without changin
   const original = structuredClone(profile);
   let saved: any;
   let savedId: string | undefined;
+  let writes = 0;
   let updates: Record<string, unknown> = {};
+  const sessionRef = {};
   const userRef = {
     collection: (name: string) => {
       assert.equal(name, 'sessions');
-      return { doc: (id: string) => ({ set: async (data: unknown) => { savedId = id; saved = data; } }) };
+      return { doc: (id: string) => { savedId = id; return sessionRef; } };
     },
   };
   const firestore = getFirestore();
@@ -134,16 +137,24 @@ test('finishing practice saves every move and updates statistics without changin
     return { doc: (uid: string) => { assert.equal(uid, 'owner'); return userRef; } } as any;
   });
   const transaction = mock.method(firestore, 'runTransaction', async (work: any) => work({
-    get: async (ref: unknown) => { assert.equal(ref, userRef); return { exists: true, data: () => profile }; },
+    get: async (ref: unknown) => ref === sessionRef
+      ? { exists: !!saved } : { exists: true, data: () => profile },
+    set: (ref: unknown, data: unknown) => { assert.equal(ref, sessionRef); saved = data; writes++; },
     update: (ref: unknown, fields: Record<string, unknown>) => { assert.equal(ref, userRef); updates = fields; },
   }));
   try {
     const client = socket('owner', undefined, stored.socketId);
-    await client.dispatch('submit-practice-move', { sessionId: stored.id, move: 'e4' });
+    await Promise.all([
+      client.dispatch('submit-practice-move', { sessionId: stored.id, move: 'e4', moveIndex: 0 }),
+      client.dispatch('submit-practice-move', { sessionId: stored.id, move: 'e4', moveIndex: 0 }),
+    ]);
+    assert.equal(client.emitted.filter(entry => entry.event === 'practice-move-response').length, 1);
     const response = client.emitted.find(entry => entry.event === 'practice-move-response')?.data;
     assert.equal(response?.completed?.accuracy, 1);
     assert.equal(response.completed.correctMoves, 1);
     assert.equal('gamification' in response, false);
+    await saveCompletedSession('owner', stored, response.completed);
+    assert.equal(writes, 1, 'retries do not rewrite history or increment totals twice');
     assert.equal(savedId, stored.id);
     assert.equal(saved.status, 'completed');
     assert.equal(saved.moves.length, 1, 'the final submitted move is included in saved history');
@@ -161,4 +172,21 @@ test('finishing practice saves every move and updates statistics without changin
     transaction.mock.restore();
     await sessionStore.delete(stored.id);
   }
+});
+
+
+test('stale practice move indexes cannot advance the following turn', async () => {
+  const stored = session({ uid: undefined, historicalGame: { ...HISTORICAL_GAMES[0], moves: ['e4', 'e5'] } });
+  await sessionStore.set(stored.id, stored);
+  const client = socket(undefined, undefined, stored.socketId);
+  try {
+    await Promise.all([
+      client.dispatch('submit-practice-move', { sessionId: stored.id, move: 'e4', moveIndex: 0 }),
+      client.dispatch('submit-practice-move', { sessionId: stored.id, move: 'd4', moveIndex: 0 }),
+    ]);
+    const current = await sessionStore.get(stored.id);
+    assert.equal(current?.currentMoveIndex, 1);
+    assert.equal(current?.moveResults.length, 1);
+    assert.equal(client.emitted.filter(entry => entry.event === 'practice-error').length, 1);
+  } finally { await sessionStore.delete(stored.id); }
 });

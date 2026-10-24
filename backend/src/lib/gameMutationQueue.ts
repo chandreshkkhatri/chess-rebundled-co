@@ -1,5 +1,5 @@
-// Multiplayer clocks and rooms belong to one backend process. All instances in
-// that process share this queue so timers cannot overwrite player mutations.
+// All services in one backend process share this queue. Callers namespace keys
+// by mode so a read/modify/write cannot overwrite another mutation of that game.
 const pending = new Map<string, Promise<void>>();
 
 export async function runGameMutation<T>(gameId: string, action: () => Promise<T>): Promise<T> {

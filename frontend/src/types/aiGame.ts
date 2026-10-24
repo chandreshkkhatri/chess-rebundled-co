@@ -129,3 +129,26 @@ export const AI_PERSONAS: AiPersonaPublic[] = [
     rating: 1300,
   },
 ];
+
+// Parsing requests are tied to both a game and its exact position. They never
+// apply a move; the regular move boundary still validates submissions.
+export interface AiMoveParseRequest {
+  gameId: string;
+  requestId: string;
+  fen: string;
+  transcript?: string;
+  rawTranscript?: string;
+  audioBase64?: string;
+  mimeType?: string;
+}
+
+export interface AiMoveParsedData {
+  gameId: string;
+  requestId: string;
+  fen: string;
+  transcript: string;
+  parsedMove: string;
+  confidence: number;
+  alternatives: string[];
+  reasoning?: string;
+}

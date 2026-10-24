@@ -129,6 +129,7 @@ export function useAiGameSocket() {
         "ai-game-not-found",
         (data: { gameId: string; reason: string }) => {
           const store = useAiGameStore.getState();
+          if (store.gameId === data.gameId) store.clearGame();
           store.setNotFound(true);
           store.setError(data.reason);
         },
@@ -164,6 +165,7 @@ export function useAiGameSocket() {
     (gameId: string, move: string) => {
       const socket = getSocket();
       const state = useAiGameStore.getState();
+      if (!socket.connected) { state.setError("Not connected to server"); return; }
       if (state.isSubmitting) return;
 
       if (aiSubmitTimeoutId) {

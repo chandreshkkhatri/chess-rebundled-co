@@ -429,7 +429,7 @@ export function usePracticeSocket() {
       }
 
       setSubmitting(true);
-      socket.emit("submit-practice-move", { sessionId, move });
+      socket.emit("submit-practice-move", { sessionId, move, moveIndex: state.currentMoveIndex });
 
       // Safety timeout - reset isSubmitting after 5s if no response (reduced from 10s for better UX)
       submitTimeoutId = setTimeout(() => {

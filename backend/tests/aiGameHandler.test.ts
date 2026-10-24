@@ -9,7 +9,7 @@ const { aiGameService } = await import('../src/services/aiGameService.js');
 function client(handler = new AiGameHandler({} as any)) {
   const listeners = new Map<string, (data: unknown) => void>();
   const emitted: any[] = [];
-  handler.register({ data: { uid: 'owner' },
+  handler.register({ data: { uid: 'owner' }, join() {},
     on: (event: string, listener: (data: unknown) => void) => listeners.set(event, listener),
     emit: (event: string, data: unknown) => emitted.push({ event, data }),
   } as any);
@@ -51,4 +51,23 @@ test('service failures are handled and reported instead of becoming unhandled re
     assert.equal(socket.emitted[0].event, 'ai-error');
     assert.match(socket.emitted[0].data.message, /Please try again/);
   } finally { calls.mock.restore(); log.mock.restore(); }
+});
+
+
+test('simultaneous AI starts for one account create one game and resume it in the other tab', async () => {
+  const { aiGameStore } = await import('../src/services/aiGameSessionStore.js');
+  const first = client(), second = client();
+  try {
+    first.dispatch('ai-start', { personaId: 'rook-rodriguez', playerColor: 'white' });
+    second.dispatch('ai-start', { personaId: 'professor-petrova', playerColor: 'white' });
+    await new Promise(resolve => setImmediate(resolve));
+    const responses = [...first.emitted, ...second.emitted];
+    assert.equal(responses.filter(entry => entry.event === 'ai-game-started').length, 1);
+    assert.equal(responses.filter(entry => entry.event === 'ai-game-resumed').length, 1);
+    assert.equal(responses[0].data.gameId, responses[1].data.gameId);
+  } finally {
+    const id = await aiGameService.getActiveGameId('owner');
+    if (id) await aiGameStore.deleteGame(id);
+    await aiGameStore.deleteUidMapping('owner');
+  }
 });

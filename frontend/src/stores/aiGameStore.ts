@@ -63,6 +63,7 @@ interface AiGameStoreState {
   setError: (error: string | null) => void;
   setNotFound: (notFound: boolean) => void;
   setPreferredPersonaId: (id: string) => void;
+  clearGame: () => void;
   reset: () => void;
 }
 
@@ -202,7 +203,17 @@ export const useAiGameStore = create<AiGameStoreState>()(
 
       setPreferredPersonaId: (id) => set({ preferredPersonaId: id }),
 
-      reset: () => set(initialState),
+      clearGame: () => set((state) => ({
+        ...initialState,
+        isConnected: state.isConnected,
+        preferredPersonaId: state.preferredPersonaId,
+      })),
+
+      reset: () => set((state) => ({
+        ...initialState,
+        isConnected: state.isConnected,
+        preferredPersonaId: state.preferredPersonaId,
+      })),
     }),
     {
       name: "ai-game-store",

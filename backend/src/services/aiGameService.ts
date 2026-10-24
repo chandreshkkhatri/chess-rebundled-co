@@ -1,6 +1,7 @@
 import { Chess, type Move } from "chess.js";
 import { chessFromHistory } from "../lib/chessHistory.js";
 import crypto from "crypto";
+import { runGameMutation } from "../lib/gameMutationQueue.js";
 import {
   AiChatMessage,
   AiGameEndReason,
@@ -163,51 +164,53 @@ export class AiGameService {
     uid: string,
     moveInput: string,
   ): Promise<PlayerMoveResult> {
-    const state = await this.getGameForUser(gameId, uid);
-    if (!state) return { ok: false, error: "not-found" };
-    if (state.status === "bot-thinking" || this.isBotTurnInProgress(gameId)) {
-      return { ok: false, error: "busy" };
-    }
-    if (state.status !== "active" || !this.isPlayersTurn(state)) {
-      return { ok: false, error: "not-your-turn" };
-    }
+    return runGameMutation(`ai:${gameId}`, async () => {
+      const state = await this.getGameForUser(gameId, uid);
+      if (!state) return { ok: false, error: "not-found" };
+      if (state.status === "bot-thinking" || this.isBotTurnInProgress(gameId)) {
+        return { ok: false, error: "busy" };
+      }
+      if (state.status !== "active" || !this.isPlayersTurn(state)) {
+        return { ok: false, error: "not-your-turn" };
+      }
 
-    const chess = chessFromHistory(state.moves);
-    let moveResult: Move | null = null;
-    try {
-      moveResult = chess.move(moveInput, { strict: false });
-    } catch {
-      moveResult = null;
-    }
-    if (!moveResult) {
-      return { ok: false, error: "illegal", reason: "Move is not legal" };
-    }
+      const chess = chessFromHistory(state.moves);
+      let moveResult: Move | null = null;
+      try {
+        moveResult = chess.move(moveInput, { strict: false });
+      } catch {
+        moveResult = null;
+      }
+      if (!moveResult) {
+        return { ok: false, error: "illegal", reason: "Move is not legal" };
+      }
 
-    state.fen = chess.fen();
-    state.moves.push(moveResult.san);
+      state.fen = chess.fen();
+      state.moves.push(moveResult.san);
 
-    const moveData: AiMoveMadeData = {
-      gameId,
-      by: "player",
-      move: {
-        san: moveResult.san,
-        from: moveResult.from,
-        to: moveResult.to,
-      },
-      fen: state.fen,
-      turn: this.turnFromFen(state.fen),
-      moveCount: state.moves.length,
-      isCheck: chess.isCheck(),
-    };
+      const moveData: AiMoveMadeData = {
+        gameId,
+        by: "player",
+        move: {
+          san: moveResult.san,
+          from: moveResult.from,
+          to: moveResult.to,
+        },
+        fen: state.fen,
+        turn: this.turnFromFen(state.fen),
+        moveCount: state.moves.length,
+        isCheck: chess.isCheck(),
+      };
 
-    const endReason = this.detectGameEnd(chess, state);
-    if (endReason) {
-      const gameOver = await this.finishGame(state, endReason, "player");
-      return { ok: true, state, moveData, gameOver };
-    }
+      const endReason = this.detectGameEnd(chess, state);
+      if (endReason) {
+        const gameOver = await this.finishGame(state, endReason, "player");
+        return { ok: true, state, moveData, gameOver };
+      }
 
-    await aiGameStore.setGame(gameId, state);
-    return { ok: true, state, moveData, gameOver: null };
+      await aiGameStore.setGame(gameId, state);
+      return { ok: true, state, moveData, gameOver: null };
+    });
   }
 
   /**
@@ -236,18 +239,19 @@ export class AiGameService {
     paced: PacedChat,
   ): Promise<BotTurnResult | null> {
     const turnStart = Date.now();
-    const state = await aiGameStore.getGame(gameId);
-    if (!state || state.status === "completed") return null;
-
+    const snapshot = await runGameMutation(`ai:${gameId}`, async () => {
+      const state = await aiGameStore.getGame(gameId);
+      if (!state || state.status === "completed" || this.turnFromFen(state.fen) === state.playerColor) return null;
+      const pendingPlayerChat = [...state.pendingPlayerChat];
+      state.pendingPlayerChat = [];
+      state.status = "bot-thinking";
+      await aiGameStore.setGame(gameId, state);
+      return { state, pendingPlayerChat };
+    });
+    if (!snapshot) return null;
+    const { state, pendingPlayerChat } = snapshot;
     const persona = getPersona(state.personaId);
     if (!persona) return null;
-
-    // Snapshot + clear the pending player chat this turn will answer. Saving
-    // now (with the thinking status) lets mid-turn chat accumulate freshly.
-    const pendingPlayerChat = [...state.pendingPlayerChat];
-    state.pendingPlayerChat = [];
-    state.status = "bot-thinking";
-    await aiGameStore.setGame(gameId, state);
 
     const chess = chessFromHistory(state.moves);
     const legalMoves = chess.moves();
@@ -338,45 +342,47 @@ export class AiGameService {
     }
     await paced.whenDrained();
 
-    // Reload before saving: player chat may have arrived mid-turn.
-    const fresh = await aiGameStore.getGame(gameId);
-    if (!fresh || fresh.status === "completed") return null;
+    return runGameMutation(`ai:${gameId}`, async () => {
+      // Reload before saving: player chat may have arrived mid-turn.
+      const fresh = await aiGameStore.getGame(gameId);
+      if (!fresh || fresh.status === "completed" || fresh.fen !== state.fen) return null;
 
-    const turnIndex = fresh.moves.length;
-    const applied = chess.move(move) as Move; // legal by construction
-    fresh.fen = chess.fen();
-    fresh.moves.push(applied.san);
-    fresh.chat.push(...paced.messages());
-    fresh.turns.push({
-      turnIndex,
-      fenBefore: state.fen,
-      thinking,
-      chatEmitted: paced.messages().map((m) => m.text),
-      move: applied.san,
-      moveSource: source,
-      llmProposedMove: proposedMove,
-      durationMs: Date.now() - turnStart,
-    } satisfies AiTurnRecord);
+      const turnIndex = fresh.moves.length;
+      const applied = chess.move(move) as Move; // legal by construction
+      fresh.fen = chess.fen();
+      fresh.moves.push(applied.san);
+      fresh.chat.push(...paced.messages());
+      fresh.turns.push({
+        turnIndex,
+        fenBefore: state.fen,
+        thinking,
+        chatEmitted: paced.messages().map((m) => m.text),
+        move: applied.san,
+        moveSource: source,
+        llmProposedMove: proposedMove,
+        durationMs: Date.now() - turnStart,
+      } satisfies AiTurnRecord);
 
-    const moveData: AiMoveMadeData = {
-      gameId,
-      by: "bot",
-      move: { san: applied.san, from: applied.from, to: applied.to },
-      fen: fresh.fen,
-      turn: this.turnFromFen(fresh.fen),
-      moveCount: fresh.moves.length,
-      isCheck: chess.isCheck(),
-    };
+      const moveData: AiMoveMadeData = {
+        gameId,
+        by: "bot",
+        move: { san: applied.san, from: applied.from, to: applied.to },
+        fen: fresh.fen,
+        turn: this.turnFromFen(fresh.fen),
+        moveCount: fresh.moves.length,
+        isCheck: chess.isCheck(),
+      };
 
-    const endReason = this.detectGameEnd(chess, fresh);
-    if (endReason) {
-      const gameOver = await this.finishGame(fresh, endReason, "bot");
-      return { moveData, gameOver };
-    }
+      const endReason = this.detectGameEnd(chess, fresh);
+      if (endReason) {
+        const gameOver = await this.finishGame(fresh, endReason, "bot");
+        return { moveData, gameOver };
+      }
 
-    fresh.status = "active";
-    await aiGameStore.setGame(gameId, fresh);
-    return { moveData, gameOver: null };
+      fresh.status = "active";
+      await aiGameStore.setGame(gameId, fresh);
+      return { moveData, gameOver: null };
+    });
   }
 
   /** Steps 1–2 of the fallback chain: exact then fuzzy SAN matching. */
@@ -455,9 +461,11 @@ export class AiGameService {
   }
 
   async resign(gameId: string, uid: string): Promise<AiGameEnd | null> {
-    const state = await this.getGameForUser(gameId, uid);
-    if (!state || state.status === "completed") return null;
-    return this.finishGame(state, "resignation", "player-resigned");
+    return runGameMutation(`ai:${gameId}`, async () => {
+      const state = await this.getGameForUser(gameId, uid);
+      if (!state || state.status === "completed") return null;
+      return this.finishGame(state, "resignation", "player-resigned");
+    });
   }
 
   /**
@@ -564,20 +572,22 @@ export class AiGameService {
     uid: string,
     text: string,
   ): Promise<{ state: AiGameState; message: AiChatMessage } | null> {
-    const state = await this.getGameForUser(gameId, uid);
-    if (!state || state.status === "completed") return null;
+    return runGameMutation(`ai:${gameId}`, async () => {
+      const state = await this.getGameForUser(gameId, uid);
+      if (!state || state.status === "completed") return null;
 
-    const message: AiChatMessage = {
-      id: crypto.randomUUID(),
-      from: "player",
-      text,
-      ts: Date.now(),
-      turnIndex: state.moves.length,
-    };
-    state.chat.push(message);
-    state.pendingPlayerChat.push(text);
-    await aiGameStore.setGame(gameId, state);
-    return { state, message };
+      const message: AiChatMessage = {
+        id: crypto.randomUUID(),
+        from: "player",
+        text,
+        ts: Date.now(),
+        turnIndex: state.moves.length,
+      };
+      state.chat.push(message);
+      state.pendingPlayerChat.push(text);
+      await aiGameStore.setGame(gameId, state);
+      return { state, message };
+    });
   }
 
   /**
@@ -590,16 +600,19 @@ export class AiGameService {
     uid: string,
     playerMessage: string,
   ): Promise<AiChatMessage | null> {
-    const state = await this.getGameForUser(gameId, uid);
-    if (!state || !this.isPlayersTurn(state)) return null;
-    if (state.chatRepliesUsed >= CHAT_REPLIES_PER_GAME) return null;
-    if (Date.now() - state.lastChatReplyAt < CHAT_REPLY_MIN_GAP_MS) {
-      return null;
-    }
-
+    const state = await runGameMutation(`ai:${gameId}`, async () => {
+      const current = await this.getGameForUser(gameId, uid);
+      if (!current || !this.isPlayersTurn(current) ||
+          current.chatRepliesUsed >= CHAT_REPLIES_PER_GAME ||
+          Date.now() - current.lastChatReplyAt < CHAT_REPLY_MIN_GAP_MS) return null;
+      current.chatRepliesUsed += 1;
+      current.lastChatReplyAt = Date.now();
+      await aiGameStore.setGame(gameId, current);
+      return current;
+    });
+    if (!state) return null;
     const persona = getPersona(state.personaId);
-    if (!persona) return null;
-    if (!(await aiUsageLimiter.tryConsumeLlmTurn(uid))) return null;
+    if (!persona || !(await aiUsageLimiter.tryConsumeLlmTurn(uid))) return null;
 
     const text = await generateChatReply(
       persona,
@@ -610,25 +623,25 @@ export class AiGameService {
     );
     if (!text) return null;
 
-    // Reload: the pending queue may have moved while the LLM ran.
-    const fresh = await aiGameStore.getGame(gameId);
-    if (!fresh || fresh.status !== "active") return null;
+    return runGameMutation(`ai:${gameId}`, async () => {
+      // Reload: the pending queue may have moved while the LLM ran.
+      const fresh = await aiGameStore.getGame(gameId);
+      if (!fresh || !this.isPlayersTurn(fresh) || fresh.fen !== state.fen) return null;
 
-    const message: AiChatMessage = {
-      id: crypto.randomUUID(),
-      from: "bot",
-      text,
-      ts: Date.now(),
-      turnIndex: fresh.moves.length,
-    };
-    fresh.chat.push(message);
-    // The reply answered this message; don't re-feed it to the next turn.
-    const pendingIndex = fresh.pendingPlayerChat.lastIndexOf(playerMessage);
-    if (pendingIndex !== -1) fresh.pendingPlayerChat.splice(pendingIndex, 1);
-    fresh.chatRepliesUsed += 1;
-    fresh.lastChatReplyAt = Date.now();
-    await aiGameStore.setGame(gameId, fresh);
-    return message;
+      const message: AiChatMessage = {
+        id: crypto.randomUUID(),
+        from: "bot",
+        text,
+        ts: Date.now(),
+        turnIndex: fresh.moves.length,
+      };
+      fresh.chat.push(message);
+      // The reply answered this message; don't re-feed it to the next turn.
+      const pendingIndex = fresh.pendingPlayerChat.lastIndexOf(playerMessage);
+      if (pendingIndex !== -1) fresh.pendingPlayerChat.splice(pendingIndex, 1);
+      await aiGameStore.setGame(gameId, fresh);
+      return message;
+    });
   }
 
   async getReviewData(

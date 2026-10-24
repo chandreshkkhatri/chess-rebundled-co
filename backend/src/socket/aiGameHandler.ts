@@ -1,7 +1,9 @@
 import { Server, Socket } from "socket.io";
 import crypto from "crypto";
+import { runGameMutation } from "../lib/gameMutationQueue.js";
 import { ClientToServerEvents, ServerToClientEvents } from "../types/index.js";
 import {
+  AiMoveParseRequest,
   AiChatMessage,
   AiGameState,
   AiGameResumedData,
@@ -12,6 +14,12 @@ import {
   PacedChat,
 } from "../services/aiGameService.js";
 import { getPersona, toPublicPersona } from "../data/aiPersonas.js";
+
+import { guardSocketRequest, hasText, validTextParse, validAudioParse } from "../lib/socketRequest.js";
+import { aiUsageLimiter } from "../services/aiUsageLimiter.js";
+import { parseChessMoveWithAI } from "../services/aiMoveParser.js";
+import { parseChessMoveFromAudio } from "../services/geminiAudioParser.js";
+import { chessFromHistory } from "../lib/chessHistory.js";
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -180,6 +188,18 @@ export class AiGameHandler {
         });
       };
 
+    for (const audio of [false, true]) {
+      socket.on(audio ? "ai-parse-audio" : "ai-parse-move", (data: AiMoveParseRequest) =>
+        guardSocketRequest(
+          (request: AiMoveParseRequest) => this.handleParseMove(socket, request, audio),
+          request => hasGameId(request) && hasText(request, "requestId") && hasText(request, "fen", 200) &&
+            (audio ? validAudioParse(request) : validTextParse(request)),
+          message => socket.emit("ai-parse-error", {
+            requestId: typeof data?.requestId === "string" ? data.requestId : "", message,
+          }),
+        )(data));
+    }
+
     socket.on("ai-start", guard(this.handleStart.bind(this, socket), (data) =>
       hasStringFields(data, ["personaId", "playerColor"]) &&
       data.personaId.length > 0 && data.personaId.length <= 128 &&
@@ -288,54 +308,56 @@ export class AiGameHandler {
       return;
     }
 
-    // One active AI game per user — hand the existing one back for resume.
-    const existingGameId = await aiGameService.getActiveGameId(uid);
-    if (existingGameId) {
-      const existing = await aiGameService.getGameForUser(existingGameId, uid);
-      if (existing && existing.status !== "completed") {
-        socket.join(this.room(existingGameId));
-        socket.emit("ai-game-resumed", this.buildResumeData(existing));
+    await runGameMutation(`ai-user:${uid}`, async () => {
+      // One active AI game per user — hand the existing one back for resume.
+      const existingGameId = await aiGameService.getActiveGameId(uid);
+      if (existingGameId) {
+        const existing = await aiGameService.getGameForUser(existingGameId, uid);
+        if (existing && existing.status !== "completed") {
+          socket.join(this.room(existingGameId));
+          socket.emit("ai-game-resumed", this.buildResumeData(existing));
+          return;
+        }
+      }
+
+      const playerColor =
+        data.playerColor === "random"
+          ? Math.random() < 0.5
+            ? "white"
+            : "black"
+          : data.playerColor;
+      const playerName = socket.data.email?.split("@")[0] || "Player";
+
+      const created = await aiGameService.createGame(
+        uid,
+        playerName,
+        data.personaId,
+        playerColor,
+      );
+      if (!created.ok) {
+        socket.emit("ai-error", {
+          message:
+            created.error === "limit-reached"
+              ? "Daily AI game limit reached — come back tomorrow!"
+              : "Unknown opponent selected",
+          code: created.error === "limit-reached" ? "LIMIT_REACHED" : undefined,
+        });
         return;
       }
-    }
 
-    const playerColor =
-      data.playerColor === "random"
-        ? Math.random() < 0.5
-          ? "white"
-          : "black"
-        : data.playerColor;
-    const playerName = socket.data.email?.split("@")[0] || "Player";
-
-    const created = await aiGameService.createGame(
-      uid,
-      playerName,
-      data.personaId,
-      playerColor,
-    );
-    if (!created.ok) {
-      socket.emit("ai-error", {
-        message:
-          created.error === "limit-reached"
-            ? "Daily AI game limit reached — come back tomorrow!"
-            : "Unknown opponent selected",
-        code: created.error === "limit-reached" ? "LIMIT_REACHED" : undefined,
+      socket.join(this.room(created.state.id));
+      socket.emit("ai-game-started", {
+        gameId: created.state.id,
+        playerColor,
+        persona: toPublicPersona(created.persona),
+        fen: created.state.fen,
       });
-      return;
-    }
 
-    socket.join(this.room(created.state.id));
-    socket.emit("ai-game-started", {
-      gameId: created.state.id,
-      playerColor,
-      persona: toPublicPersona(created.persona),
-      fen: created.state.fen,
+      // Bot opens the game when the player took black.
+      if (playerColor === "black") {
+        this.startBotTurn(created.state.id, 0);
+      }
     });
-
-    // Bot opens the game when the player took black.
-    if (playerColor === "black") {
-      this.startBotTurn(created.state.id, 0);
-    }
   }
 
   private async handleSubmitMove(
@@ -457,6 +479,40 @@ export class AiGameHandler {
     this.io
       .to(this.room(data.gameId))
       .emit("ai-typing", { gameId: data.gameId, typing: false });
+  }
+
+  private async handleParseMove(socket: GameSocket, data: AiMoveParseRequest, audio: boolean): Promise<void> {
+    const fail = (message: string) => socket.emit("ai-parse-error", { requestId: data.requestId, message });
+    const uid = socket.data.uid;
+    if (!uid) { fail("Sign in to use speech input"); return; }
+    const state = await aiGameService.getGameForUser(data.gameId, uid);
+    if (!state || !aiGameService.isPlayersTurn(state) || aiGameService.isBotTurnInProgress(data.gameId) || state.fen !== data.fen) {
+      fail("The position changed or it is not your turn");
+      return;
+    }
+    if (!(await aiUsageLimiter.tryConsumeParse(`user:${uid}`))) {
+      fail("Daily voice parsing limit reached. Please type your move.");
+      return;
+    }
+    const { getVoiceCalibration } = await import("../services/firestoreService.js");
+    const confusionMap = (await getVoiceCalibration(uid))?.confusionMap;
+    const legalMoves = chessFromHistory(state.moves).moves();
+    const options = { allowGuessOnUnclear: false, confusionMap };
+    const parsed = audio
+      ? await parseChessMoveFromAudio(data.audioBase64!, data.mimeType!, state.fen, legalMoves, options)
+      : await parseChessMoveWithAI(data.rawTranscript || data.transcript!, state.fen, legalMoves, options);
+    const fresh = await aiGameService.getGameForUser(data.gameId, uid);
+    if (!fresh || !aiGameService.isPlayersTurn(fresh) || fresh.fen !== data.fen) {
+      fail("The position changed. Please enter your move again.");
+      return;
+    }
+    socket.emit("ai-move-parsed", {
+      gameId: data.gameId, requestId: data.requestId, fen: data.fen,
+      transcript: "transcription" in parsed && typeof parsed.transcription === "string"
+        ? parsed.transcription : data.transcript || "[audio input]",
+      parsedMove: parsed.move, confidence: parsed.confidence,
+      alternatives: parsed.alternatives, reasoning: parsed.reasoning,
+    });
   }
 
   private async handleResign(

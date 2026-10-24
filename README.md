@@ -113,6 +113,7 @@ adding Compose does not migrate an existing deployment.
 | `/play/[gameId]` | An authenticated multiplayer game with optional clocks. |
 | `/bot` | Standalone browser Stockfish; accessible directly, outside the online lobby. |
 | `/play-ai` | Choose a conversational Gemini opponent and color. |
+| `/play-ai/[gameId]` | Play using board, speech, text, or staged input; chat with the opponent. |
 | `/play-ai/[gameId]/review` | Review a completed AI game. |
 | `/trainer` | Thirty-second square recognition exercises. |
 | `/profile`, `/history`, `/settings` | Practice statistics, completed sessions, and speech/input preferences. |

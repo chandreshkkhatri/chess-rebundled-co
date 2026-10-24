@@ -729,10 +729,10 @@ export function UniversalInputPanel({
 
   // Stop listening when input mode changes away from voice
   useEffect(() => {
-    if (!voiceEnabled && isListening) {
+    if ((!voiceEnabled || !isActive) && isListening) {
       stopListening();
     }
-  }, [voiceEnabled, isListening, stopListening]);
+  }, [voiceEnabled, isActive, isListening, stopListening]);
 
   // Stop listening when submitting or parsing
   useEffect(() => {

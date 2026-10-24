@@ -192,10 +192,26 @@ export async function saveCompletedSession(
       },
     };
 
-    await sessionRef.set(firestoreSession);
-
-    // Update user stats
-    await updateUserStats(uid, completedData);
+    const userRef = firestore.collection("users").doc(uid);
+    // History and totals commit together. Retried saves of the same session
+    // cannot count twice, including across backend restarts.
+    await firestore.runTransaction(async (transaction) => {
+      const saved = await transaction.get(sessionRef);
+      if (saved.exists) return;
+      const userDoc = await transaction.get(userRef);
+      if (!userDoc.exists) throw new Error("User profile missing during session save");
+      const stats = (userDoc.data() as FirestoreUser).stats;
+      const totalMoves = stats.totalMoves + completedData.totalMoves;
+      const correctMoves = stats.correctMoves + completedData.correctMoves;
+      transaction.set(sessionRef, firestoreSession);
+      transaction.update(userRef, {
+        "stats.totalSessions": stats.totalSessions + 1,
+        "stats.totalMoves": totalMoves,
+        "stats.correctMoves": correctMoves,
+        "stats.overallAccuracy": totalMoves > 0 ? correctMoves / totalMoves : 0,
+        "stats.lastPlayedAt": Timestamp.now(),
+      });
+    });
 
     console.log(`[Firestore] Saved session ${session.id} for user ${uid}`);
     return session.id;
@@ -203,46 +219,6 @@ export async function saveCompletedSession(
     console.error("[Firestore] Error saving session:", error);
     return null;
   }
-}
-
-/**
- * Update user aggregate stats after a session completes.
- */
-async function updateUserStats(
-  uid: string,
-  completedData: PracticeCompletedData,
-): Promise<void> {
-  if (!firestore) return;
-
-  const userRef = firestore.collection("users").doc(uid);
-
-  // Use a transaction to safely update aggregate stats
-  await firestore.runTransaction(async (transaction) => {
-    const userDoc = await transaction.get(userRef);
-    if (!userDoc.exists) {
-      console.warn(`[Firestore] User ${uid} not found for stats update`);
-      return;
-    }
-
-    const userData = userDoc.data() as FirestoreUser;
-    const stats = userData.stats;
-
-    const newTotalSessions = stats.totalSessions + 1;
-    const newTotalMoves = stats.totalMoves + completedData.totalMoves;
-    const newCorrectMoves = stats.correctMoves + completedData.correctMoves;
-    const newOverallAccuracy =
-      newTotalMoves > 0 ? newCorrectMoves / newTotalMoves : 0;
-
-    transaction.update(userRef, {
-      "stats.totalSessions": newTotalSessions,
-      "stats.totalMoves": newTotalMoves,
-      "stats.correctMoves": newCorrectMoves,
-      "stats.overallAccuracy": newOverallAccuracy,
-      "stats.lastPlayedAt": Timestamp.now(),
-    });
-  });
-
-  console.log(`[Firestore] Updated stats for user ${uid}`);
 }
 
 /**
@@ -322,6 +298,16 @@ export async function getSession(
   return sessionDoc.data() as FirestoreSession;
 }
 
+// One shared cache for practice, multiplayer, and AI input. A successful save
+// replaces even a cached empty value immediately.
+const calibrationCache = new Map<string, { data: VoiceCalibration | null; loadedAt: number }>();
+const calibrationVersions = new Map<string, number>();
+const CALIBRATION_TTL_MS = 30 * 60 * 1000;
+
+export function getVoiceCalibrationVersion(uid?: string): number {
+  return uid ? calibrationVersions.get(uid) ?? 0 : 0;
+}
+
 /**
  * Save voice calibration data for a user.
  */
@@ -339,6 +325,8 @@ export async function saveVoiceCalibration(
   await firestore.collection("users").doc(uid).update({
     voiceCalibration: calibration,
   });
+  calibrationVersions.set(uid, getVoiceCalibrationVersion(uid) + 1);
+  calibrationCache.set(uid, { data: calibration, loadedAt: Date.now() });
   console.log(
     `[Firestore] Voice calibration saved for user ${uid} (${calibration.entries.length} entries)`,
   );
@@ -352,11 +340,16 @@ export async function getVoiceCalibration(
 ): Promise<VoiceCalibration | null> {
   if (!firestore) return null;
 
+  const cached = calibrationCache.get(uid);
+  if (cached && Date.now() - cached.loadedAt < CALIBRATION_TTL_MS) return cached.data;
+  const version = getVoiceCalibrationVersion(uid);
   const userDoc = await firestore.collection("users").doc(uid).get();
-  if (!userDoc.exists) return null;
-
-  const userData = userDoc.data() as FirestoreUser;
-  return userData.voiceCalibration || null;
+  // An older in-flight read must not overwrite calibration just saved by HTTP.
+  if (getVoiceCalibrationVersion(uid) !== version) return calibrationCache.get(uid)?.data ?? null;
+  const calibration = userDoc.exists
+    ? (userDoc.data() as FirestoreUser).voiceCalibration ?? null : null;
+  calibrationCache.set(uid, { data: calibration, loadedAt: Date.now() });
+  return calibration;
 }
 
 /**

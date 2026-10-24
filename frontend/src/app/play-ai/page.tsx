@@ -52,6 +52,10 @@ export default function PlayAiSetupPage() {
     }
   }, [reset]);
 
+  useEffect(() => {
+    if (!isConnected || error) setStarting(false);
+  }, [isConnected, error]);
+
   const selectedPersona =
     AI_PERSONAS.find((p) => p.id === preferredPersonaId) || AI_PERSONAS[0];
 

@@ -1,3 +1,4 @@
+import type { AiMoveParseRequest, AiMoveParsedData } from "./aiGame.js";
 // Game Types
 export interface HistoricalGame {
   id: string;
@@ -179,6 +180,8 @@ import type {
 
 // Socket Event Types
 export interface ServerToClientEvents {
+  "ai-move-parsed": (data: AiMoveParsedData) => void;
+  "ai-parse-error": (data: { requestId: string; message: string }) => void;
   // Practice mode events
   "practice-games-list": (games: HistoricalGame[]) => void;
   "practice-started": (data: PracticeStartedData) => void;
@@ -282,7 +285,7 @@ export interface ClientToServerEvents {
     role: "white" | "black";
   }) => void;
   "get-player-list": () => void;
-  "submit-practice-move": (data: { sessionId: string; move: string }) => void;
+  "submit-practice-move": (data: { sessionId: string; move: string; moveIndex?: number }) => void;
   "abandon-practice": (data: { sessionId: string }) => void;
   // Session resume
   "resume-session": (data: { sessionId: string }) => void;
@@ -330,4 +333,6 @@ export interface ClientToServerEvents {
   "ai-resign": (data: { gameId: string }) => void;
   "ai-reconnect": (data: { gameId: string }) => void;
   "ai-get-review": (data: { gameId: string }) => void;
+  "ai-parse-move": (data: AiMoveParseRequest) => void;
+  "ai-parse-audio": (data: AiMoveParseRequest) => void;
 }

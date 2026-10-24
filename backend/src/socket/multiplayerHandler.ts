@@ -9,7 +9,7 @@ import { parseChessMoveFromAudio } from "../services/geminiAudioParser.js";
 import { ClientToServerEvents, ServerToClientEvents } from "../types/index.js";
 import { TimeControl } from "../types/multiplayer.js";
 import { WaitingPlayer } from "../services/matchmakingService.js";
-import { getVoiceCalibration } from "../services/firestoreService.js";
+import { getVoiceCalibration, getVoiceCalibrationVersion } from "../services/firestoreService.js";
 import crypto from "crypto";
 import { guardSocketRequest, hasText, isRecord, validAudioParse, validTextParse, validTimeControl } from "../lib/socketRequest.js";
 import { aiUsageLimiter } from "../services/aiUsageLimiter.js";
@@ -26,13 +26,8 @@ export class MultiplayerHandler {
   private multiplayerService: MultiplayerService;
   private matchmakingService: MatchmakingService;
   private aiParseCache: Map<string, AIParseCacheEntry> = new Map();
-  private calibrationCache: Map<
-    string,
-    { confusionMap: Record<string, string[]> | null; loadedAt: number }
-  > = new Map();
   private static readonly AI_CACHE_TTL_MS = 5 * 60 * 1000;
   private static readonly AI_CACHE_MAX_SIZE = 500;
-  private static readonly CALIBRATION_CACHE_TTL_MS = 30 * 60 * 1000;
 
   // Track socket -> gameId for disconnect handling
   private socketToGame: Map<string, string> = new Map();
@@ -507,7 +502,7 @@ export class MultiplayerHandler {
     try {
       // Use rawTranscript for AI when available (gives better context than locally-parsed move)
       const transcriptForAI = data.rawTranscript || data.transcript;
-      const cacheKey = this.getAIParseCacheKey(transcriptForAI, game.fen);
+      const cacheKey = this.getAIParseCacheKey(transcriptForAI, game.fen, socket.data.uid);
       let cached = this.aiParseCache.get(cacheKey);
       let parsed: AIParsedMove;
 
@@ -595,19 +590,8 @@ export class MultiplayerHandler {
   ): Promise<Record<string, string[]> | undefined> {
     if (!uid) return undefined;
 
-    const cached = this.calibrationCache.get(uid);
-    if (
-      cached &&
-      Date.now() - cached.loadedAt < MultiplayerHandler.CALIBRATION_CACHE_TTL_MS
-    ) {
-      return cached.confusionMap || undefined;
-    }
-
     try {
-      const calibration = await getVoiceCalibration(uid);
-      const confusionMap = calibration?.confusionMap || null;
-      this.calibrationCache.set(uid, { confusionMap, loadedAt: Date.now() });
-      return confusionMap || undefined;
+      return (await getVoiceCalibration(uid))?.confusionMap;
     } catch (error) {
       console.warn(
         "[MultiplayerHandler] Failed to load calibration for user",
@@ -624,8 +608,8 @@ export class MultiplayerHandler {
     return multiplayerStore.getGameIdByUid(uid);
   }
 
-  private getAIParseCacheKey(transcript: string, fen: string): string {
-    const data = `${transcript.toLowerCase().trim()}:${fen}`;
+  private getAIParseCacheKey(transcript: string, fen: string, uid?: string): string {
+    const data = `${uid ?? "guest"}:${getVoiceCalibrationVersion(uid)}:${transcript.toLowerCase().trim()}:${fen}`;
     return crypto.createHash("md5").update(data).digest("hex");
   }
 

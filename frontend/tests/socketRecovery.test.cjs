@@ -52,10 +52,12 @@ test('AI page rejoins and resyncs after a drop while a game is active or thinkin
     'next/navigation': { useParams: () => ({ gameId }), useRouter: () => ({ push: stableAction }) },
     'chess.js': require('chess.js'),
     '@/hooks/useAiGameSocket': { useAiGameSocket: () => ({ reconnect }) },
+    '@/hooks/useAiMoveInput': { useAiMoveInput: () => ({}) },
+    '@/stores/practiceStore': { usePracticeStore: () => ({ inputMode: 'tap-only', voiceParsingMode: 'gemini-audio' }) },
     '@/stores/aiGameStore': { useAiGameStore: () => ({ isConnected, status,
       fen: '', moves: [], setError: stableAction, setNotFound: stableAction }) },
   };
-  for (const name of ['ChessBoard', 'MoveHistory', 'AiChatPanel', 'PageLayout']) {
+  for (const name of ['ChessBoard', 'MoveHistory', 'AiChatPanel', 'PageLayout', 'UniversalInputPanel']) {
     dependencies[`@/components/${name}`] = { [name]: () => null };
   }
   const page = loadSource('src/app/play-ai/[gameId]/page.tsx', dependencies).default;

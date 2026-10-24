@@ -2,7 +2,7 @@
 
 ## Session ownership and reconnection
 
-Practice allows guests. Signed-in sessions require the original Firebase UID
+The practice protocol supports guests; the setup page requires sign-in. Signed-in sessions require the original Firebase UID
 for resume, move submission, abandonment, and voice parsing. New guest sessions
 use a random per-tab credential carried in the socket handshake; only its hash
 is stored on the backend. The credential survives reconnects and authentication
@@ -14,6 +14,9 @@ Multiplayer and conversational AI games require sign-in. The AI game page
 rejoins its room and reloads authoritative state whenever its connection is
 restored, including a disconnect during the opponent's thinking phase. Stored
 SAN history is replayed for multiplayer/AI threefold-repetition detection.
+Missing AI games clear the current game identity before returning to setup,
+while retaining the connection and opponent preference. Review requests are
+retried after reconnecting and when the review URL changes. Errors offer a retry.
 
 ## Bot turns and engine requests
 
@@ -40,6 +43,36 @@ This also handles one-side practice, where displayed positions skip a ply.
 Illegal submissions are identified without an engine comparison. A new result
 or leaving the page cancels the previous analysis and suppresses stale feedback.
 
+## Practice and AI mutations
+
+Practice submit/resume/abandon requests share a queue per session. Browser move
+submissions include the expected move index; stale requests cannot advance the
+next historical turn. Completion history and aggregate totals commit in one
+Firestore transaction. An existing saved session makes repeated saves a no-op,
+so one completed session cannot increment totals twice. User preferences and
+legacy profile fields remain intact.
+
+AI player moves, chat writes, resignation, and bot state commits share a queue
+per game. Bot generation runs outside that queue so chat and resignation remain
+available. The bot rechecks the position and completed status before committing;
+a late generated result cannot revive a resigned game. AI game starts are also
+serialized per user within the backend process. These queues are process-local;
+the deployment still requires one backend instance.
+
+## Microphone recovery and calibration
+
+After silence or the maximum recording duration, audio monitoring resumes even
+if the audio was too short or quiet to send. Stop/unmount invalidates pending
+permission prompts, recorder events, and audio reads; late callbacks cannot send
+input for an abandoned position. Recording chooses a supported format, including
+MP4 for browsers that provide it, rather than assuming WAV recording support.
+
+Practice, multiplayer, and AI parsing share the Firestore calibration cache.
+Successful saves replace cached empty or older patterns immediately. An older
+in-flight read cannot replace newly saved data. Cached text parses are scoped
+to the user and calibration revision, so calibration updates also invalidate
+old interpretations.
+
 ## Socket request boundaries and AI quotas
 
 Practice and multiplayer listeners use `backend/src/lib/socketRequest.ts` to
@@ -47,10 +80,14 @@ validate identifiers, string sizes, practice options, clocks, and audio metadata
 Every listener catches asynchronous failures and responds on the mode's existing
 error channel. Practice retains signed-in ownership and guest reconnect checks.
 Multiplayer text/audio parsing requires membership in an active game before
-returning cached results or calling Gemini.
+returning cached results or calling Gemini. Conversational AI parsing requires
+the original UID, the player's turn, and the exact current FEN. Requests carry
+an ID; both server and browser reject results for superseded positions. Browser
+parse state clears on disconnect, turn/position changes, and a 15-second timeout.
+Parsing does not make a move; normal server move validation still applies.
 
 Text cache misses and audio requests share a limit of **1,000 Gemini parses per
-UTC day** across practice and multiplayer. Signed-in users are keyed by Firebase
+UTC day** across practice, multiplayer, and conversational AI move input. Signed-in users are keyed by Firebase
 UID. Guests are keyed by a SHA-256 hash of the socket peer's IP, so replacing a
 guest reconnect token does not reset the allowance. Cached text results do not
 consume quota. Typed moves remain available when voice quota is exhausted.
@@ -110,20 +147,24 @@ pnpm build
 
 Backend regression tests exercise concurrent multiplayer operations, fallen
 flags, unauthorized parsing, malformed payloads, async failures, quotas, the
-authenticated profile endpoint, and complete saved practice history without
-mutating legacy reward data. They use local stores, Fastify injection, and
+authenticated profile endpoint, concurrent AI/practice requests, duplicate
+completion saves, immediate calibration updates, and complete saved practice
+history without mutating legacy reward data. They use local stores, Fastify injection, and
 mocked Firebase/Gemini operations; no cloud credentials are required.
 
 Frontend regressions exercise bot replies through component handlers/effects,
 signed-out profile navigation, online matchmaking/invitation controls without
 bot setup, original-position grading for both colors, and worker message
-ordering, cancellation, failures, and timeouts. Component tests
-use a small hook harness; full browser behavior is a separate integration check.
+ordering, cancellation, failures, and timeouts. Additional regressions exercise
+microphone noise/max-duration recovery, late permission/read cancellation,
+MP4 recording, AI missing-game/review recovery, and correlated voice results.
+Component tests use a small hook harness; full browser behavior is a separate integration check.
 
 For live verification, use the services and credentials in [README](../README.md).
 Play several moves as each color in bot mode, submit a wrong move in both-side
 and one-side practice, visit `/profile` signed out, and check accuracy, session
-totals, and the final saved move after signing in. Confirm the historical player list is available in practice setup
-and the online lobby offers only matchmaking and invitations. In two browser
-sessions, confirm multiplayer moves, time expiry, and reconnection behavior. Run development and production builds sequentially:
+totals, and the final saved move after signing in. Confirm the historical player
+list is available in practice setup and the online lobby offers only matchmaking
+and invitations. In two browser sessions, confirm multiplayer moves, time expiry,
+and reconnection behavior. Run development and production builds sequentially:
 both use the same Next.js `.next` directory.

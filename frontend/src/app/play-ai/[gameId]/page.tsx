@@ -8,6 +8,9 @@ import { useAiGameStore } from "@/stores/aiGameStore";
 import { ChessBoard } from "@/components/ChessBoard";
 import { MoveHistory } from "@/components/MoveHistory";
 import { AiChatPanel } from "@/components/AiChatPanel";
+import { UniversalInputPanel } from "@/components/UniversalInputPanel";
+import { usePracticeStore } from "@/stores/practiceStore";
+import { useAiMoveInput } from "@/hooks/useAiMoveInput";
 import { PageLayout } from "@/components/PageLayout";
 
 export default function PlayAiGamePage() {
@@ -47,6 +50,13 @@ export default function PlayAiGamePage() {
   const isMyTurn =
     status === "active" && turn === playerColor && !botTurnInProgress;
 
+  const inputActive = isMyTurn && isConnected && !isSubmitting;
+  const voice = useAiMoveInput(gameId, fen, inputActive);
+  const { inputMode, voiceParsingMode, autoSubmitEnabled } = usePracticeStore();
+  const handleNotationMove = useCallback((move: string) => {
+    if (inputActive) submitMove(gameId, move);
+  }, [inputActive, gameId, submitMove]);
+
   // Rejoin the game room and resync on every connection, including reconnects.
   useEffect(() => {
     if (gameId && isConnected) {
@@ -76,7 +86,7 @@ export default function PlayAiGamePage() {
 
   const tryMove = useCallback(
     (from: string, to: string): boolean => {
-      if (!isMyTurn || isSubmitting) return false;
+      if (!inputActive) return false;
       try {
         const chess = new Chess(fen);
         const move = chess.move({ from, to, promotion: "q" });
@@ -88,7 +98,7 @@ export default function PlayAiGamePage() {
         return false;
       }
     },
-    [fen, gameId, isMyTurn, isSubmitting, submitMove],
+    [fen, gameId, inputActive, submitMove],
   );
 
   const handlePieceDrop = useCallback(
@@ -99,7 +109,7 @@ export default function PlayAiGamePage() {
 
   const handleSquareClick = useCallback(
     (square: string, piece: string | undefined) => {
-      if (!isMyTurn) return;
+      if (!inputActive) return;
       if (selectedSquare && legalTargets.includes(square)) {
         tryMove(selectedSquare, square);
         return;
@@ -112,7 +122,7 @@ export default function PlayAiGamePage() {
         setSelectedSquare(null);
       }
     },
-    [isMyTurn, selectedSquare, legalTargets, tryMove, playerColor],
+    [inputActive, selectedSquare, legalTargets, tryMove, playerColor],
   );
 
   const handleSendChat = useCallback(
@@ -202,11 +212,32 @@ export default function PlayAiGamePage() {
                 fen={fen}
                 orientation={playerColor || "white"}
                 lastMove={lastMove || undefined}
-                draggable={isMyTurn && !isSubmitting}
+                draggable={inputActive}
                 onPieceDrop={handlePieceDrop}
                 onSquareClick={handleSquareClick}
                 highlightSquares={highlightSquares}
               />
+
+              {!isGameOver && (
+                <div className="mt-4 h-[280px]">
+                  <UniversalInputPanel
+                    key={fen}
+                    fen={fen}
+                    isActive={inputActive}
+                    isSubmitting={isSubmitting}
+                    inputMode={inputMode}
+                    voiceParsingMode={voiceParsingMode}
+                    autoSubmitEnabled={autoSubmitEnabled}
+                    aiParseResult={voice.aiParseResult}
+                    aiParseError={voice.aiParseError}
+                    isAIParsing={voice.isAIParsing}
+                    onMoveSubmit={handleNotationMove}
+                    onParseMoveWithText={voice.parseText}
+                    onParseMoveWithAudio={voice.parseAudio}
+                    clearAIParseState={voice.clearAIParseState}
+                  />
+                </div>
+              )}
 
               {/* Move history */}
               <div className="mt-4">
@@ -235,7 +266,7 @@ export default function PlayAiGamePage() {
               persona={persona}
               chat={chat}
               botTyping={botTyping}
-              disabled={isGameOver}
+              disabled={isGameOver || !isConnected}
               onSend={handleSendChat}
               className="h-[420px] lg:h-[calc(100vh-140px)] lg:max-h-[720px] lg:sticky lg:top-4"
             />

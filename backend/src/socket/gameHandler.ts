@@ -10,7 +10,7 @@ import {
   saveCompletedSession,
   ensureUserExists,
 } from "../services/firestoreService.js";
-import { getVoiceCalibration } from "../services/firestoreService.js";
+import { getVoiceCalibration, getVoiceCalibrationVersion } from "../services/firestoreService.js";
 import {
   getPlayerList,
   getRandomGameByPlayer,
@@ -19,6 +19,7 @@ import {
 import crypto from "crypto";
 import { ownsPracticeSession } from "../lib/practiceOwnership.js";
 import { guardSocketRequest, hasText, isRecord, validAudioParse, validPracticeOptions, validTextParse } from "../lib/socketRequest.js";
+import { runGameMutation } from "../lib/gameMutationQueue.js";
 import { aiUsageLimiter } from "../services/aiUsageLimiter.js";
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -33,14 +34,8 @@ export class GameHandler {
   private practiceService: PracticeService;
   // AI parsing response cache (keyed by hash of transcript + fen)
   private aiParseCache: Map<string, AIParseCacheEntry> = new Map();
-  // Voice calibration cache (keyed by user uid)
-  private calibrationCache: Map<
-    string,
-    { confusionMap: Record<string, string[]> | null; loadedAt: number }
-  > = new Map();
   private static readonly AI_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
   private static readonly AI_CACHE_MAX_SIZE = 500;
-  private static readonly CALIBRATION_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
   constructor(private io: Server<ClientToServerEvents, ServerToClientEvents>) {
     this.practiceService = new PracticeService();
@@ -54,8 +49,8 @@ export class GameHandler {
   }
 
   // Generate cache key for AI parsing
-  private getAIParseCacheKey(transcript: string, fen: string): string {
-    const data = `${transcript.toLowerCase().trim()}:${fen}`;
+  private getAIParseCacheKey(transcript: string, fen: string, uid?: string, version = getVoiceCalibrationVersion(uid)): string {
+    const data = `${uid ?? "guest"}:${version}:${transcript.toLowerCase().trim()}:${fen}`;
     return crypto.createHash("md5").update(data).digest("hex");
   }
 
@@ -63,8 +58,9 @@ export class GameHandler {
   private getCachedAIParse(
     transcript: string,
     fen: string,
+    uid?: string,
   ): AIParsedMove | null {
-    const key = this.getAIParseCacheKey(transcript, fen);
+    const key = this.getAIParseCacheKey(transcript, fen, uid);
     const entry = this.aiParseCache.get(key);
     if (entry && Date.now() - entry.timestamp < GameHandler.AI_CACHE_TTL_MS) {
       return entry.result;
@@ -81,8 +77,10 @@ export class GameHandler {
     transcript: string,
     fen: string,
     result: AIParsedMove,
+    uid?: string,
+    version = getVoiceCalibrationVersion(uid),
   ): void {
-    const key = this.getAIParseCacheKey(transcript, fen);
+    const key = this.getAIParseCacheKey(transcript, fen, uid, version);
     this.aiParseCache.set(key, { result, timestamp: Date.now() });
 
     // Evict oldest entries if cache exceeds max size
@@ -100,19 +98,8 @@ export class GameHandler {
   ): Promise<Record<string, string[]> | undefined> {
     if (!uid) return undefined;
 
-    const cached = this.calibrationCache.get(uid);
-    if (
-      cached &&
-      Date.now() - cached.loadedAt < GameHandler.CALIBRATION_CACHE_TTL_MS
-    ) {
-      return cached.confusionMap || undefined;
-    }
-
     try {
-      const calibration = await getVoiceCalibration(uid);
-      const confusionMap = calibration?.confusionMap || null;
-      this.calibrationCache.set(uid, { confusionMap, loadedAt: Date.now() });
-      return confusionMap || undefined;
+      return (await getVoiceCalibration(uid))?.confusionMap;
     } catch (error) {
       console.warn(
         "[GameHandler] Failed to load calibration for user",
@@ -138,10 +125,11 @@ export class GameHandler {
     socket.on('get-random-practice-game', guard(() => this.handleGetRandomPracticeGame(socket), () => true));
     socket.on('get-player-practice-game', guard(this.handleGetPlayerPracticeGame.bind(this, socket), player));
     socket.on('get-player-list', guard(() => this.handleGetPlayerList(socket), () => true));
-    socket.on('submit-practice-move', guard(this.handleSubmitPracticeMove.bind(this, socket),
-      data => session(data) && hasText(data, 'move', 100)));
-    socket.on('abandon-practice', guard(this.handleAbandonPractice.bind(this, socket), session));
-    socket.on('resume-session', guard(this.handleResumeSession.bind(this, socket), session));
+    socket.on('submit-practice-move', guard((data: { sessionId: string; move: string; moveIndex?: number }) => runGameMutation(`practice:${data.sessionId}`, () => this.handleSubmitPracticeMove(socket, data)),
+      data => session(data) && hasText(data, 'move', 100) && isRecord(data) &&
+        (data.moveIndex === undefined || (Number.isInteger(data.moveIndex) && (data.moveIndex as number) >= 0))));
+    socket.on('abandon-practice', guard((data: { sessionId: string }) => runGameMutation(`practice:${data.sessionId}`, () => this.handleAbandonPractice(socket, data)), session));
+    socket.on('resume-session', guard((data: { sessionId: string }) => runGameMutation(`practice:${data.sessionId}`, () => this.handleResumeSession(socket, data)), session));
     socket.on('parse-move-with-ai', guard(this.handleParseMoveWithAI.bind(this, socket),
       data => session(data) && validTextParse(data), 'parse-error'));
     socket.on('parse-audio-move-with-gemini', guard(this.handleParseAudioMoveWithGemini.bind(this, socket),
@@ -371,13 +359,18 @@ export class GameHandler {
 
   private async handleSubmitPracticeMove(
     socket: GameSocket,
-    data: { sessionId: string; move: string },
+    data: { sessionId: string; move: string; moveIndex?: number },
   ): Promise<void> {
     try {
       // Update socket ID if reconnected
       const session = await this.getOwnedSession(socket, data.sessionId);
       if (!session) {
         socket.emit("practice-error", { message: "Session not found or access denied" });
+        return;
+      }
+      if (session.status !== "playing" ||
+          (data.moveIndex !== undefined && data.moveIndex !== session.currentMoveIndex)) {
+        socket.emit("practice-error", { message: "This move has already been processed. Resume the session to sync." });
         return;
       }
       if (session.socketId !== socket.id) {
@@ -520,7 +513,8 @@ export class GameHandler {
       // Check cache first for AI parsing results
       // Use rawTranscript for AI when available (gives better context than locally-parsed move)
       const transcriptForAI = data.rawTranscript || data.transcript;
-      let parsed = this.getCachedAIParse(transcriptForAI, currentFen);
+      const calibrationVersion = getVoiceCalibrationVersion(socket.data.uid);
+      let parsed = this.getCachedAIParse(transcriptForAI, currentFen, socket.data.uid);
 
       if (!parsed) {
         if (!(await this.allowParsing(socket))) {
@@ -535,7 +529,7 @@ export class GameHandler {
           { confusionMap },
         );
         // Cache the result
-        this.cacheAIParse(transcriptForAI, currentFen, parsed);
+        this.cacheAIParse(transcriptForAI, currentFen, parsed, socket.data.uid, calibrationVersion);
       }
 
       socket.emit("move-parsed", {

@@ -74,10 +74,11 @@ Two stored parsing modes are supported:
 
 The input panel shows listening/recording feedback and can offer alternative
 parses. Voice calibration records speech confusions and stores them in a
-signed-in user's Firestore profile. Browser speech and microphone support vary;
+signed-in user's Firestore profile. Saved calibration takes effect immediately
+in subsequent server parsing requests, including when the prior cache was empty. Browser speech and microphone support vary;
 use HTTPS or localhost, grant microphone access, and retain text/tap fallback.
 
-Practice and multiplayer Gemini text cache misses and audio requests share the
+Practice, multiplayer, and conversational AI move parsing share the
 [daily parsing allowance](RELIABILITY.md#socket-request-boundaries-and-ai-quotas).
 
 Sources: [input panel](../frontend/src/components/UniversalInputPanel.tsx),
@@ -133,6 +134,14 @@ moves and conversation; server-side chess validation and legal-move fallbacks
 keep play valid. Persona rating labels describe the selected characters, not a
 measured matchmaking rating.
 
+The game page uses the shared speech/notation panel, alongside board clicks and
+dragging. Input mode, browser speech/Gemini audio selection, and auto-submit
+follow the existing speech/input settings. Only the connected player's turn
+accepts input; speaking a move does not send a chat message. Chat remains typed.
+Unclear speech can be retried or replaced with text/tap input. Parsing uses the
+same per-user allowance and calibration as practice, and late responses for an
+older position are ignored.
+
 The game page resynchronizes after reconnecting. Completed games can be reviewed
 at `/play-ai/[gameId]/review`, with moves, chat, thinking text, and generated
 commentary. Completed AI games are saved in the user's Firestore `aiGames`
@@ -140,6 +149,7 @@ collection so review can outlive session expiry. AI game creation and LLM turns
 have separate daily limits from voice parsing.
 
 Sources: [setup](../frontend/src/app/play-ai/page.tsx),
+[move input](../frontend/src/hooks/useAiMoveInput.ts),
 [AI service](../backend/src/services/aiGameService.ts),
 [personas](../backend/src/data/aiPersonas.ts),
 [limits](../backend/src/services/aiUsageLimiter.ts).

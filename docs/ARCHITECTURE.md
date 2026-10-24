@@ -63,8 +63,11 @@ from per-tab session state.
 `GameHandler` uses `PracticeService`; `MultiplayerHandler` uses matchmaking and
 `MultiplayerService`; `AiGameHandler` uses `AiGameService` and paced chat emission.
 Request boundaries validate payloads and catch async errors. Per-game mutation
-queues coordinate multiplayer moves, clock ticks, terminal actions, and recovery
-inside one backend process.
+queues coordinate multiplayer moves/clocks and practice/AI state mutations
+inside one backend process. AI generation runs outside its game queue; snapshot
+and commit stages serialize with moves, chat, and resignation. Practice saves
+use one Firestore transaction for history and aggregate stats, checking the
+session document before counting completion.
 
 ## Storage ownership
 
@@ -106,8 +109,12 @@ process-local rooms, timers, matchmaking, and multiplayer mutation queues.
 Socket event families are declared in
 [backend types](../backend/src/types/index.ts). Practice uses events such as
 `start-practice`, `submit-practice-move`, and `resume-session`; multiplayer uses
-`mp-*`; conversational games use `ai-*`. Both modes with Gemini voice parsing
-check session/game access before using cached responses or issuing AI calls.
+`mp-*`; conversational games use `ai-*`, including `ai-parse-move` and
+`ai-parse-audio`. All modes check session/game access before issuing AI calls.
+Conversational AI parse requests include game ID, request ID, and position FEN;
+`useAiMoveInput` clears pending work on a changed position/turn or disconnect.
+The shared calibration cache lives with Firestore persistence and updates after
+successful calibration saves; text-parse caches include user/revision keys.
 The AI game page rejoins its room and reloads authoritative state on reconnect.
 
 ## Game catalog and content

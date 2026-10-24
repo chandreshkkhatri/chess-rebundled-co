@@ -14,17 +14,13 @@ export default function PlayAiReviewPage() {
   const gameId = params.gameId as string;
 
   const { getReview } = useAiGameSocket();
-  const { isConnected, reviewData, notFound, setNotFound } = useAiGameStore();
+  const { isConnected, reviewData, notFound, setNotFound, error, setError } = useAiGameStore();
 
   const [selectedPly, setSelectedPly] = useState<number | null>(null);
-  const [requested, setRequested] = useState(false);
 
   useEffect(() => {
-    if (isConnected && !requested) {
-      setRequested(true);
-      getReview(gameId);
-    }
-  }, [isConnected, requested, gameId, getReview]);
+    if (isConnected) getReview(gameId);
+  }, [isConnected, gameId, getReview]);
 
   useEffect(() => {
     if (notFound) {
@@ -66,7 +62,24 @@ export default function PlayAiReviewPage() {
     return (
       <PageLayout>
         <main className="flex items-center justify-center p-4 py-16">
-          <p className="text-slate-400 animate-pulse">Loading game review…</p>
+          <div className="text-center">
+            {error ? (
+              <>
+                <p className="text-red-400 mb-3">{error}</p>
+                <button
+                  onClick={() => { setError(null); getReview(gameId); }}
+                  disabled={!isConnected}
+                  className="px-4 py-2 rounded-lg bg-purple-600 text-white disabled:opacity-50"
+                >
+                  Retry review
+                </button>
+              </>
+            ) : (
+              <p className="text-slate-400 animate-pulse">
+                {isConnected ? 'Loading game review…' : 'Reconnecting to load review…'}
+              </p>
+            )}
+          </div>
         </main>
       </PageLayout>
     );
