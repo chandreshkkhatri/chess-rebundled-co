@@ -4,6 +4,23 @@ For setup, see the [README](../README.md). Configuration, storage boundaries, an
 operational limits are described in [configuration](CONFIGURATION.md),
 [architecture](ARCHITECTURE.md), and [reliability](RELIABILITY.md).
 
+## Application focus
+
+The home page highlights speech practice and conversational AI play. Human
+multiplayer, the coordinate trainer, and speech/input settings remain available
+as secondary links. The online lobby contains only Find Game, Create Invite,
+and Join Invite; its bot setup has been removed.
+
+Leagues, XP/levels, daily reward streaks, achievements, cosmetic purchases, and
+the scripted caster/chat simulation have been removed. Practice results report
+accuracy, correct moves, timings, and move history. The board uses one standard
+appearance and a short move/capture sound.
+
+The historical player/game database, player selection, imports, and seeds remain
+intact. No data migration or deletion is part of this cleanup. Existing legacy
+reward fields in Firestore and old cosmetic browser keys are left in place but
+are no longer read, displayed, or updated by reward logic.
+
 ## Historical practice
 
 Choose a game, request a random game, or select a historical player at
@@ -35,8 +52,9 @@ These labels compare against the historical move, which is not necessarily the
 engine's best move. Stockfish analysis runs through a cancellable request queue;
 leaving the page or receiving a new result prevents stale feedback.
 
-Guests can practice and reconnect using their per-tab credential. Signed-in
-completed sessions are saved for `/history`, including move results, accuracy,
+The setup page requires sign-in. The practice socket protocol also supports
+guest sessions that reconnect using a per-tab credential. Signed-in completed
+sessions are saved for `/history`, including move results, accuracy,
 and timings. See [session ownership](RELIABILITY.md#session-ownership-and-reconnection).
 
 Sources: [practice setup](../frontend/src/app/practice/page.tsx),
@@ -85,10 +103,12 @@ Sources: [lobby](../frontend/src/app/play/page.tsx),
 
 ## Stockfish bot
 
-The bot setup in `/play` opens `/bot` with a difficulty and color. Stockfish runs
-in a browser worker using assets under `frontend/public/stockfish/`; it is
-separate from the conversational Gemini opponent. Human turns support staged
-notation input and board dragging.
+The standalone `/bot` route remains available by direct URL, with optional
+`difficulty=easy|medium|hard|expert` and `color=white|black` query parameters.
+There is no bot tab or configuration in `/play`. Stockfish runs in a browser
+worker using assets under `frontend/public/stockfish/`; the same engine also
+supports practice feedback. Human turns support staged notation input and board
+dragging.
 
 | Difficulty | Skill level | Search depth | Move-time limit |
 | --- | --- | --- | --- |
@@ -137,45 +157,20 @@ Source: [trainer page](../frontend/src/app/trainer/page.tsx).
 
 ## Profiles and progress
 
-Signed-in completed practice sessions update accuracy, move/session totals, XP,
-levels, streaks, and achievement unlocks. The profile endpoint includes
-`gamification`, using defaults for new or older profiles. The home dashboard
-shows loaded profile totals; `/profile` contains progress widgets and
-`/history` lists saved practice sessions. Signed-out profile visits redirect to
-sign-in after authentication resolves.
+Signed-in completed practice sessions update accuracy and move/session totals.
+The home dashboard shows accuracy and completed sessions. `/profile` contains
+identity editing and practice statistics; `/history` lists saved sessions and
+move results, including the final submitted move. The profile API returns stats
+and preferences, without the removed `gamification` payload. New users receive
+zeroed statistics. A signed-out profile visit redirects after authentication
+resolves.
+
+Session saves update only aggregate `stats.*` fields on existing user documents.
+Stored preferences, voice calibration, and any legacy reward data are preserved.
 
 Sources: [profile](../frontend/src/app/profile/page.tsx),
 [history](../frontend/src/app/history/page.tsx),
-[gamification](../backend/src/services/gamificationService.ts),
 [Firestore persistence](../backend/src/services/firestoreService.ts).
-
-## Browser-local customization and simulations
-
-These components use local browser state rather than shared competition or
-server-authoritative purchases:
-
-- **Cosmetics shop:** skins, sound packs, and badges use local storage. Available
-  spending balance is the fetched lifetime XP minus browser-local `chess_spent_xp`;
-  purchases do not deduct Firestore XP. Cosmetics are not synchronized across
-  devices, and their storage keys are not scoped to a Firebase UID. Purchased
-  badges are separate from backend-awarded achievements.
-- **League display:** nine generated competitors surround the user's XP. The
-  cycle lasts three days; the division is derived from lifetime XP. Promotion and
-  demotion zones are display markers, with no server-managed end-of-cycle
-  promotion/demotion or real shared leaderboard.
-- **Caster panel:** named commentator styles select local reaction templates,
-  browser text-to-speech, and generated chat messages. User chat receives scripted
-  replies. This panel does not connect to a real stream or call Gemini; it is
-  separate from the conversational opponent.
-
-Clearing browser storage resets these local selections and standings. Board
-skins and synthesized move sounds propagate through the
-`active_cosmetics_changed` browser event.
-
-Sources: [shop](../frontend/src/components/AestheticShop.tsx),
-[league](../frontend/src/components/LeagueLeaderboard.tsx),
-[caster](../frontend/src/components/AICasterPanel.tsx),
-[board](../frontend/src/components/ChessBoard.tsx).
 
 ## PWA and blog
 

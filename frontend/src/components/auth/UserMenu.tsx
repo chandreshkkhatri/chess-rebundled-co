@@ -11,29 +11,6 @@ export function UserMenu() {
   const { user, isLoading, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [equippedBadge, setEquippedBadge] = useState<{ id: string; name: string; emoji: string } | null>(null);
-
-  // Load user equipped badge
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const loadBadge = () => {
-      const activeBadgeStr = localStorage.getItem("active_badge");
-      if (activeBadgeStr) {
-        try {
-          setEquippedBadge(JSON.parse(activeBadgeStr));
-        } catch {
-          setEquippedBadge({ id: activeBadgeStr, name: activeBadgeStr, emoji: "🎖️" });
-        }
-      } else {
-        setEquippedBadge(null);
-      }
-    };
-
-    loadBadge();
-    window.addEventListener("active_cosmetics_changed", loadBadge);
-    return () => window.removeEventListener("active_cosmetics_changed", loadBadge);
-  }, []);
 
   // Close menu when clicking outside or pressing Escape
   useEffect(() => {
@@ -121,11 +98,6 @@ export function UserMenu() {
             {/* User Info */}
             <div className="px-4 py-3 border-b border-slate-700">
               <p className="text-sm font-medium text-slate-100 truncate flex items-center gap-1.5">
-                {equippedBadge && (
-                  <span className="bg-purple-900/60 text-purple-300 text-[10px] font-black px-1.5 py-0.5 rounded-sm border border-purple-500/20" title={equippedBadge.name}>
-                    {equippedBadge.emoji}
-                  </span>
-                )}
                 <span>{displayName}</span>
               </p>
               {user.email && (

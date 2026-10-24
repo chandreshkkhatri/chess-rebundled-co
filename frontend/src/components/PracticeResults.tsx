@@ -1,6 +1,6 @@
 'use client';
 
-import { PracticeCompletedData, GamificationResult } from '@/types';
+import { PracticeCompletedData } from '@/types';
 import Link from 'next/link';
 import { MoveHistory } from './MoveHistory';
 
@@ -22,11 +22,10 @@ function getPerformanceMessage(accuracy: number): { emoji: string; text: string 
 
 interface PracticeResultsProps {
   data: PracticeCompletedData;
-  gamification?: GamificationResult;
   onPlayAgain: () => void;
 }
 
-export function PracticeResults({ data, gamification, onPlayAgain }: PracticeResultsProps) {
+export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
   const accuracyPercent = (data.accuracy * 100).toFixed(1);
   const avgTimePerMove = (data.averageTimePerMove / 1000).toFixed(1);
   const performance = getPerformanceMessage(data.accuracy);
@@ -38,93 +37,6 @@ export function PracticeResults({ data, gamification, onPlayAgain }: PracticeRes
         <h2 className="text-2xl font-bold text-slate-100">{performance.text}</h2>
         <p className="text-slate-400 mt-1">{data.game.title}</p>
       </div>
-
-      {/* XP Earned Section */}
-      {gamification && (
-        <div className="mb-6 bg-linear-to-r from-purple-500 to-indigo-600 rounded-lg p-4 text-white">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-semibold">XP Earned</span>
-            <span className="text-2xl font-bold">+{gamification.xp.totalXp}</span>
-          </div>
-
-          {/* XP Breakdown */}
-          <div className="text-sm opacity-90 space-y-1">
-            <div className="flex justify-between">
-              <span>Base XP</span>
-              <span>+{gamification.xp.baseXp}</span>
-            </div>
-            {gamification.xp.bonuses.perfectSession > 0 && (
-              <div className="flex justify-between text-yellow-200">
-                <span>Perfect Session!</span>
-                <span>+{gamification.xp.bonuses.perfectSession}</span>
-              </div>
-            )}
-            {gamification.xp.bonuses.highAccuracy > 0 && (
-              <div className="flex justify-between text-green-200">
-                <span>High Accuracy Bonus</span>
-                <span>+{gamification.xp.bonuses.highAccuracy}</span>
-              </div>
-            )}
-            {gamification.xp.bonuses.firstGameCompletion > 0 && (
-              <div className="flex justify-between text-blue-200">
-                <span>First Completion Bonus</span>
-                <span>+{gamification.xp.bonuses.firstGameCompletion}</span>
-              </div>
-            )}
-            {gamification.xp.bonuses.dailyFirst > 0 && (
-              <div className="flex justify-between text-orange-200">
-                <span>Daily First Bonus</span>
-                <span>+{gamification.xp.bonuses.dailyFirst}</span>
-              </div>
-            )}
-            {gamification.xp.bonuses.streakMultiplier > 0 && (
-              <div className="flex justify-between text-pink-200">
-                <span>Streak Bonus</span>
-                <span>+{gamification.xp.bonuses.streakMultiplier}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Level Up */}
-          {gamification.xp.leveledUp && (
-            <div className="mt-3 pt-3 border-t border-white/20 text-center">
-              <span className="text-xl">🎉</span>
-              <span className="font-bold ml-2">Level Up! Now Level {gamification.xp.newLevel}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Achievements Unlocked */}
-      {gamification && gamification.newAchievements.length > 0 && (
-        <div className="mb-6 bg-amber-900/30 rounded-lg p-4">
-          <h3 className="font-semibold text-amber-400 mb-2">Achievements Unlocked!</h3>
-          <div className="space-y-2">
-            {gamification.newAchievements.map((achievement) => (
-              <div
-                key={achievement.id}
-                className="flex items-center justify-between bg-slate-700 rounded-lg p-3 shadow-xs"
-              >
-                <div>
-                  <p className="font-medium text-slate-100">{achievement.name}</p>
-                  <p className="text-sm text-slate-400">{achievement.description}</p>
-                </div>
-                <span className="text-purple-400 font-medium">+{achievement.xpReward} XP</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Streak Update */}
-      {gamification && gamification.streakUpdated && gamification.newStreak > 0 && (
-        <div className="mb-6 bg-orange-900/30 rounded-lg p-4 text-center">
-          <span className="text-2xl">🔥</span>
-          <span className="ml-2 font-semibold text-orange-400">
-            {gamification.newStreak} Day Streak!
-          </span>
-        </div>
-      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-6">

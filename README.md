@@ -1,8 +1,9 @@
 # Chess Rebundled
 
-Learn chess notation by speaking, typing, or selecting moves from historical
-games. The app also includes online multiplayer, a browser-based Stockfish bot,
-a coordinate trainer, and conversational Gemini opponents.
+Learn chess notation through speech practice with historical games and
+conversational Gemini opponents. The player/game database supports choosing a
+historical player or game to study. Text and tap input, multiplayer, and a
+coordinate trainer support that core workflow.
 
 ## Documentation
 
@@ -59,9 +60,10 @@ pnpm dev
 ```
 
 Open <http://localhost:3000>. The backend listens on port 3001 by default.
-Practice supports guests; online multiplayer, conversational AI games, and saved
-profile/history data require sign-in. Enable your chosen email/password, Google,
-or GitHub provider in Firebase Authentication.
+The practice setup, online multiplayer, conversational AI games, and saved
+profile/history pages require sign-in. The practice socket protocol also supports
+guest sessions with a per-tab reconnect credential. Enable your chosen
+email/password, Google, or GitHub provider in Firebase Authentication.
 
 ### Checks
 
@@ -107,13 +109,13 @@ adding Compose does not migrate an existing deployment.
 | --- | --- |
 | `/practice` | Choose a historical game, random game, or player and a practice side. |
 | `/practice/[sessionId]` | Follow historical moves with voice, text, or staged selection. |
-| `/play` | Matchmaking, private invitations, and Stockfish bot setup. |
+| `/play` | Human matchmaking and private invitations. |
 | `/play/[gameId]` | An authenticated multiplayer game with optional clocks. |
-| `/bot` | Play the browser-based Stockfish bot. |
+| `/bot` | Standalone browser Stockfish; accessible directly, outside the online lobby. |
 | `/play-ai` | Choose a conversational Gemini opponent and color. |
 | `/play-ai/[gameId]/review` | Review a completed AI game. |
 | `/trainer` | Thirty-second square recognition exercises. |
-| `/profile`, `/history`, `/settings` | Progress, completed practice sessions, and preferences. |
+| `/profile`, `/history`, `/settings` | Practice statistics, completed sessions, and speech/input preferences. |
 | `/blog` | Articles from local MDX content. |
 
 In historical practice, the expected answer is the move played in that game.

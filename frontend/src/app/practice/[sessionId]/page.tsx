@@ -12,8 +12,6 @@ import { PracticeResults } from '@/components/PracticeResults';
 import { MoveHistory } from '@/components/MoveHistory';
 import { SettingsModal } from '@/components/SettingsModal';
 import { DiscordIcon } from '@/components/icons/DiscordIcon';
-import { LiveGamificationBadge } from '@/components/LiveGamificationBadge';
-import { AchievementToastContainer } from '@/components/AchievementToast';
 import { useAppConfig } from '@/hooks/useAppConfig';
 import { useStockfish } from '@/hooks/useStockfish';
 import { evaluatePracticeMove } from '@/lib/practiceEvaluation';
@@ -51,7 +49,6 @@ export default function PracticeGamePage() {
     selectedGame,
     currentExpectedMove,
     completedData,
-    gamificationResult,
     totalMoves,
     moveResults,
     reset,
@@ -66,9 +63,6 @@ export default function PracticeGamePage() {
     playerName,
     isConnected,
     sessionId: storedSessionId,
-    pendingAchievements,
-    queueAchievements,
-    dismissAchievement,
     lastMoveResult,
   } = usePracticeStore();
 
@@ -200,17 +194,6 @@ export default function PracticeGamePage() {
     }
   }, [isResuming, status, error]);
 
-  // Queue achievements when gamificationResult comes in with newAchievements
-  useEffect(() => {
-    if (gamificationResult?.newAchievements && gamificationResult.newAchievements.length > 0) {
-      // Delay slightly to not interrupt gameplay flow
-      const timeout = setTimeout(() => {
-        queueAchievements(gamificationResult.newAchievements);
-      }, 500);
-      return () => clearTimeout(timeout);
-    }
-  }, [gamificationResult, queueAchievements]);
-
   // Redirect if no session
   // Bug 4 fix: Don't redirect while starting, resuming, or if already playing/completed
   useEffect(() => {
@@ -227,7 +210,7 @@ export default function PracticeGamePage() {
   if (status === 'completed' && completedData) {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
-        <PracticeResults data={completedData} gamification={gamificationResult ?? undefined} onPlayAgain={handlePlayAgain} />
+        <PracticeResults data={completedData} onPlayAgain={handlePlayAgain} />
       </main>
     );
   }
@@ -344,10 +327,6 @@ export default function PracticeGamePage() {
                 {liveAccuracy}%
               </div>
             )}
-            {/* Gamification badge - authenticated users only */}
-            <div className="hidden sm:block">
-              <LiveGamificationBadge />
-            </div>
             {/* Progress indicator - wider on mobile in compact mode */}
             <div className={`flex items-center gap-1.5 ${isHeaderCompact ? 'flex-1' : ''} sm:flex-initial`}>
               <span className="text-slate-400 text-xs">{currentMoveIndex}/{totalMoves}</span>
@@ -628,11 +607,6 @@ export default function PracticeGamePage() {
         {/* Settings Modal */}
         {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
 
-        {/* Achievement Toasts */}
-        <AchievementToastContainer
-          achievements={pendingAchievements}
-          onDismiss={dismissAchievement}
-        />
       </div>
     </main>
   );

@@ -18,7 +18,7 @@ This script is designed for a promotional video showcasing Chess Rebundled. Two 
 *Screen: Show practice setup screen, selecting a game and mode*
 
 ### [18-28s] How It Works
-"Simply choose a legendary game from master players like Fischer, Kasparov, or Alekhine—select your practice mode, and start speaking. Say 'Knight F3' or 'E4,' and our AI understands you—even with accents, NATO phonetic alphabet, or casual pronunciations."
+"Simply choose a legendary game from master players like Fischer, Kasparov, or Alekhine—select your practice mode, and start speaking. Say 'Knight F3' or 'E4,' and use voice calibration to help with recognition."
 
 *Screen: Enter practice game, show microphone input, show board responding to voice input*
 
@@ -27,10 +27,10 @@ This script is designed for a promotional video showcasing Chess Rebundled. Two 
 
 *Screen: Play through several moves, show move arrows, accuracy percentage updating, move history sidebar*
 
-### [40-52s] Gamification & Progress
-"Level up from Pawn to Grandmaster. Build daily streaks. Unlock achievements. Track your accuracy across sessions. Whether you're mastering algebraic notation or memorizing master games, every session makes you stronger."
+### [40-52s] Conversational AI & Progress
+"Play an AI opponent with its own personality. Talk as you play, then review the game and conversation. Track practice accuracy, timing, and move history across your saved sessions."
 
-*Screen: Show completion screen with XP earned, level progress, achievements unlocked. Show profile page with level, streaks, achievements*
+*Screen: Show AI opponent selection, a game conversation, and saved practice results*
 
 ### [52-62s] Practice Modes & Flexibility
 "Practice both sides or focus on one color. Choose your difficulty. Study the Immortal Game, the Opera Game, or other historic masterpieces. Practice anywhere—fully responsive on mobile and desktop."
@@ -38,9 +38,9 @@ This script is designed for a promotional video showcasing Chess Rebundled. Two 
 *Screen: Show practice setup with different mode selections, show mobile view of the app*
 
 ### [62-70s] Call to Action
-"Ready to transform how you learn chess? Try Chess Rebundled free—no sign-up required. Start speaking your way to chess mastery today."
+"Ready to transform how you learn chess? Sign in to Chess Rebundled and choose a game. Start speaking your way to chess mastery today."
 
-*Screen: Show home page, highlight the "Get Started" button or download/access information*
+*Screen: Show home page, highlight the "Speech Practice" card or download/access information*
 
 ---
 
@@ -61,13 +61,13 @@ This script is designed for a promotional video showcasing Chess Rebundled. Two 
 
 *Screen: Play through moves, show accuracy percentage, move history, practice setup modes*
 
-### [30-42s] Progression & Gamification
-"Level up from Pawn to Grandmaster. Build streaks. Unlock achievements. Study legendary games from Kasparov, Tal, Karpov, and other chess legends."
+### [30-42s] AI & Player Database
+"Choose a historical player from the database and study their games. Or play a conversational AI opponent, then review the moves and chat."
 
-*Screen: Show completion with achievements, profile page with level/streak/achievements*
+*Screen: Show player selection, AI personalities, and the game review*
 
 ### [42-50s] Call to Action
-"Try free—no sign-up required. Start speaking your way to chess mastery today."
+"Sign in and choose a game. Start speaking your way to chess mastery today."
 
 *Screen: Show home page with call-to-action button*
 
@@ -90,9 +90,9 @@ This script is designed for a promotional video showcasing Chess Rebundled. Two 
    - Move history
 4. **Results/Profile (40-52s):** Show completion screen and profile page with:
    - Accuracy percentage
-   - XP earned
-   - Levels and streaks
-   - Achievements unlocked
+   - Correct moves and timings
+   - Saved move history
+   - Session totals
 5. **Mode Showcase (52-62s):** Quick view of different modes and games
 6. **Call to Action (62-70s):** End on home page or signup screen
 
@@ -101,9 +101,9 @@ This script is designed for a promotional video showcasing Chess Rebundled. Two 
 - Board animations when moves are played
 - Real-time accuracy counter
 - Move arrows showing from/to squares
-- Achievement toasts and unlocks
-- Level progression bar
-- Streak counter
+- Historical player selection
+- AI opponent conversation
+- Completed game review
 - Different games available (Immortal Game, Opera Game, Game of the Century)
 
 ### Recommended Games for Video
@@ -116,6 +116,6 @@ This script is designed for a promotional video showcasing Chess Rebundled. Two 
 ## Notes
 - Keep the tone enthusiastic but professional
 - Emphasize the "voice-first" differentiation
-- Highlight both learning (notation mastery) and engagement (gamification)
-- Make it clear there's no sign-up barrier to trying
+- Highlight speech input, historical player selection, and conversational AI
+- Explain that the practice setup and conversational AI games require sign-in
 - End with a strong, clear call to action

@@ -3,23 +3,9 @@ import { Timestamp } from "firebase-admin/firestore";
 import {
   PracticeSession,
   PracticeCompletedData,
-  PracticeMoveResult,
   PracticeMode,
-  UserGamification,
-  Achievement,
-  GamificationResult,
 } from "../types/index.js";
 import type { AiGameState } from "../types/aiGame.js";
-import {
-  calculateSessionXP,
-  calculateXpToNextLevel,
-  createDefaultGamification,
-} from "./gamificationService.js";
-import {
-  checkAchievements,
-  calculateAchievementXpReward,
-} from "./achievementService.js";
-import { updateStreak, getTodayInTimezone } from "./streakService.js";
 
 // Firestore document types
 export interface FirestoreUser {
@@ -39,7 +25,6 @@ export interface FirestoreUser {
     voiceParsingMode: "webspeech-haiku" | "gemini-audio";
     defaultPracticeMode: "both-sides" | "one-side";
   };
-  gamification?: UserGamification;
   voiceCalibration?: VoiceCalibration;
 }
 
@@ -147,7 +132,6 @@ export async function ensureUserExists(
         voiceParsingMode: "gemini-audio",
         defaultPracticeMode: "both-sides",
       },
-      gamification: createDefaultGamification(),
     };
 
     await userRef.set(newUser);
@@ -190,7 +174,8 @@ export async function saveCompletedSession(
       status: "completed",
       startedAt: Timestamp.fromMillis(session.startedAt),
       completedAt: Timestamp.now(),
-      moves: session.moveResults.map((r) => ({
+      // The pre-submit session snapshot may not contain the final move.
+      moves: completedData.moveResults.map((r) => ({
         moveIndex: r.moveIndex,
         expectedMove: r.expectedMove,
         submittedMove: r.submittedMove,
@@ -335,135 +320,6 @@ export async function getSession(
   if (!sessionDoc.exists) return null;
 
   return sessionDoc.data() as FirestoreSession;
-}
-
-/**
- * Process gamification updates after a session completes.
- * Returns gamification result with XP earned, achievements, and streak info.
- */
-export async function processGamification(
-  uid: string,
-  session: PracticeSession,
-  completedData: PracticeCompletedData,
-  timezone?: string,
-): Promise<GamificationResult | null> {
-  if (!firestore) {
-    console.warn(
-      "[Firestore] Firestore not initialized, skipping gamification",
-    );
-    return null;
-  }
-
-  const userRef = firestore.collection("users").doc(uid);
-
-  try {
-    return await firestore.runTransaction(async (transaction) => {
-      const userDoc = await transaction.get(userRef);
-      if (!userDoc.exists) {
-        console.warn(`[Firestore] User ${uid} not found for gamification`);
-        return null;
-      }
-
-      const userData = userDoc.data() as FirestoreUser;
-      const gamification =
-        userData.gamification || createDefaultGamification(timezone);
-
-      // Ensure timezone is set
-      if (timezone && gamification.streaks.timezone === "UTC") {
-        gamification.streaks.timezone = timezone;
-      }
-
-      const tz = gamification.streaks.timezone || "UTC";
-      const todayDate = getTodayInTimezone(tz);
-
-      // 1. Update streak
-      const streakResult = updateStreak(gamification.streaks);
-
-      // 2. Calculate XP
-      const xpResult = calculateSessionXP(
-        completedData,
-        gamification,
-        todayDate,
-      );
-
-      // 3. Check achievements
-      const newAchievements = checkAchievements({
-        gamification,
-        userStats: userData.stats,
-        completedData,
-        newLevel: xpResult.newLevel,
-        newStreak: streakResult.newStreak,
-      });
-
-      // 4. Add achievement XP bonus
-      const achievementXp = calculateAchievementXpReward(newAchievements);
-      const finalTotalXp = xpResult.newTotalXp + achievementXp;
-
-      // 5. Prepare updated gamification data
-      const updatedGamification: UserGamification = {
-        totalXp: finalTotalXp,
-        level: xpResult.newLevel,
-        xpToNextLevel: calculateXpToNextLevel(finalTotalXp, xpResult.newLevel),
-        streaks: {
-          currentStreak: streakResult.newStreak,
-          longestStreak: streakResult.longestStreak,
-          lastPlayedDate: todayDate,
-          streakFreezes: streakResult.freezesRemaining,
-          timezone: tz,
-        },
-        achievements: {
-          unlocked: [
-            ...gamification.achievements.unlocked,
-            ...newAchievements.map((a) => a.id),
-          ],
-          progress: gamification.achievements.progress,
-        },
-        gamesCompleted: gamification.gamesCompleted.includes(
-          completedData.game.id,
-        )
-          ? gamification.gamesCompleted
-          : [...gamification.gamesCompleted, completedData.game.id],
-        dailyXpDate: todayDate,
-      };
-
-      // 6. Update Firestore
-      transaction.update(userRef, {
-        gamification: updatedGamification,
-      });
-
-      console.log(
-        `[Firestore] Gamification updated for user ${uid}: +${xpResult.totalXp} XP, level ${xpResult.newLevel}, streak ${streakResult.newStreak}`,
-      );
-
-      return {
-        xp: {
-          ...xpResult,
-          newTotalXp: finalTotalXp,
-        },
-        newAchievements,
-        streakUpdated: streakResult.streakIncreased,
-        newStreak: streakResult.newStreak,
-      };
-    });
-  } catch (error) {
-    console.error("[Firestore] Error processing gamification:", error);
-    return null;
-  }
-}
-
-/**
- * Get user's gamification data
- */
-export async function getUserGamification(
-  uid: string,
-): Promise<UserGamification | null> {
-  if (!firestore) return null;
-
-  const userDoc = await firestore.collection("users").doc(uid).get();
-  if (!userDoc.exists) return null;
-
-  const userData = userDoc.data() as FirestoreUser;
-  return userData.gamification || createDefaultGamification();
 }
 
 /**

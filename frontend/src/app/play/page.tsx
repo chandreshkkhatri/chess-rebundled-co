@@ -43,24 +43,7 @@ function formatTCLabel(key: string): string {
   return `${mins} min`;
 }
 
-type LobbyTab = 'find' | 'invite' | 'join' | 'bot';
-
-export type BotDifficulty = 'easy' | 'medium' | 'hard' | 'expert';
-export type PlayerColorPreference = 'white' | 'black' | 'random';
-
-const BOT_DIFFICULTIES: {
-  id: BotDifficulty;
-  label: string;
-  icon: string;
-  description: string;
-  skillLabel: string;
-  color: string;
-}[] = [
-  { id: 'easy',   label: 'Easy',   icon: '🐣', description: 'Great for beginners',       skillLabel: 'Stockfish Lvl 0',  color: 'border-green-600  bg-green-900/20  text-green-300'  },
-  { id: 'medium', label: 'Medium', icon: '⚔️', description: 'A solid challenge',          skillLabel: 'Stockfish Lvl 10', color: 'border-yellow-600 bg-yellow-900/20 text-yellow-300' },
-  { id: 'hard',   label: 'Hard',   icon: '🔥', description: 'For experienced players',   skillLabel: 'Stockfish Lvl 15', color: 'border-orange-600 bg-orange-900/20 text-orange-300' },
-  { id: 'expert', label: 'Expert', icon: '💀', description: 'Brutal — near-perfect play', skillLabel: 'Stockfish Lvl 20', color: 'border-red-600    bg-red-900/20    text-red-300'    },
-];
+type LobbyTab = 'find' | 'invite' | 'join';
 
 export default function PlayLobbyPage() {
   const router = useRouter();
@@ -68,9 +51,6 @@ export default function PlayLobbyPage() {
   const [selectedTC, setSelectedTC] = useState<TimeControl | null | 'any'>('any');
   const [joinCode, setJoinCode] = useState('');
   
-  // Bot settings
-  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>('easy');
-  const [botColor, setBotColor] = useState<PlayerColorPreference>('random');
   const [elapsedMs, setElapsedMs] = useState(0);
   const elapsedRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -171,16 +151,6 @@ export default function PlayLobbyPage() {
   const handleCancel = () => {
     cancelFind();
     reset();
-  };
-
-  const handleStartBotGame = () => {
-    // Determine actual color if random
-    const finalColor = botColor === 'random' 
-      ? (Math.random() < 0.5 ? 'white' : 'black') 
-      : botColor;
-    
-    // Redirect to the dedicated bot play route
-    router.push(`/bot?difficulty=${botDifficulty}&color=${finalColor}`);
   };
 
   // Build a map of queue sizes from waitingPlayers
@@ -355,7 +325,7 @@ export default function PlayLobbyPage() {
           <div className="bg-slate-800 rounded-2xl shadow-xl p-6">
             {/* Tabs */}
             <div className="flex mb-6 bg-slate-700 rounded-lg p-1 overflow-x-auto">
-              {(['find', 'invite', 'join', 'bot'] as const).map((t) => (
+              {(['find', 'invite', 'join'] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
@@ -365,7 +335,7 @@ export default function PlayLobbyPage() {
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  {t === 'find' ? 'Find Game' : t === 'invite' ? 'Create Invite' : t === 'join' ? 'Join Invite' : 'Play Bot'}
+                  {t === 'find' ? 'Find Game' : t === 'invite' ? 'Create Invite' : 'Join Invite'}
                 </button>
               ))}
             </div>
@@ -401,59 +371,6 @@ export default function PlayLobbyPage() {
                       </button>
                     );
                   })}
-                </div>
-              </div>
-            )}
-
-            {/* Bot Configuration Options */}
-            {tab === 'bot' && (
-              <div className="mb-6 space-y-6">
-                {/* Difficulty picker */}
-                <div>
-                  <h3 className="text-sm font-medium text-slate-300 mb-3">Difficulty</h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {BOT_DIFFICULTIES.map((d) => (
-                      <button
-                        key={d.id}
-                        onClick={() => setBotDifficulty(d.id)}
-                        className={`p-3 rounded-xl border-2 text-left transition-all ${
-                          botDifficulty === d.id
-                            ? d.color
-                            : 'border-slate-600 hover:border-slate-500 bg-transparent text-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-lg leading-none">{d.icon}</span>
-                          <span className="font-bold text-sm">{d.label}</span>
-                        </div>
-                        <p className="text-[10px] text-slate-400 leading-tight">{d.description}</p>
-                        <p className="text-[9px] font-mono text-slate-600 mt-1">{d.skillLabel}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Color picker */}
-                <div>
-                  <h3 className="text-sm font-medium text-slate-300 mb-3">Your Color</h3>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['white', 'random', 'black'] as const).map((color) => (
-                      <button
-                        key={color}
-                        onClick={() => setBotColor(color)}
-                        className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition-all ${
-                          botColor === color
-                            ? 'border-purple-500 bg-purple-900/30 text-purple-200'
-                            : 'border-slate-600 hover:border-slate-500 text-slate-300'
-                        }`}
-                      >
-                        <span className="text-2xl leading-none">
-                          {color === 'white' ? '♔' : color === 'black' ? '♚' : '🎲'}
-                        </span>
-                        <span className="font-semibold text-xs capitalize">{color}</span>
-                      </button>
-                    ))}
-                  </div>
                 </div>
               </div>
             )}
@@ -521,15 +438,6 @@ export default function PlayLobbyPage() {
                   Join Game
                 </button>
               </div>
-            )}
-
-            {tab === 'bot' && (
-              <button
-                onClick={handleStartBotGame}
-                className="w-full py-3 px-6 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-all disabled:bg-slate-600 disabled:text-slate-400"
-              >
-                Start Bot Game
-              </button>
             )}
 
             <button

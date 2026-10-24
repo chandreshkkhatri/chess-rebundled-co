@@ -89,11 +89,13 @@ distributed state transitions, and a Socket.io adapter.
 
 ## Profile contract and authentication
 
-`GET /api/user/profile` always includes `gamification`, including XP, level,
-streaks, achievements, and completed games. New users and older profiles without
-this field receive default gamification data. Existing stored values are
-returned unchanged. A signed-out profile page redirects after authentication
-resolves without waiting for a profile fetch.
+`GET /api/user/profile` returns identity, practice statistics, and preferences.
+New users receive zeroed statistics and default preferences. The removed
+`gamification` payload is no longer returned. Legacy reward fields already in
+Firestore are left intact; completed sessions update only aggregate statistics
+and preserve calibration/preferences. Saved move history uses the completed
+results, including the final submitted move. A signed-out profile page redirects
+after authentication resolves without waiting for a profile fetch.
 
 ## Verification
 
@@ -107,18 +109,21 @@ pnpm build
 ```
 
 Backend regression tests exercise concurrent multiplayer operations, fallen
-flags, unauthorized parsing, malformed payloads, async failures, quotas, and the
-authenticated profile endpoint. They use local stores, Fastify injection, and
+flags, unauthorized parsing, malformed payloads, async failures, quotas, the
+authenticated profile endpoint, and complete saved practice history without
+mutating legacy reward data. They use local stores, Fastify injection, and
 mocked Firebase/Gemini operations; no cloud credentials are required.
 
 Frontend regressions exercise bot replies through component handlers/effects,
-signed-out profile navigation, original-position grading for both colors, and
-worker message ordering, cancellation, failures, and timeouts. Component tests
+signed-out profile navigation, online matchmaking/invitation controls without
+bot setup, original-position grading for both colors, and worker message
+ordering, cancellation, failures, and timeouts. Component tests
 use a small hook harness; full browser behavior is a separate integration check.
 
 For live verification, use the services and credentials in [README](../README.md).
 Play several moves as each color in bot mode, submit a wrong move in both-side
-and one-side practice, visit `/profile` signed out, and check XP/streaks after
-signing in. In two browser sessions, confirm multiplayer moves, time expiry,
-and reconnection behavior. Run development and production builds sequentially:
+and one-side practice, visit `/profile` signed out, and check accuracy, session
+totals, and the final saved move after signing in. Confirm the historical player list is available in practice setup
+and the online lobby offers only matchmaking and invitations. In two browser
+sessions, confirm multiplayer moves, time expiry, and reconnection behavior. Run development and production builds sequentially:
 both use the same Next.js `.next` directory.

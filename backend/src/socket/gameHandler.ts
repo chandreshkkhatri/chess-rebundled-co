@@ -9,7 +9,6 @@ import { ClientToServerEvents, ServerToClientEvents } from "../types/index.js";
 import {
   saveCompletedSession,
   ensureUserExists,
-  processGamification,
 } from "../services/firestoreService.js";
 import { getVoiceCalibration } from "../services/firestoreService.js";
 import {
@@ -409,24 +408,12 @@ export class GameHandler {
         ? await this.practiceService.getNextMoveData(data.sessionId)
         : null;
 
-      // Save to Firestore and process gamification if session completed and user is authenticated
-      let gamificationResult = null;
+      // Persist practice history and aggregate statistics for authenticated users.
       if (completedData && session?.uid) {
-        // Get user's timezone from socket handshake (if provided)
-        const timezone = socket.handshake.query.timezone as string | undefined;
-
-        // Process gamification and save session
         try {
-          const [savedSessionId, gamification] = await Promise.all([
-            saveCompletedSession(session.uid, session, completedData),
-            processGamification(session.uid, session, completedData, timezone),
-          ]);
-          gamificationResult = gamification;
+          await saveCompletedSession(session.uid, session, completedData);
         } catch (err) {
-          console.error(
-            "[GameHandler] Failed to save session/gamification to Firestore:",
-            err,
-          );
+          console.error("[GameHandler] Failed to save session to Firestore:", err);
         }
       }
 
@@ -435,7 +422,6 @@ export class GameHandler {
         result,
         nextMove: nextMoveData || undefined,
         completed: completedData || undefined,
-        gamification: gamificationResult || undefined,
       });
 
       // Also emit legacy events for backward compatibility

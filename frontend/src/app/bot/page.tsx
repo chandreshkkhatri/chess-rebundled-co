@@ -7,7 +7,6 @@ import { ChessBoard } from '@/components/ChessBoard';
 import { PageLayout } from '@/components/PageLayout';
 import { useStockfish, BotDifficulty, DIFFICULTY_MAP } from '@/hooks/useStockfish';
 import { UniversalInputPanel } from '@/components/UniversalInputPanel';
-import { AICasterPanel } from '@/components/AICasterPanel';
 
 type MoveState = 'idle' | 'human-thinking' | 'bot-thinking';
 
@@ -296,7 +295,6 @@ function BotPlayContent() {
            <div className="flex-1 min-h-0 flex flex-col">
              {renderMoveLog()}
            </div>
-           <AICasterPanel moves={moves} fen={fen} />
         </div>
 
       </div>
@@ -314,7 +312,6 @@ function BotPlayContent() {
             <div className="flex-1 min-h-0 flex flex-col">
               {renderMoveLog()}
             </div>
-            <AICasterPanel moves={moves} fen={fen} />
           </div>
         </div>
       )}

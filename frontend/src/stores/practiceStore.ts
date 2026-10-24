@@ -10,9 +10,7 @@ import {
   AIParsedMoveResult,
   PracticeStartedData,
   PracticeNextMoveData,
-  GamificationResult,
   SessionResumedData,
-  Achievement,
 } from '@/types';
 
 interface PracticeState {
@@ -42,7 +40,6 @@ interface PracticeState {
   moveResults: PracticeMoveResult[];
   lastMoveResult: PracticeMoveResult | null;
   completedData: PracticeCompletedData | null;
-  gamificationResult: GamificationResult | null;
 
   // Submission lock
   isSubmitting: boolean;
@@ -69,9 +66,6 @@ interface PracticeState {
   autoSubmitEnabled: boolean;
   inputMode: 'voice-tap' | 'tap-only';
 
-  // Achievement toasts queue
-  pendingAchievements: Achievement[];
-
   // Actions
   setConnected: (connected: boolean) => void;
   setPlayerName: (name: string) => void;
@@ -80,7 +74,7 @@ interface PracticeState {
   updatePosition: (data: PracticeNextMoveData) => void;
   setPendingOpponentMove: (move: MoveDetails | null) => void;
   setMoveResult: (result: PracticeMoveResult) => void;
-  setCompleted: (data: PracticeCompletedData, gamification?: GamificationResult) => void;
+  setCompleted: (data: PracticeCompletedData) => void;
   setSubmitting: (isSubmitting: boolean) => void;
   setStarting: (isStarting: boolean) => void;
   setOpponentThinking: (isThinking: boolean) => void;
@@ -94,8 +88,6 @@ interface PracticeState {
   setGeminiTranscription: (transcription: string | null) => void;
   setAutoSubmitEnabled: (enabled: boolean) => void;
   setInputMode: (mode: 'voice-tap' | 'tap-only') => void;
-  queueAchievements: (achievements: Achievement[]) => void;
-  dismissAchievement: (id: string) => void;
   resumeSession: (data: SessionResumedData) => void;
   clearSessionId: () => void;
   reset: () => void;
@@ -116,7 +108,6 @@ const initialState = {
   moveResults: [] as PracticeMoveResult[],
   lastMoveResult: null as PracticeMoveResult | null,
   completedData: null as PracticeCompletedData | null,
-  gamificationResult: null as GamificationResult | null,
   isSubmitting: false,
   isStarting: false,
   isOpponentThinking: false,
@@ -133,7 +124,6 @@ const initialState = {
   geminiTranscription: null as string | null,
   autoSubmitEnabled: false,
   inputMode: 'voice-tap' as 'voice-tap' | 'tap-only',
-  pendingAchievements: [] as Achievement[],
 };
 
 export const usePracticeStore = create<PracticeState>()(
@@ -188,11 +178,10 @@ export const usePracticeStore = create<PracticeState>()(
           lastMoveResult: result,
         })),
 
-      setCompleted: (data, gamification) =>
+      setCompleted: (data) =>
         set({
           status: 'completed',
           completedData: data,
-          gamificationResult: gamification || null,
           currentExpectedMove: null,
           isSubmitting: false,
         }),
@@ -223,16 +212,6 @@ export const usePracticeStore = create<PracticeState>()(
 
       setInputMode: (mode) => set({ inputMode: mode }),
 
-      queueAchievements: (achievements) =>
-        set((state) => ({
-          pendingAchievements: [...state.pendingAchievements, ...achievements],
-        })),
-
-      dismissAchievement: (id) =>
-        set((state) => ({
-          pendingAchievements: state.pendingAchievements.filter((a) => a.id !== id),
-        })),
-
       resumeSession: (data) =>
         set({
           sessionId: data.sessionId,
@@ -248,7 +227,6 @@ export const usePracticeStore = create<PracticeState>()(
             ? data.moveResults[data.moveResults.length - 1]
             : null,
           completedData: null,
-          gamificationResult: null,
           isSubmitting: false,
           isStarting: false,
           isOpponentThinking: false,

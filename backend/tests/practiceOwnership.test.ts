@@ -1,7 +1,8 @@
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { initializeApp } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 import { guestTokenHash } from '../src/lib/practiceOwnership.js';
 import { sessionStore } from '../src/services/redisSessionStore.js';
 import { HISTORICAL_GAMES } from '../src/data/historicalGames.js';
@@ -105,4 +106,59 @@ test('new guest sessions store only the credential hash, and return no credentia
   assert.equal(JSON.stringify(started).includes(token), false);
   assert.equal(started.guestTokenHash, undefined);
   await sessionStore.delete(started.sessionId);
+});
+
+
+test('finishing practice saves every move and updates statistics without changing legacy profile data', async () => {
+  const stored = session({ historicalGame: { ...HISTORICAL_GAMES[0], moves: ['e4'], pgn: '1. e4 *' } });
+  await sessionStore.set(stored.id, stored);
+  const profile = {
+    stats: { totalSessions: 2, totalMoves: 20, correctMoves: 15, overallAccuracy: 0.75 },
+    gamification: { totalXp: 1200, achievements: { unlocked: ['first-session'] } },
+    voiceCalibration: { entries: [{ target: 'e4', heard: 'e four', timestamp: 1 }] },
+    preferences: { voiceParsingMode: 'gemini-audio' },
+  };
+  const original = structuredClone(profile);
+  let saved: any;
+  let savedId: string | undefined;
+  let updates: Record<string, unknown> = {};
+  const userRef = {
+    collection: (name: string) => {
+      assert.equal(name, 'sessions');
+      return { doc: (id: string) => ({ set: async (data: unknown) => { savedId = id; saved = data; } }) };
+    },
+  };
+  const firestore = getFirestore();
+  const collection = mock.method(firestore, 'collection', (name: string) => {
+    assert.equal(name, 'users');
+    return { doc: (uid: string) => { assert.equal(uid, 'owner'); return userRef; } } as any;
+  });
+  const transaction = mock.method(firestore, 'runTransaction', async (work: any) => work({
+    get: async (ref: unknown) => { assert.equal(ref, userRef); return { exists: true, data: () => profile }; },
+    update: (ref: unknown, fields: Record<string, unknown>) => { assert.equal(ref, userRef); updates = fields; },
+  }));
+  try {
+    const client = socket('owner', undefined, stored.socketId);
+    await client.dispatch('submit-practice-move', { sessionId: stored.id, move: 'e4' });
+    const response = client.emitted.find(entry => entry.event === 'practice-move-response')?.data;
+    assert.equal(response?.completed?.accuracy, 1);
+    assert.equal(response.completed.correctMoves, 1);
+    assert.equal('gamification' in response, false);
+    assert.equal(savedId, stored.id);
+    assert.equal(saved.status, 'completed');
+    assert.equal(saved.moves.length, 1, 'the final submitted move is included in saved history');
+    assert.equal(saved.moves[0].submittedMove, 'e4');
+    assert.equal(saved.moves[0].isCorrect, true);
+    assert.equal(saved.summary.accuracy, 1);
+    assert.equal(updates['stats.totalSessions'], 3);
+    assert.equal(updates['stats.totalMoves'], 21);
+    assert.equal(updates['stats.correctMoves'], 16);
+    assert.equal(updates['stats.overallAccuracy'], 16 / 21);
+    assert.ok(Object.keys(updates).every(key => key.startsWith('stats.')));
+    assert.deepEqual(profile, original, 'legacy rewards, calibration, and preferences are preserved');
+  } finally {
+    collection.mock.restore();
+    transaction.mock.restore();
+    await sessionStore.delete(stored.id);
+  }
 });

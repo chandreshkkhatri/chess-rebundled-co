@@ -35,7 +35,7 @@ health of each database or AI provider.
 | Location | Responsibility |
 | --- | --- |
 | [app](../frontend/src/app/) | Routes, layouts, providers, and page-level game flows. |
-| [components](../frontend/src/components/) | Board, notation/voice input, authentication, progress, and commentary UI. |
+| [components](../frontend/src/components/) | Board, notation/voice input, authentication, practice statistics, and AI conversation UI. |
 | [hooks](../frontend/src/hooks/) | Socket lifecycles, voice capture, config fetching, and engine lifecycle. |
 | [stores](../frontend/src/stores/) | Practice, multiplayer, AI game, and install-prompt state. |
 | [lib](../frontend/src/lib/) | Firebase, shared socket, move parsing, engine queue, and MDX loading. |
@@ -56,7 +56,7 @@ from per-tab session state.
 | [routes](../backend/src/routes/) | Authenticated profile/history/calibration HTTP endpoints and public config. |
 | [socket](../backend/src/socket/) | Practice, multiplayer, and conversational AI event boundaries. |
 | [middleware](../backend/src/middleware/) | Firebase socket authentication. |
-| [services](../backend/src/services/) | Game rules, matchmaking, repositories, persistence, AI calls, and gamification. |
+| [services](../backend/src/services/) | Game rules, matchmaking, repositories, persistence, speech parsing, and AI calls. |
 | [lib](../backend/src/lib/) | Cloud clients, ownership checks, request validation, timeouts, and game mutation queue. |
 | [types](../backend/src/types/) | Event payloads and game/profile types. Frontend types live in its own package. |
 
@@ -71,17 +71,20 @@ inside one backend process.
 | Store | Data |
 | --- | --- |
 | MongoDB | Historical games and migration records. |
-| Firestore `users/{uid}` | Profiles, aggregate practice stats, gamification, preferences, and voice calibration. |
+| Firestore `users/{uid}` | Profiles, aggregate practice stats, preferences, and voice calibration. |
 | Firestore `users/{uid}/sessions` | Completed signed-in practice sessions and move summaries. |
 | Firestore `users/{uid}/aiGames` | Completed AI games, including data used by review. |
 | Firestore `appConfig/settings` | Public app configuration such as the Discord invite URL. |
 | Redis | Active practice/multiplayer/AI session state, reconnect mappings, invites, and AI usage counters. |
-| Browser storage | Input preferences, per-tab practice credentials/session ID, trainer high score, cosmetics/spending, and simulated standings. |
+| Browser storage | Input preferences, per-tab practice credentials/session ID, and trainer high score. |
 
 When Redis is unavailable, process-local state is used; it does not survive a
 backend restart. Do not treat Redis-backed sessions as a substitute for durable
-Firestore history. Cosmetic purchases and simulated standings do not update the
-Firestore XP balance or represent a shared league.
+Firestore history. The player lists are derived from the historical MongoDB
+catalog; the catalog, imports, and seeds are retained. Retiring leagues, rewards,
+and cosmetics requires no database migration. Existing legacy reward fields and
+browser cosmetic keys remain stored but are no longer used. Session completion
+updates aggregate `stats.*` fields without replacing the user's document.
 
 Redis persistence is optional, but Firebase Admin initialization is required for
 normal server startup. Multiple backend workers are not supported by the current
@@ -94,7 +97,7 @@ process-local rooms, timers, matchmaking, and multiplayer mutation queues.
 | `GET /health` | Public liveness response. |
 | `GET /api/games` | Public historical catalog. |
 | `GET /api/config` | Public app configuration. |
-| `GET /api/user/profile` | Bearer token; profile, stats, preferences, and gamification. |
+| `GET /api/user/profile` | Bearer token; profile, practice stats, and preferences. |
 | `PUT /api/user/profile` | Bearer token; display-name update. |
 | `GET /api/user/sessions` | Bearer token; recent practice summaries. |
 | `GET /api/user/sessions/:sessionId` | Bearer token; one owned session's results. |
@@ -133,5 +136,5 @@ files, and the PWA assets in addition to the standalone Next.js server.
 
 [marketing/NARRATION_SCRIPT.md](marketing/NARRATION_SCRIPT.md) is input for
 `scripts/generate-narration-audio.js`. That utility uses the ElevenLabs SDK and
-`ELEVENLABS_API_KEY` from `backend/.env`; it is separate from browser caster
-speech synthesis and Gemini game chat.
+`ELEVENLABS_API_KEY` from `backend/.env`; it is separate from speech input
+and Gemini game chat.

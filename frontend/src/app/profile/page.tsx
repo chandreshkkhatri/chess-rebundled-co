@@ -6,11 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { updateDisplayName } from '@/lib/firebase';
 import { PageLayout } from '@/components/PageLayout';
-import { XPProgressBar } from '@/components/XPProgressBar';
-import { StreakIndicator } from '@/components/StreakIndicator';
-import { UserGamification } from '@/types';
-import { AestheticShop } from '@/components/AestheticShop';
-import { LeagueLeaderboard } from '@/components/LeagueLeaderboard';
 import Image from 'next/image';
 
 interface UserProfile {
@@ -25,7 +20,6 @@ interface UserProfile {
     overallAccuracy: number;
     lastPlayedAt?: string;
   };
-  gamification?: UserGamification;
 }
 
 export default function ProfilePage() {
@@ -39,33 +33,10 @@ export default function ProfilePage() {
   const [editedName, setEditedName] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
-  const [equippedBadge, setEquippedBadge] = useState<{ id: string; name: string; emoji: string } | null>(null);
 
   useEffect(() => {
     if (!isLoading && !user) router.replace('/login?redirect=%2Fprofile');
   }, [isLoading, user, router]);
-
-  // Load user equipped badge
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const loadBadge = () => {
-      const activeBadgeStr = localStorage.getItem("active_badge");
-      if (activeBadgeStr) {
-        try {
-          setEquippedBadge(JSON.parse(activeBadgeStr));
-        } catch {
-          setEquippedBadge({ id: activeBadgeStr, name: activeBadgeStr, emoji: "🎖️" });
-        }
-      } else {
-        setEquippedBadge(null);
-      }
-    };
-
-    loadBadge();
-    window.addEventListener("active_cosmetics_changed", loadBadge);
-    return () => window.removeEventListener("active_cosmetics_changed", loadBadge);
-  }, []);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -256,12 +227,6 @@ export default function ProfilePage() {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    {equippedBadge && (
-                      <span className="bg-purple-900/60 text-purple-300 text-xs font-black px-2 py-0.5 rounded-sm border border-purple-500/20 flex items-center gap-1 select-none" title={equippedBadge.name}>
-                        <span>{equippedBadge.emoji}</span>
-                        <span>{equippedBadge.name}</span>
-                      </span>
-                    )}
                     <h1 className="text-xl font-bold text-white">
                       {profile?.displayName || user?.displayName || user?.email?.split('@')[0] || 'User'}
                     </h1>
@@ -282,70 +247,6 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-
-          {/* Level & XP Progress */}
-          {profile?.gamification && (
-            <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
-              <XPProgressBar
-                totalXp={profile.gamification.totalXp}
-                level={profile.gamification.level}
-                xpToNextLevel={profile.gamification.xpToNextLevel}
-              />
-            </div>
-          )}
-
-          {/* Streak */}
-          {profile?.gamification && (
-            <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
-              <h2 className="text-lg font-semibold text-white mb-4">Daily Streak</h2>
-              <StreakIndicator
-                currentStreak={profile.gamification.streaks.currentStreak}
-                longestStreak={profile.gamification.streaks.longestStreak}
-                streakFreezes={profile.gamification.streaks.streakFreezes}
-              />
-            </div>
-          )}
-
-          {/* Achievements Preview */}
-          {profile?.gamification && profile.gamification.achievements.unlocked.length > 0 && (
-            <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-white">Achievements</h2>
-                <span className="text-slate-400 text-sm">
-                  {profile.gamification.achievements.unlocked.length} unlocked
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {profile.gamification.achievements.unlocked.slice(0, 6).map((achievementId) => (
-                  <div
-                    key={achievementId}
-                    className="bg-slate-700/50 px-3 py-1.5 rounded-full text-sm text-slate-300"
-                    title={achievementId}
-                  >
-                    {achievementId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                  </div>
-                ))}
-                {profile.gamification.achievements.unlocked.length > 6 && (
-                  <div className="bg-slate-700/50 px-3 py-1.5 rounded-full text-sm text-slate-400">
-                    +{profile.gamification.achievements.unlocked.length - 6} more
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Weekly League Leaderboard */}
-          {profile?.gamification && (
-            <LeagueLeaderboard
-              totalXp={profile.gamification.totalXp}
-              displayName={profile.displayName || user?.displayName || user?.email?.split('@')[0] || 'Player'}
-            />
-          )}
-
-          {/* Aesthetic Customization Shop */}
-          {profile?.gamification && (
-            <AestheticShop totalXp={profile.gamification.totalXp} />
-          )}
 
           {/* Stats */}
           <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">

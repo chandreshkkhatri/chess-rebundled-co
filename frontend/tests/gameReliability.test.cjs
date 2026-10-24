@@ -19,7 +19,6 @@ function botFixture(color = 'white') {
     '@/components/UniversalInputPanel': { UniversalInputPanel: input },
     '@/components/ChessBoard': { ChessBoard: board },
     '@/components/PageLayout': { PageLayout: () => {} },
-    '@/components/AICasterPanel': { AICasterPanel: () => {} },
   };
   const component = loadSource('src/app/bot/page.tsx', deps, {}, source => `${source}\nexport { BotPlayContent };`).BotPlayContent;
   return { runtime, input, board, searches, render: () => runtime.render(component) };
@@ -75,7 +74,7 @@ test('signed-out profile redirects after auth resolves without waiting for a pro
     'next/navigation': { useRouter: () => router },
     '@/contexts/AuthContext': { useAuth: () => auth }, '@/lib/firebase': {},
   };
-  for (const name of ['PageLayout', 'XPProgressBar', 'StreakIndicator', 'AestheticShop', 'LeagueLeaderboard']) {
+  for (const name of ['PageLayout']) {
     deps[`@/components/${name}`] = { [name]: () => {} };
   }
   const profile = loadSource('src/app/profile/page.tsx', deps).default;
@@ -121,4 +120,49 @@ test('cancelled grading does not enqueue the second evaluation', async () => {
   await assert.rejects(evaluatePracticeMove(['e4'], { moveIndex: 0, expectedMove: 'e4', submittedMove: 'd4' },
     async () => { calls++; controller.abort(); return 0; }, controller.signal), { name: 'AbortError' });
   assert.equal(calls, 1);
+});
+
+
+test('online lobby offers human matchmaking and invitations without bot setup', () => {
+  const runtime = hookHarness();
+  const actions = [];
+  const router = { push: path => actions.push(['navigate', path]) };
+  const state = {
+    isConnected: true, isSearching: false, inviteCode: null, gameId: null, status: 'idle',
+    error: null, onlineCount: 1, waitingPlayers: [], searchStartedAt: null, searchTimedOut: false,
+    setError: error => actions.push(['error', error]), reset() {},
+  };
+  const useStore = Object.assign(() => state, { getState: () => state });
+  const component = loadSource('src/app/play/page.tsx', {
+    react: runtime.react, 'react/jsx-runtime': jsx,
+    'next/navigation': { useRouter: () => router },
+    '@/hooks/useMultiplayerSocket': { useMultiplayerSocket: () => ({
+      findGame: control => actions.push(['find', control]), cancelFind() {},
+      createInvite: control => actions.push(['invite', control]),
+      joinInvite: code => actions.push(['join', code]),
+    }) },
+    '@/stores/multiplayerStore': { useMultiplayerStore: useStore },
+    '@/hooks/usePracticeSocket': { usePracticeSocket() {} },
+    '@/contexts/AuthContext': { useAuth: () => ({ user: { uid: 'player' } }) },
+    '@/components/PageLayout': { PageLayout: () => {} },
+  }).default;
+  const nodes = tree => !tree || typeof tree !== 'object' ? []
+    : [tree, ...[tree.props?.children].flat(Infinity).flatMap(nodes)];
+  const button = (tree, label) => nodes(tree).find(node => node.type === 'button' && node.props.children === label);
+  try {
+    let tree = runtime.render(component);
+    assert.equal(nodes(tree).some(node => typeof node.props?.children === 'string' && /bot|difficulty/i.test(node.props.children)), false);
+    button(tree, 'Find Opponent').props.onClick();
+    assert.deepEqual(actions.pop(), ['find', 'any']);
+    button(tree, 'Create Invite').props.onClick();
+    tree = runtime.render(component);
+    button(tree, 'Create Invite Link').props.onClick();
+    assert.deepEqual(actions.pop(), ['invite', null]);
+    button(tree, 'Join Invite').props.onClick();
+    tree = runtime.render(component);
+    find(tree, 'input').props.onChange({ target: { value: ' FRIEND ' } });
+    tree = runtime.render(component);
+    button(tree, 'Join Game').props.onClick();
+    assert.deepEqual(actions.pop(), ['join', 'FRIEND']);
+  } finally { runtime.unmount(); }
 });
