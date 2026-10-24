@@ -1,17 +1,14 @@
 import { Server, Socket } from "socket.io";
-import crypto from "crypto";
 import { runGameMutation } from "../lib/gameMutationQueue.js";
 import { ClientToServerEvents, ServerToClientEvents } from "../types/index.js";
 import {
   AiMoveParseRequest,
-  AiChatMessage,
   AiGameState,
   AiGameResumedData,
 } from "../types/aiGame.js";
 import {
   aiGameService,
   AiGameEnd,
-  PacedChat,
 } from "../services/aiGameService.js";
 import { getPersona, toPublicPersona } from "../data/aiPersonas.js";
 
@@ -27,11 +24,6 @@ type GameServer = Server<ClientToServerEvents, ServerToClientEvents>;
 const MAX_CHAT_LENGTH = 280;
 const CHAT_FLOOD_WINDOW_MS = 10_000;
 const CHAT_FLOOD_MAX = 4;
-const MAX_CHAT_PER_TURN = 3;
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
 
 function hasStringFields(data: unknown, fields: string[]): data is Record<string, string> {
   return typeof data === "object" && data !== null && !Array.isArray(data) &&
@@ -51,125 +43,9 @@ function isGenAiConfigured(): boolean {
   );
 }
 
-/**
- * Emits a bot turn's chat with human-like pacing: an initial "reading your
- * move" pause, a typing indicator sized to the message, and jittered gaps
- * between messages. The service enqueues as the LLM streams; emission runs
- * asynchronously against the game room so it survives socket reconnects.
- */
-class PacedChatEmitter implements PacedChat {
-  private queue: AiChatMessage[] = [];
-  private accepted: AiChatMessage[] = [];
-  private processing = false;
-  private flushed = false;
-  private firstMessage = true;
-  private cancelDelay: (() => void) | null = null;
-  private drainResolvers: (() => void)[] = [];
-
-  constructor(
-    private io: GameServer,
-    private gameId: string,
-    private turnIndex: number,
-    private turnStart: number,
-  ) {}
-
-  enqueue(text: string): AiChatMessage {
-    const message: AiChatMessage = {
-      id: crypto.randomUUID(),
-      from: "bot",
-      text: text.slice(0, 200),
-      ts: Date.now(),
-      turnIndex: this.turnIndex,
-    };
-    if (this.accepted.length >= MAX_CHAT_PER_TURN) {
-      return message; // over the per-turn cap: dropped, not emitted or stored
-    }
-    this.accepted.push(message);
-    this.queue.push(message);
-    void this.process();
-    return message;
-  }
-
-  messages(): AiChatMessage[] {
-    return this.accepted;
-  }
-
-  whenDrained(): Promise<void> {
-    if (this.queue.length === 0 && !this.processing) {
-      return Promise.resolve();
-    }
-    return new Promise((resolve) => this.drainResolvers.push(resolve));
-  }
-
-  flushNow(): void {
-    this.flushed = true;
-    this.cancelDelay?.();
-  }
-
-  private delay(ms: number): Promise<void> {
-    if (this.flushed || ms <= 0) return Promise.resolve();
-    return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        this.cancelDelay = null;
-        resolve();
-      }, ms);
-      this.cancelDelay = () => {
-        clearTimeout(timeout);
-        this.cancelDelay = null;
-        resolve();
-      };
-    });
-  }
-
-  private room(): string {
-    return `ai:${this.gameId}`;
-  }
-
-  private async process(): Promise<void> {
-    if (this.processing) return;
-    this.processing = true;
-
-    try {
-      if (this.firstMessage) {
-        this.firstMessage = false;
-        // Let the opponent "read" the player's move before typing starts.
-        await this.delay(800 - (Date.now() - this.turnStart));
-      }
-
-      while (this.queue.length > 0) {
-        const message = this.queue.shift()!;
-        if (!this.flushed) {
-          this.io
-            .to(this.room())
-            .emit("ai-typing", { gameId: this.gameId, typing: true });
-          await this.delay(clamp(600 + 35 * message.text.length, 900, 3200));
-        }
-        message.ts = Date.now();
-        this.io
-          .to(this.room())
-          .emit("ai-chat-message", { gameId: this.gameId, message });
-        this.io
-          .to(this.room())
-          .emit("ai-typing", { gameId: this.gameId, typing: false });
-        if (this.queue.length > 0 && !this.flushed) {
-          await this.delay(400 + Math.random() * 500);
-        }
-      }
-    } finally {
-      this.processing = false;
-      if (this.queue.length === 0) {
-        this.drainResolvers.forEach((resolve) => resolve());
-        this.drainResolvers = [];
-      } else {
-        // A message was enqueued while we were resolving — keep going.
-        void this.process();
-      }
-    }
-  }
-}
-
 export class AiGameHandler {
   // Per-game sliding window for the chat flood guard.
+  private chatRepliesInProgress = new Set<string>();
   private chatTimestamps: Map<string, number[]> = new Map();
 
   constructor(private io: GameServer) {}
@@ -243,9 +119,8 @@ export class AiGameHandler {
    * Kick off the bot's move turn. Fire-and-forget from the caller's side —
    * everything is emitted to the game room, not the triggering socket.
    */
-  private startBotTurn(gameId: string, turnIndex: number): void {
-    const paced = new PacedChatEmitter(this.io, gameId, turnIndex, Date.now());
-    const turn = aiGameService.runBotTurn(gameId, paced);
+  private startBotTurn(gameId: string): void {
+    const turn = aiGameService.runBotTurn(gameId);
     if (!turn) return; // already running
 
     this.io.to(this.room(gameId)).emit("ai-bot-turn-started", { gameId });
@@ -261,6 +136,9 @@ export class AiGameHandler {
       this.io.to(this.room(gameId)).emit("ai-bot-turn-ended", { gameId });
       if (result.gameOver) {
         this.emitGameEnd(gameId, result.gameOver);
+      } else if (result.pendingChat) {
+        // The move has already been emitted; conversation never delays it.
+        void this.replyToChat(gameId);
       }
     });
   }
@@ -284,6 +162,7 @@ export class AiGameHandler {
       turn: state.fen.split(" ")[1] === "b" ? "black" : "white",
       chat: state.chat,
       status: state.status,
+      aiNotice: state.aiNotice ?? null,
       botTurnInProgress:
         state.status === "bot-thinking" ||
         aiGameService.isBotTurnInProgress(state.id),
@@ -355,7 +234,7 @@ export class AiGameHandler {
 
       // Bot opens the game when the player took black.
       if (playerColor === "black") {
-        this.startBotTurn(created.state.id, 0);
+        this.startBotTurn(created.state.id);
       }
     });
   }
@@ -407,7 +286,7 @@ export class AiGameHandler {
       return;
     }
 
-    this.startBotTurn(data.gameId, result.state.moves.length);
+    this.startBotTurn(data.gameId);
   }
 
   private isChatFlooding(gameId: string): boolean {
@@ -456,29 +335,23 @@ export class AiGameHandler {
       .to(this.room(data.gameId))
       .emit("ai-chat-message", { gameId: data.gameId, message: added.message });
 
-    // During the bot's turn the message just waits for the next move turn.
-    if (!aiGameService.isPlayersTurn(added.state)) return;
+    // Messages received while the bot thinks are answered after its move.
+    if (aiGameService.isPlayersTurn(added.state)) await this.replyToChat(data.gameId);
+  }
 
-    const reply = await aiGameService.tryGenerateChatReply(
-      data.gameId,
-      uid,
-      text,
-    );
-    if (!reply) return;
-
-    // Paced single-message emission: typing indicator sized to the reply.
-    this.io
-      .to(this.room(data.gameId))
-      .emit("ai-typing", { gameId: data.gameId, typing: true });
-    await new Promise((resolve) =>
-      setTimeout(resolve, clamp(600 + 35 * reply.text.length, 900, 3200)),
-    );
-    this.io
-      .to(this.room(data.gameId))
-      .emit("ai-chat-message", { gameId: data.gameId, message: reply });
-    this.io
-      .to(this.room(data.gameId))
-      .emit("ai-typing", { gameId: data.gameId, typing: false });
+  private async replyToChat(gameId: string): Promise<void> {
+    if (this.chatRepliesInProgress.has(gameId)) return;
+    this.chatRepliesInProgress.add(gameId);
+    this.io.to(this.room(gameId)).emit("ai-typing", { gameId, typing: true });
+    try {
+      const reply = await aiGameService.tryGeneratePendingChatReply(gameId);
+      if (reply) this.io.to(this.room(gameId)).emit("ai-chat-message", { gameId, message: reply });
+    } catch {
+      console.warn("[AiGame] Conversation reply unavailable");
+    } finally {
+      this.chatRepliesInProgress.delete(gameId);
+      this.io.to(this.room(gameId)).emit("ai-typing", { gameId, typing: false });
+    }
   }
 
   private async handleParseMove(socket: GameSocket, data: AiMoveParseRequest, audio: boolean): Promise<void> {
@@ -551,6 +424,9 @@ export class AiGameHandler {
 
     socket.join(this.room(data.gameId));
     socket.emit("ai-game-resumed", this.buildResumeData(state));
+    if (state.status !== "completed" && state.fen.split(" ")[1] !== (state.playerColor === "white" ? "w" : "b")) {
+      this.startBotTurn(state.id);
+    }
   }
 
   private async handleGetReview(

@@ -1,7 +1,7 @@
 # Chess Rebundled
 
 Learn chess notation through speech practice with historical games and
-conversational Gemini opponents. The player/game database supports choosing a
+Gemini opponents with distinct playing styles and post-game move explanations. The player/game database supports choosing a
 historical player or game to study. Text and tap input, multiplayer, and a
 coordinate trainer support that core workflow.
 
@@ -60,7 +60,7 @@ pnpm dev
 ```
 
 Open <http://localhost:3000>. The backend listens on port 3001 by default.
-The practice setup, online multiplayer, conversational AI games, and saved
+The practice setup, online multiplayer, AI games, and saved
 profile/history pages require sign-in. The practice socket protocol also supports
 guest sessions with a per-tab reconnect credential. Enable your chosen
 email/password, Google, or GitHub provider in Firebase Authentication.
@@ -115,9 +115,9 @@ The helper waits for health checks and attempts backend image rollback on failur
 | `/play` | Human matchmaking and private invitations. |
 | `/play/[gameId]` | An authenticated multiplayer game with optional clocks. |
 | `/bot` | Standalone browser Stockfish; accessible directly, outside the online lobby. |
-| `/play-ai` | Choose a conversational Gemini opponent and color. |
-| `/play-ai/[gameId]` | Play using board, speech, text, or staged input; chat with the opponent. |
-| `/play-ai/[gameId]/review` | Review a completed AI game. |
+| `/play-ai` | Choose a Gemini opponent by playing style and color. |
+| `/play-ai/[gameId]` | Quiet play using board, speech, text, or staged input; optional conversation. |
+| `/play-ai/[gameId]/review` | Review the moves, decision summaries, alternatives, threats, and plans from a completed AI game. |
 | `/trainer` | Thirty-second square recognition exercises. |
 | `/profile`, `/history`, `/settings` | Practice statistics, completed sessions, and speech/input preferences. |
 | `/blog` | Articles from local MDX content. |

@@ -71,3 +71,50 @@ test('simultaneous AI starts for one account create one game and resume it in th
     await aiGameStore.deleteUidMapping('owner');
   }
 });
+
+test('reconnect payload excludes decision summaries and legacy notes while restoring the fallback notice', async () => {
+  const secret = 'Hidden plan to attack on the kingside';
+  const calls = mock.method(aiGameService, 'getGameForUser', async () => ({
+    id: 'game', playerColor: 'white', personaId: 'rook-rodriguez', fen: '8/8/8/8/8/8/8/8 w - - 0 1',
+    moves: [], chat: [], status: 'active', aiNotice: 'Using a fallback',
+    turns: [{ thinking: secret, decision: { plan: secret } }],
+  }) as any);
+  try {
+    const socket = client();
+    socket.dispatch('ai-reconnect', { gameId: 'game' });
+    await new Promise(resolve => setImmediate(resolve));
+    const resumed = socket.emitted.find(entry => entry.event === 'ai-game-resumed');
+    assert.ok(resumed);
+    assert.equal(resumed.data.aiNotice, 'Using a fallback');
+    assert.equal(JSON.stringify(resumed).includes(secret), false);
+    assert.equal('turns' in resumed.data, false);
+  } finally { calls.mock.restore(); }
+});
+
+test('reconnect restarts an interrupted bot turn and emits the move before waiting for optional conversation', async () => {
+  const events: string[] = [];
+  const io = { to: () => ({ emit: (name: string) => events.push(name) }) };
+  const state = mock.method(aiGameService, 'getGameForUser', async () => ({
+    id: 'game', playerColor: 'white', personaId: 'rook-rodriguez', fen: '8/8/8/8/8/8/8/8 b - - 0 1',
+    moves: ['e4'], chat: [], status: 'bot-thinking',
+  }) as any);
+  const turn = mock.method(aiGameService, 'runBotTurn', async () => ({ pendingChat: true,
+    moveData: { gameId: 'game' }, gameOver: null,
+  }) as any);
+  let release!: (value: null) => void;
+  const pending = new Promise<null>(resolve => { release = resolve; });
+  const reply = mock.method(aiGameService, 'tryGeneratePendingChatReply', async () => {
+    events.push('conversation-request');
+    return pending;
+  });
+  try {
+    const socket = client(new AiGameHandler(io as any));
+    socket.dispatch('ai-reconnect', { gameId: 'game' });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(turn.mock.callCount(), 1);
+    assert.ok(events.indexOf('ai-move-made') >= 0);
+    assert.ok(events.indexOf('ai-move-made') < events.indexOf('conversation-request'));
+    assert.ok(events.indexOf('ai-bot-turn-ended') < events.indexOf('conversation-request'));
+    assert.equal(reply.mock.callCount(), 1);
+  } finally { release(null); await new Promise(resolve => setImmediate(resolve)); state.mock.restore(); turn.mock.restore(); reply.mock.restore(); }
+});

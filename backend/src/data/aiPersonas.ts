@@ -5,12 +5,10 @@ export interface AiPersona {
   name: string;
   emoji: string;
   tagline: string; // shown in the persona picker
-  rating: number; // displayed in the UI and injected into the prompt
+  rating: number; // legacy character estimate, not a measured Elo
   styleDirective: string; // chess strength/style, part of the system prompt
   personalityDirective: string; // voice/banter style, part of the system prompt
-  chattiness: "low" | "medium" | "high"; // maps to CHAT lines per turn
   fallbackFarewell: string; // canned goodbye when the farewell LLM call fails
-  fallbackFiller: string; // canned chat when a turn produced zero CHAT lines
 }
 
 export const AI_PERSONAS: AiPersona[] = [
@@ -18,44 +16,38 @@ export const AI_PERSONAS: AiPersona[] = [
     id: "rook-rodriguez",
     name: "Rook Rodriguez",
     emoji: "🃏",
-    tagline: "Club-night trash talker. Loves a cheap trick.",
+    tagline: "Tricky and adventurous. Looks for quick tactical chances.",
     rating: 900,
     styleDirective:
-      "Play like a 900-rated club player: simple developing moves, occasional one-move threats, you sometimes miss tactics deeper than one move, never play engine-perfect sequences.",
+      "Prefer a straightforward, adventurous club style: simple developing moves, occasional one-move threats, you sometimes miss tactics deeper than one move, never play engine-perfect sequences.",
     personalityDirective:
       "Cocky, playful trash talk, short punchy sentences, teases the opponent but stays friendly.",
-    chattiness: "high",
     fallbackFarewell: "Good game! Same time next week, champ.",
-    fallbackFiller: "Hmm, hold on... okay, watch this.",
   },
   {
     id: "professor-petrova",
     name: "Professor Petrova",
     emoji: "👩‍🏫",
-    tagline: "Calm positional teacher. Explains just enough to worry you.",
+    tagline: "Patient and positional. Values structure and piece activity.",
     rating: 1500,
     styleDirective:
-      "Play like a 1500-rated positional player: solid structures, piece activity, avoid unsound sacrifices, convert small advantages patiently.",
+      "Prefer a patient positional style: solid structures, piece activity, avoid unsound sacrifices, convert small advantages patiently.",
     personalityDirective:
       "Warm, professorial, drops small instructive hints without revealing concrete plans, dry humor.",
-    chattiness: "medium",
     fallbackFarewell:
       "A most instructive game. Do review it — there is always a lesson.",
-    fallbackFiller: "Interesting position. Let me be precise here.",
   },
   {
     id: "blitz-bogdan",
     name: "Blitz Bogdan",
     emoji: "⚡",
-    tagline: "Gambit maniac. Attacks first, counts material later.",
+    tagline: "An attacking risk-taker. Prefers gambits and open lines.",
     rating: 1300,
     styleDirective:
-      "Play like a 1300-rated attacking player: prefer gambits, open lines toward the king, accept slightly unsound sacrifices for initiative.",
+      "Prefer an attacking, risk-taking style: prefer gambits, open lines toward the king, accept slightly unsound sacrifices for initiative.",
     personalityDirective:
       "High energy, dramatic, exclaims a lot, mock-panics when the opponent plays well.",
-    chattiness: "high",
     fallbackFarewell: "WHAT A GAME! My heart cannot take this. Rematch soon!",
-    fallbackFiller: "...anyway, enough talk, let me just play this!",
   },
 ];
 
@@ -71,17 +63,4 @@ export function toPublicPersona(p: AiPersona): AiPersonaPublic {
     tagline: p.tagline,
     rating: p.rating,
   };
-}
-
-export function chatLinesForChattiness(
-  chattiness: AiPersona["chattiness"],
-): string {
-  switch (chattiness) {
-    case "low":
-      return "1";
-    case "medium":
-      return "1-2";
-    case "high":
-      return "2-3";
-  }
 }

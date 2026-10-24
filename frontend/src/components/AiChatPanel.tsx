@@ -80,7 +80,7 @@ export function AiChatPanel({
             {persona?.name || "AI Opponent"}
           </div>
           <div className="text-xs text-slate-500">
-            {botTyping ? "typing…" : `~${persona?.rating || "?"} rated`}
+            {botTyping ? "Replying…" : "Optional conversation"}
           </div>
         </div>
       </div>
@@ -92,7 +92,7 @@ export function AiChatPanel({
       >
         {chat.length === 0 && !botTyping && (
           <p className="text-xs text-slate-500 text-center pt-4">
-            Say hi — your opponent talks back
+            Focus on the board, or say hello. Replies arrive on your turn.
           </p>
         )}
         {chat.map((message) => (
@@ -136,6 +136,7 @@ export function AiChatPanel({
               if (e.key === "Enter") handleSend();
             }}
             placeholder={disabled ? "Game over" : "Talk to your opponent…"}
+            aria-label="Message your AI opponent"
             disabled={disabled}
             className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-hidden focus:border-purple-500 disabled:opacity-50"
           />

@@ -77,7 +77,7 @@ export default function PlayAiSetupPage() {
           <div className="text-center mb-6">
             <h1 className="text-4xl font-bold text-white mb-2">Play vs AI</h1>
             <p className="text-slate-400">
-              A living opponent — it thinks, it talks, it plays
+              An AI opponent with its own playing style. Explore its decisions after the game.
             </p>
           </div>
 
@@ -124,9 +124,6 @@ export default function PlayAiSetupPage() {
                       <span className="font-semibold text-slate-100">
                         {persona.name}
                       </span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">
-                        ~{persona.rating}
-                      </span>
                     </div>
                     <div className="text-sm text-slate-400">
                       {persona.tagline}
@@ -135,6 +132,10 @@ export default function PlayAiSetupPage() {
                 </button>
               ))}
             </div>
+
+            <p className="mb-5 text-sm text-slate-400">
+              Quiet play by default. Conversation is optional, and move explanations stay hidden until the game ends.
+            </p>
 
             {/* Color picker */}
             <h3 className="text-sm font-medium text-slate-300 mb-3">

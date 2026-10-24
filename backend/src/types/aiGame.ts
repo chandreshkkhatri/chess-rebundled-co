@@ -13,6 +13,14 @@ export type AiGameEndReason =
 
 export type AiMoveSource = "llm" | "llm-retry" | "heuristic" | "random";
 
+// Concise final-answer explanation captured with a move, hidden until completion.
+export interface AiDecisionSummary {
+  summary: string;
+  alternatives: { move: string; reason: string }[];
+  threat: string;
+  plan: string;
+}
+
 export interface AiChatMessage {
   id: string; // crypto.randomUUID()
   from: "player" | "bot";
@@ -21,11 +29,12 @@ export interface AiChatMessage {
   turnIndex: number; // half-move index when sent
 }
 
-// One record per bot move — the private thinking log revealed post-game.
+// One record per bot move — decision summaries revealed after completion.
 export interface AiTurnRecord {
   turnIndex: number; // half-move index of the bot's move
   fenBefore: string;
-  thinking: string; // full private THINK text, verbatim
+  decision?: AiDecisionSummary; // optional for games saved before structured summaries
+  thinking: string; // compatibility summary text; older games contain legacy notes
   chatEmitted: string[];
   move: string; // SAN actually played
   moveSource: AiMoveSource;
@@ -52,6 +61,7 @@ export interface AiGameState {
   winner: "player" | "bot" | null;
   createdAt: number;
   completedAt: number | null;
+  aiNotice?: string | null;
 }
 
 // Persona summary sent to the client (no prompt directives)
@@ -80,6 +90,7 @@ export interface AiMoveMadeData {
   turn: "white" | "black";
   moveCount: number;
   isCheck: boolean;
+  aiNotice?: string | null;
 }
 
 export interface AiGameOverData {
@@ -103,6 +114,7 @@ export interface AiGameResumedData {
   chat: AiChatMessage[];
   status: AiGameStatus;
   botTurnInProgress: boolean;
+  aiNotice?: string | null;
   result: "1-0" | "0-1" | "1/2-1/2" | null;
   endReason: AiGameEndReason | null;
   winner: "player" | "bot" | null;
@@ -112,6 +124,7 @@ export interface AiReviewTurn {
   turnIndex: number;
   fenBefore: string;
   move: string;
+  decision?: AiDecisionSummary; // optional for games saved before structured summaries
   thinking: string;
   moveSource: AiMoveSource;
 }

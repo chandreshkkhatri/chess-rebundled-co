@@ -47,18 +47,14 @@ for (const lastMover of ['player', 'bot'] as const) {
     const finish = mock.method(service as any, 'finishGame', async (_state: unknown, reason: string) => ({
       data: { endReason: reason }, farewell: null,
     }));
-    const stream = mock.method(genai.models, 'generateContentStream', async () =>
-      (async function* () { yield { text: 'MOVE: Ng8\n' }; })());
+    const stream = mock.method(genai.models, 'generateContent', async () => ({ text: JSON.stringify({ move: 'Ng8', summary: 'Return the knight.', alternatives: [], threat: 'No immediate threat.', plan: 'Repeat the position.' }) }));
     try {
       if (lastMover === 'player') {
         const result = await service.applyPlayerMove(created.state.id, created.state.uid, 'Ng8');
         assert.ok(result.ok);
         assert.equal(result.gameOver?.data.endReason, 'threefold_repetition');
       } else {
-        const result = await service.runBotTurn(created.state.id, {
-          enqueue: () => { throw new Error('Unexpected chat'); },
-          messages: () => [], whenDrained: async () => {}, flushNow: () => {},
-        });
+        const result = await service.runBotTurn(created.state.id);
         assert.equal(result?.gameOver?.data.endReason, 'threefold_repetition');
       }
       assert.equal(finish.mock.callCount(), 1);

@@ -31,6 +31,7 @@ interface AiGameStoreState {
   chat: AiChatMessage[];
   botTyping: boolean;
   botTurnInProgress: boolean;
+  aiNotice: string | null;
 
   // Game end
   result: "1-0" | "0-1" | "1/2-1/2" | null;
@@ -84,6 +85,7 @@ const initialState = {
   chat: [] as AiChatMessage[],
   botTyping: false,
   botTurnInProgress: false,
+  aiNotice: null as string | null,
   result: null as "1-0" | "0-1" | "1/2-1/2" | null,
   endReason: null as AiGameEndReason | null,
   winner: null as "player" | "bot" | null,
@@ -116,6 +118,7 @@ export const useAiGameStore = create<AiGameStoreState>()(
           chat: [],
           botTyping: false,
           botTurnInProgress: false,
+          aiNotice: null,
           result: null,
           endReason: null,
           winner: null,
@@ -133,6 +136,7 @@ export const useAiGameStore = create<AiGameStoreState>()(
           turn: data.turn,
           lastMove: data.move,
           isCheck: data.isCheck,
+          aiNotice: data.by === "bot" ? data.aiNotice ?? null : state.aiNotice,
           isSubmitting: false,
           error: null,
         })),
@@ -185,6 +189,7 @@ export const useAiGameStore = create<AiGameStoreState>()(
           chat: data.chat,
           botTyping: false,
           botTurnInProgress: data.botTurnInProgress,
+          aiNotice: data.aiNotice ?? null,
           result: data.result,
           endReason: data.endReason,
           winner: data.winner,

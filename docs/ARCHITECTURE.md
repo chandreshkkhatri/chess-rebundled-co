@@ -61,7 +61,7 @@ from per-tab session state.
 | [types](../backend/src/types/) | Event payloads and game/profile types. Frontend types live in its own package. |
 
 `GameHandler` uses `PracticeService`; `MultiplayerHandler` uses matchmaking and
-`MultiplayerService`; `AiGameHandler` uses `AiGameService` and paced chat emission.
+`MultiplayerService`; `AiGameHandler` uses `AiGameService`; conversation is independent of move selection.
 Request boundaries validate payloads and catch async errors. Per-game mutation
 queues coordinate multiplayer moves/clocks and practice/AI state mutations
 inside one backend process. AI generation runs outside its game queue; snapshot
@@ -147,3 +147,38 @@ files, and the PWA assets in addition to the standalone Next.js server.
 `scripts/generate-narration-audio.js`. That utility uses the ElevenLabs SDK and
 `ELEVENLABS_API_KEY` from `backend/.env`; it is separate from speech input
 and Gemini game chat.
+
+## AI opponent decisions and review
+
+`aiOpponentLlm.ts` requests one structured JSON decision with an enum of legal
+SAN moves, a concise summary, legal alternatives, the opposing threat, and a
+plan. `chess.js` remains authoritative for move legality and game endings. The
+request includes the board, complete move history, the persona's playing style,
+and the last three recorded plans. Player chat is excluded from move requests.
+The model's default thinking configuration is preserved; the incompatible
+`thinkingBudget: 0` setting is not sent.
+
+`AiGameService` snapshots and commits under the per-game mutation queue while
+provider calls run outside it. The move request has a 19-second deadline and at
+most one retry within the overall 25-second generation/pacing budget. Each
+attempt consumes a daily LLM allowance. Configuration/authentication errors and
+timeouts skip the retry. The SDK request is aborted on deadline, automatic SDK
+retries are disabled, and logs record model, error status, move source, generation
+time, total turn time, and whether a summary exists. Prompts and summaries are
+not logged.
+
+The model response is validated again locally. Review explanations are stored
+only for the move actually selected by a successful model response. A fallback
+never inherits the explanation for a rejected move. Structured summaries are
+optional in stored/review types so games saved before this change remain
+readable. New turns also keep a formatted compatibility summary for older
+frontends. Only the owning account can request a completed game's review; live
+move and reconnect payloads exclude summaries and legacy thinking text.
+
+Optional typed conversation uses separate bounded requests and the existing
+per-game reply and flood limits. Messages received during a bot turn remain
+queued; replies begin after the move event. Quiet games do not generate
+conversation or farewells. A fallback status is stored independently of chat,
+restored on reconnect, and cleared after an LLM recovery. Reconnecting also
+restarts a bot turn interrupted by a backend restart, guarded against duplicate
+live turns.

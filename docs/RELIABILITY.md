@@ -150,12 +150,17 @@ flags, unauthorized parsing, malformed payloads, async failures, quotas, the
 authenticated profile endpoint, concurrent AI/practice requests, duplicate
 completion saves, immediate calibration updates, and complete saved practice
 history without mutating legacy reward data. They use local stores, Fastify injection, and
-mocked Firebase/Gemini operations; no cloud credentials are required.
+mocked Firebase/Gemini operations; no cloud credentials are required. AI opponent
+regressions cover legal structured decisions, rejected provider settings, retry
+allowances, request cancellation, quiet fallback behavior, queued chat, move
+emission before conversation, interrupted-turn recovery, and review ownership.
+Live move/reconnect payloads are checked for hidden-summary leakage.
 
 Frontend regressions exercise bot replies through component handlers/effects,
 signed-out profile navigation, online matchmaking/invitation controls without
 bot setup, original-position grading for both colors, and worker message
 ordering, cancellation, failures, and timeouts. Additional regressions exercise
+quiet AI play, optional conversation, fallback notices/recovery, structured review,
 microphone noise/max-duration recovery, late permission/read cancellation,
 MP4 recording, AI missing-game/review recovery, and correlated voice results.
 Component tests use a small hook harness; full browser behavior is a separate integration check.
@@ -168,3 +173,19 @@ list is available in practice setup and the online lobby offers only matchmaking
 and invitations. In two browser sessions, confirm multiplayer moves, time expiry,
 and reconnection behavior. Run development and production builds sequentially:
 both use the same Next.js `.next` directory.
+
+On 2026-10-24, the new opponent request code was also verified against the
+production Gemini model using disposable opening and developed positions,
+without creating or modifying user games. Both returned legal moves and
+structured decision summaries; separate chat and farewell requests succeeded.
+The provider requires an HTTP deadline of at least ten seconds; shorter local
+chat/retry deadlines are enforced by cancellation instead. This provider check
+is separate from automated tests and does not establish a measured Elo rating.
+
+The production frontend was checked in Chrome at desktop and mobile widths
+against a disposable local Socket.IO fixture. Checks covered quiet setup,
+opening/closing conversation, the thinking indicator, absence of live summaries,
+fallback status and recovery, structured review, and horizontal overflow. This
+browser check used fixture game data; authenticated production gameplay was not
+part of it. A mobile grid overflow found during the check was corrected before
+the final build.

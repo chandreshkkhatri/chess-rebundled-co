@@ -53,9 +53,9 @@ test('resignation during generation wins over a late bot result and chat is not 
   let release!: () => void, started!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
   const entered = new Promise<void>(resolve => { started = resolve; });
-  const stream = mock.method(genai.models, 'generateContentStream', async () => (async function* () {
-    started(); await gate; yield { text: 'MOVE: e5\n' };
-  })());
+  const stream = mock.method(genai.models, 'generateContent', async () => {
+    started(); await gate; return { text: JSON.stringify({ move: 'e5', summary: 'Occupy the center.', alternatives: [], threat: 'No immediate threat.', plan: 'Develop the pieces.' }) };
+  });
   const finish = mock.method(f.service as any, 'finishGame', async (state: any) => {
     state.status = 'completed';
     await aiGameStore.setGame(state.id, state);
@@ -63,10 +63,7 @@ test('resignation during generation wins over a late bot result and chat is not 
   });
   let bot;
   try {
-    bot = f.service.runBotTurn(f.state.id, {
-      enqueue: () => { throw new Error('Unexpected filler'); }, messages: () => [],
-      whenDrained: async () => {}, flushNow() {},
-    });
+    bot = f.service.runBotTurn(f.state.id);
     await entered;
     assert.ok(await f.service.addPlayerChat(f.state.id, f.state.uid, 'I resign'));
     assert.ok(await f.service.resign(f.state.id, f.state.uid));

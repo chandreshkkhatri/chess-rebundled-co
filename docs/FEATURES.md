@@ -131,8 +131,8 @@ Sources: [bot page](../frontend/src/app/bot/page.tsx),
 Signed-in players choose Rook Rodriguez, Professor Petrova, or Blitz Bogdan at
 `/play-ai`, then choose White, Black, or a random color. Gemini generates opponent
 moves and conversation; server-side chess validation and legal-move fallbacks
-keep play valid. Persona rating labels describe the selected characters, not a
-measured matchmaking rating.
+keep play valid. Opponents are described by playing style; the former unmeasured
+rating badges are no longer displayed.
 
 The game page uses the shared speech/notation panel, alongside board clicks and
 dragging. Input mode, browser speech/Gemini audio selection, and auto-submit
@@ -142,11 +142,31 @@ Unclear speech can be retried or replaced with text/tap input. Parsing uses the
 same per-user allowance and calibration as practice, and late responses for an
 older position are ignored.
 
+Play is quiet by default. Open the optional conversation panel to send typed
+messages; replies are separate from move generation and arrive on the player's
+turn. Messages sent while the opponent thinks are queued until after its move.
+The opponent does not produce automatic table talk or repeated filler lines.
+Quiet games also skip generated farewell messages.
+
+The opponent chooses a legal move and records a concise explanation in the same
+structured LLM response: the chosen move's purpose, up to two legal alternatives,
+the main threat, and its next positional goal. These summaries stay on the
+backend during play. They are generated explanations, not a transcript of the
+model's internal reasoning, and are not verified by an engine. Legal move
+validation does not guarantee tactical strength.
+
 The game page resynchronizes after reconnecting. Completed games can be reviewed
-at `/play-ai/[gameId]/review`, with moves, chat, thinking text, and generated
-commentary. Completed AI games are saved in the user's Firestore `aiGames`
-collection so review can outlive session expiry. AI game creation and LLM turns
-have separate daily limits from voice parsing.
+at `/play-ai/[gameId]/review`, with the board, move timeline, decision summaries,
+and any conversation. Earlier saved games retain their legacy notes. Fallback
+moves are identified and never receive an invented AI explanation. Completed AI
+games are saved in the user's Firestore `aiGames` collection so review can outlive session expiry. AI game creation and LLM turns
+have separate daily limits from voice parsing. A provider failure or exhausted
+allowance produces a status notice outside chat while a simple chess fallback
+keeps the game playable. A successful later LLM move clears the notice.
+
+Move timing includes the actual model request plus a small position-dependent
+reading pause. Forced moves have a shorter minimum than positions with checks or
+tactical choices. Conversation never adds a delay to playing the selected move.
 
 Sources: [setup](../frontend/src/app/play-ai/page.tsx),
 [move input](../frontend/src/hooks/useAiMoveInput.ts),

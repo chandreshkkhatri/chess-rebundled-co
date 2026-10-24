@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { runGameMutation } from "../lib/gameMutationQueue.js";
 import {
   AiChatMessage,
+  AiDecisionSummary,
   AiGameEndReason,
   AiGameOverData,
   AiGameState,
@@ -12,6 +13,8 @@ import {
   AiReviewData,
   AiTurnRecord,
 } from "../types/aiGame.js";
+import { GEMINI_MODEL } from "../lib/genaiClient.js";
+import { minimumAiTurnMs } from "./aiTurnTiming.js";
 import { aiGameStore } from "./aiGameSessionStore.js";
 import { aiUsageLimiter } from "./aiUsageLimiter.js";
 import {
@@ -22,16 +25,17 @@ import {
 import {
   generateChatReply,
   generateFarewell,
-  retryMoveStructured,
-  streamMoveTurn,
+  chooseMoveTurn,
+  opponentErrorInfo,
+  type MoveTurnParams,
 } from "./aiOpponentLlm.js";
 
 const MOVE_CAP_HALF_MOVES = 200; // adjudicated draw beyond this
-const RECENT_THINKING_TURNS = 3;
-const RECENT_CHAT_WINDOW = 10;
+const RECENT_DECISION_TURNS = 3;
 const CHAT_REPLY_MIN_GAP_MS = 20_000;
 const CHAT_REPLIES_PER_GAME = 20;
 const BOT_TURN_HARD_CAP_MS = 25_000;
+const PRIMARY_REQUEST_MS = 19_000;
 
 const PIECE_VALUES: Record<string, number> = {
   p: 1,
@@ -46,28 +50,13 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Handler-provided pacing surface for a single bot turn. The service pushes
- * chat into it as the LLM streams; the handler emits with human-like typing
- * delays to the game room.
- */
-export interface PacedChat {
-  /** Queue a bot chat message for paced emission; returns the message record. */
-  enqueue(text: string): AiChatMessage;
-  /** Messages actually emitted (or queued) this turn, in order. */
-  messages(): AiChatMessage[];
-  /** Resolves once every queued message has been emitted. */
-  whenDrained(): Promise<void>;
-  /** Emit everything still queued immediately (turn overran its budget). */
-  flushNow(): void;
-}
-
 export interface AiGameEnd {
   data: AiGameOverData;
   farewell: AiChatMessage | null;
 }
 
 export interface BotTurnResult {
+  pendingChat: boolean;
   moveData: AiMoveMadeData;
   gameOver: AiGameEnd | null;
 }
@@ -125,6 +114,7 @@ export class AiGameService {
       winner: null,
       createdAt: Date.now(),
       completedAt: null,
+      aiNotice: null,
     };
 
     await aiGameStore.setGame(state.id, state);
@@ -213,20 +203,12 @@ export class AiGameService {
     });
   }
 
-  /**
-   * Run the bot's turn: stream the LLM (chat paced out via `paced`, thinking
-   * accumulated privately), resolve a guaranteed-legal move, persist the turn
-   * record, and report the move + any game end. Never rejects; never leaves
-   * the game stuck. Returns null if a turn is already running for this game.
-   */
-  runBotTurn(
-    gameId: string,
-    paced: PacedChat,
-  ): Promise<BotTurnResult | null> | null {
+  /** Choose a move without conversation; save review summaries only on commit. */
+  runBotTurn(gameId: string): Promise<BotTurnResult | null> | null {
     if (this.botTurnLocks.has(gameId)) return null;
-    const promise = this.executeBotTurn(gameId, paced)
+    const promise = this.executeBotTurn(gameId)
       .catch((error): BotTurnResult | null => {
-        console.error("[AiGame] Bot turn failed unexpectedly:", error);
+        console.error("[AiGame] Bot turn failed unexpectedly:", opponentErrorInfo(error));
         return null;
       })
       .finally(() => this.botTurnLocks.delete(gameId));
@@ -234,81 +216,51 @@ export class AiGameService {
     return promise;
   }
 
-  private async executeBotTurn(
-    gameId: string,
-    paced: PacedChat,
-  ): Promise<BotTurnResult | null> {
+  private async executeBotTurn(gameId: string): Promise<BotTurnResult | null> {
     const turnStart = Date.now();
-    const snapshot = await runGameMutation(`ai:${gameId}`, async () => {
-      const state = await aiGameStore.getGame(gameId);
-      if (!state || state.status === "completed" || this.turnFromFen(state.fen) === state.playerColor) return null;
-      const pendingPlayerChat = [...state.pendingPlayerChat];
-      state.pendingPlayerChat = [];
-      state.status = "bot-thinking";
-      await aiGameStore.setGame(gameId, state);
-      return { state, pendingPlayerChat };
+    const state = await runGameMutation(`ai:${gameId}`, async () => {
+      const current = await aiGameStore.getGame(gameId);
+      if (!current || current.status === "completed" || this.turnFromFen(current.fen) === current.playerColor) return null;
+      current.status = "bot-thinking";
+      await aiGameStore.setGame(gameId, current);
+      return current;
     });
-    if (!snapshot) return null;
-    const { state, pendingPlayerChat } = snapshot;
+    if (!state) return null;
     const persona = getPersona(state.personaId);
     if (!persona) return null;
 
     const chess = chessFromHistory(state.moves);
     const legalMoves = chess.moves();
-    const botColor = this.botColor(state);
-
-    let thinking = "";
-    let proposedMove: string | null = null;
+    if (!legalMoves.length) return null;
+    const params: MoveTurnParams = {
+      persona, fen: state.fen, movesSan: state.moves, botColor: this.botColor(state), legalMoves,
+      recentDecisions: state.turns.slice(-RECENT_DECISION_TURNS).flatMap(turn =>
+        turn.decision ? [{ move: turn.move, plan: turn.decision.plan }] : []),
+    };
+    let move: string | null = null;
+    let decision: AiDecisionSummary | null = null;
     let source: AiMoveSource = "llm";
-
     const llmAllowed = await aiUsageLimiter.tryConsumeLlmTurn(state.uid);
     if (llmAllowed) {
-      try {
-        const stream = streamMoveTurn({
-          persona,
-          fen: state.fen,
-          movesSan: state.moves,
-          botColor,
-          legalMoves,
-          recentThinking: state.turns
-            .slice(-RECENT_THINKING_TURNS)
-            .map((t) => ({ turnIndex: t.turnIndex, thinking: t.thinking })),
-          recentChat: state.chat.slice(-RECENT_CHAT_WINDOW),
-          pendingPlayerChat,
-          isFirstMove: state.moves.length === 0,
-        });
-        for await (const event of stream) {
-          if (event.type === "chat") {
-            paced.enqueue(event.text);
-          } else if (event.type === "think") {
-            thinking += (thinking ? "\n" : "") + event.text;
-          } else {
-            proposedMove = event.san;
-          }
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const remaining = BOT_TURN_HARD_CAP_MS - (Date.now() - turnStart);
+        if (remaining < 500) break;
+        try {
+          const selected = await chooseMoveTurn(params, Math.min(remaining, attempt === 0 ? PRIMARY_REQUEST_MS : 6000), attempt > 0);
+          move = selected.move;
+          decision = selected.decision;
+          source = attempt === 0 ? "llm" : "llm-retry";
+          break;
+        } catch (error) {
+          const info = opponentErrorInfo(error);
+          console.warn("[AiGame] request-failed", JSON.stringify({ model: GEMINI_MODEL, attempt: attempt + 1, ...info }));
+          if (!info.retryable) break;
+          // Retries are real provider calls and consume the same daily allowance.
+          if (attempt === 0 && !(await aiUsageLimiter.tryConsumeLlmTurn(state.uid))) break;
         }
-      } catch (error) {
-        console.warn("[AiGame] Bot turn stream error:", error);
-      }
-    } else {
-      // Daily LLM budget exhausted mid-game: play on silently via the
-      // heuristic. Announce it once, not every turn.
-      const lastTurn = state.turns[state.turns.length - 1];
-      if (!lastTurn || lastTurn.moveSource === "llm" || lastTurn.moveSource === "llm-retry") {
-        paced.enqueue("I'll play on in silence from here.");
       }
     }
-
-    // Move resolution — fallback chain, always ends with a legal move.
-    let move = this.matchLegalMove(proposedMove, legalMoves, state.fen);
-    if (!move && llmAllowed) {
-      move = await retryMoveStructured(
-        state.fen,
-        state.moves,
-        legalMoves,
-        proposedMove,
-      );
-      if (move) source = "llm-retry";
-    }
+    const generationMs = Date.now() - turnStart;
     if (!move) {
       move = this.heuristicMove(chess);
       source = "heuristic";
@@ -317,30 +269,16 @@ export class AiGameService {
       move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
       source = "random";
     }
-    if (source !== "llm") {
-      console.warn("[AiGame] fallback", {
-        gameId,
-        turnIndex: state.moves.length,
-        proposed: proposedMove,
-        source,
-      });
-    }
-
-    // If the LLM produced neither chat nor a usable stream, cover the silence
-    // with a canned in-character filler so the typing pause reads as human.
-    if (llmAllowed && paced.messages().length === 0 && source !== "llm") {
-      paced.enqueue(persona.fallbackFiller);
-    }
-
-    // Human pacing: never move instantly; if the turn overran, stop pacing.
-    const minTurnMs = 3500 + Math.random() * 2500;
-    const elapsed = Date.now() - turnStart;
-    if (elapsed > BOT_TURN_HARD_CAP_MS) {
-      paced.flushNow();
-    } else if (elapsed < minTurnMs) {
-      await sleep(minTurnMs - elapsed);
-    }
-    await paced.whenDrained();
+    const aiNotice = source === "heuristic" || source === "random"
+      ? llmAllowed
+        ? "The AI couldn't choose a move. A simple chess fallback is playing until it recovers."
+        : "Today's AI allowance has been used. A simple chess fallback will finish the game."
+      : null;
+    const waitMs = Math.min(
+      BOT_TURN_HARD_CAP_MS - (Date.now() - turnStart),
+      minimumAiTurnMs(chess, state.moves.length) - generationMs,
+    );
+    if (waitMs > 0) await sleep(waitMs);
 
     return runGameMutation(`ai:${gameId}`, async () => {
       // Reload before saving: player chat may have arrived mid-turn.
@@ -351,15 +289,22 @@ export class AiGameService {
       const applied = chess.move(move) as Move; // legal by construction
       fresh.fen = chess.fen();
       fresh.moves.push(applied.san);
-      fresh.chat.push(...paced.messages());
+      fresh.aiNotice = aiNotice;
       fresh.turns.push({
         turnIndex,
         fenBefore: state.fen,
-        thinking,
-        chatEmitted: paced.messages().map((m) => m.text),
+        // Older deployed frontends can still show the chosen move's summary.
+        thinking: decision ? [
+          decision.summary,
+          ...decision.alternatives.map(alternative => `Alternative ${alternative.move}: ${alternative.reason}`),
+          `Threat: ${decision.threat}`,
+          `Plan: ${decision.plan}`,
+        ].join("\n") : "",
+        ...(decision ? { decision } : {}),
+        chatEmitted: [],
         move: applied.san,
         moveSource: source,
-        llmProposedMove: proposedMove,
+        llmProposedMove: decision ? move : null,
         durationMs: Date.now() - turnStart,
       } satisfies AiTurnRecord);
 
@@ -371,42 +316,23 @@ export class AiGameService {
         turn: this.turnFromFen(fresh.fen),
         moveCount: fresh.moves.length,
         isCheck: chess.isCheck(),
+        aiNotice,
       };
+      console.info("[AiGame] turn-completed", JSON.stringify({
+        model: GEMINI_MODEL, source, generationMs, durationMs: Date.now() - turnStart,
+        hasSummary: decision !== null,
+      }));
 
       const endReason = this.detectGameEnd(chess, fresh);
       if (endReason) {
         const gameOver = await this.finishGame(fresh, endReason, "bot");
-        return { moveData, gameOver };
+        return { moveData, gameOver, pendingChat: false };
       }
 
       fresh.status = "active";
       await aiGameStore.setGame(gameId, fresh);
-      return { moveData, gameOver: null };
+      return { moveData, gameOver: null, pendingChat: fresh.pendingPlayerChat.length > 0 };
     });
-  }
-
-  /** Steps 1–2 of the fallback chain: exact then fuzzy SAN matching. */
-  private matchLegalMove(
-    proposed: string | null,
-    legalMoves: string[],
-    fen: string,
-  ): string | null {
-    if (!proposed) return null;
-    if (legalMoves.includes(proposed)) return proposed;
-
-    const strip = (san: string) => san.replace(/[+#!?]/g, "").toLowerCase();
-    const match = legalMoves.find((m) => strip(m) === strip(proposed));
-    if (match) return match;
-
-    // Last fuzzy attempt: let chess.js parse it leniently (handles LAN etc.)
-    try {
-      const scratch = new Chess(fen);
-      const result = scratch.move(proposed, { strict: false });
-      if (result) return result.san;
-    } catch {
-      // fall through
-    }
-    return null;
   }
 
   /**
@@ -502,7 +428,7 @@ export class AiGameService {
     // In-character goodbye; canned persona line if the LLM call fails.
     const persona = getPersona(state.personaId);
     let farewell: AiChatMessage | null = null;
-    if (persona) {
+    if (persona && state.chat.some(message => message.from === "player")) {
       const summary =
         winner === "bot"
           ? `you won (${endReason.replace(/_/g, " ")})`
@@ -585,15 +511,24 @@ export class AiGameService {
       };
       state.chat.push(message);
       state.pendingPlayerChat.push(text);
+      state.pendingPlayerChat = state.pendingPlayerChat.slice(-10);
       await aiGameStore.setGame(gameId, state);
       return { state, message };
     });
   }
 
+  /** Conversation queued during a bot turn is answered after its move. */
+  async tryGeneratePendingChatReply(gameId: string): Promise<AiChatMessage | null> {
+    const state = await aiGameStore.getGame(gameId);
+    const message = state?.pendingPlayerChat.at(-1);
+    if (!state || !message) return null;
+    return this.tryGenerateChatReply(gameId, state.uid, message);
+  }
+
   /**
    * Chat-only reply while it's the player's turn. Enforces the per-game and
    * rate limits; returns null (message stays queued for the next move turn)
-   * when a reply isn't warranted or the LLM fails.
+   * when a reply is not warranted or the LLM fails.
    */
   async tryGenerateChatReply(
     gameId: string,
@@ -626,7 +561,7 @@ export class AiGameService {
     return runGameMutation(`ai:${gameId}`, async () => {
       // Reload: the pending queue may have moved while the LLM ran.
       const fresh = await aiGameStore.getGame(gameId);
-      if (!fresh || !this.isPlayersTurn(fresh) || fresh.fen !== state.fen) return null;
+      if (!fresh || fresh.uid !== uid || !this.isPlayersTurn(fresh) || fresh.fen !== state.fen) return null;
 
       const message: AiChatMessage = {
         id: crypto.randomUUID(),
@@ -638,7 +573,7 @@ export class AiGameService {
       fresh.chat.push(message);
       // The reply answered this message; don't re-feed it to the next turn.
       const pendingIndex = fresh.pendingPlayerChat.lastIndexOf(playerMessage);
-      if (pendingIndex !== -1) fresh.pendingPlayerChat.splice(pendingIndex, 1);
+      if (pendingIndex !== -1) fresh.pendingPlayerChat.splice(0, pendingIndex + 1);
       await aiGameStore.setGame(gameId, fresh);
       return message;
     });
@@ -680,6 +615,7 @@ export class AiGameService {
         fenBefore: t.fenBefore,
         move: t.move,
         thinking: t.thinking,
+        ...(t.decision ? { decision: t.decision } : {}),
         moveSource: t.moveSource,
       })),
       chat: state.chat,

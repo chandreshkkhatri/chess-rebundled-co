@@ -96,3 +96,69 @@ test('AI game uses the shared notation/speech input and only submits on the conn
     assert.equal(requests.length, 1);
   } finally { runtime.unmount(); f.hookRuntime.unmount(); }
 });
+
+function renderedText(tree) {
+  if (typeof tree === 'string' || typeof tree === 'number') return String(tree);
+  if (Array.isArray(tree)) return tree.map(renderedText).join(' ');
+  return tree?.props ? renderedText(tree.props.children) : '';
+}
+function findButton(tree, label) {
+  if (!tree || typeof tree !== 'object') return;
+  if (tree.type === 'button' && renderedText(tree).includes(label)) return tree;
+  for (const child of [tree.props?.children].flat(Infinity)) {
+    const match = findButton(child, label);
+    if (match) return match;
+  }
+}
+
+test('AI conversation is closed by default and opens only when requested', () => {
+  const f = fixture(), runtime = hookHarness(), panel = () => {};
+  f.useStore.getState().startGame({ gameId: 'expired', playerColor: 'white', fen: new Chess().fen(), persona: { id: 'rook', name: 'Rook' } });
+  const page = loadSource('src/app/play-ai/[gameId]/page.tsx', {
+    ...f.common, react: runtime.react,
+    '@/components/AiChatPanel': { AiChatPanel: panel },
+  }).default;
+  try {
+    let tree = runtime.render(page);
+    assert.equal(find(tree, panel), undefined);
+    const toggle = findButton(tree, 'Open optional conversation');
+    assert.equal(toggle.props['aria-expanded'], false);
+    toggle.props.onClick(); tree = runtime.render(page);
+    assert.ok(find(tree, panel));
+    assert.equal(findButton(tree, 'Close conversation').props['aria-expanded'], true);
+  } finally { runtime.unmount(); f.hookRuntime.unmount(); }
+});
+
+test('fallback status survives reconnect, stays through player moves, and clears on a recovered LLM move', () => {
+  const f = fixture();
+  try {
+    const store = f.useStore.getState();
+    store.resumeGame({ gameId: 'expired', playerColor: 'white', fen: new Chess().fen(), persona: { id: 'rook', name: 'Rook' }, moves: [], turn: 'white', chat: [], status: 'active', botTurnInProgress: false, aiNotice: 'Using a fallback' });
+    assert.equal(f.useStore.getState().aiNotice, 'Using a fallback');
+    store.applyMove({ by: 'player', fen: new Chess().fen(), move: { san: 'e4' }, turn: 'black', isCheck: false });
+    assert.equal(f.useStore.getState().aiNotice, 'Using a fallback');
+    store.applyMove({ by: 'bot', fen: new Chess().fen(), move: { san: 'e5' }, turn: 'white', isCheck: false, aiNotice: null });
+    assert.equal(f.useStore.getState().aiNotice, null);
+  } finally { f.hookRuntime.unmount(); }
+});
+
+test('post-game review renders captured summaries and alternatives and treats an LLM retry as an AI decision', () => {
+  const f = fixture(), runtime = hookHarness();
+  f.useStore.getState().setReviewData({ gameId: 'expired', persona: { name: 'Rook' }, moves: ['e4', 'e5'], chat: [], winner: 'bot', result: '0-1', endReason: 'resignation', playerColor: 'white', turns: [{
+    turnIndex: 1, move: 'e5', moveSource: 'llm-retry', thinking: '',
+    decision: { summary: 'Contest the center.', alternatives: [{ move: 'c5', reason: 'Creates imbalance.' }], threat: 'A broad pawn center.', plan: 'Develop the kingside.' },
+  }] });
+  const page = loadSource('src/app/play-ai/[gameId]/review/page.tsx', {
+    ...f.common, react: runtime.react,
+    '@/hooks/useAiGameSocket': { useAiGameSocket: () => ({ getReview() {} }) },
+  }).default;
+  try {
+    const text = renderedText(runtime.render(page));
+    for (const content of ['Contest the center.', 'c5', 'Creates imbalance.', 'A broad pawn center.', 'Develop the kingside.']) assert.ok(text.includes(content));
+    assert.equal(text.includes('fallback move'), false);
+    f.useStore.getState().setReviewData({ ...f.useStore.getState().reviewData, turns: [{ turnIndex: 1, move: 'e5', moveSource: 'heuristic', thinking: 'Stale notes from a failed request' }] });
+    const fallback = renderedText(runtime.render(page));
+    assert.ok(fallback.includes('No AI decision summary was recorded'));
+    assert.equal(fallback.includes('Stale notes'), false);
+  } finally { runtime.unmount(); f.hookRuntime.unmount(); }
+});

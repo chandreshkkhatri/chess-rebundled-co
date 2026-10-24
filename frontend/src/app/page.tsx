@@ -64,7 +64,7 @@ export default function Home() {
           <div className="text-center mb-8">
             <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-tight mb-4">Chess Rebundled</h1>
             <p className="text-lg text-slate-400">
-              Speak your moves. Practice with great players. Play a conversational AI opponent.
+              Speak your moves. Practice with great players. Explore an AI opponent&apos;s decisions.
             </p>
             {user && (
               <p className="text-slate-400 mt-3">
@@ -101,7 +101,7 @@ export default function Home() {
               <span className="text-3xl text-pink-300" aria-hidden="true">♞</span>
               <h2 className="text-xl font-bold text-white mt-3 mb-2">Play vs AI</h2>
               <p className="text-slate-400 text-sm">
-                Choose an AI personality that talks with you as it plays, then review the game and conversation.
+                Choose an opponent by playing style. Play quietly, then explore its moves, alternatives, and plans after the game.
               </p>
               <p className="text-pink-300 text-sm font-medium mt-4">Choose your opponent →</p>
             </Link>

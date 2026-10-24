@@ -50,6 +50,13 @@ Firestore clients at import time; it is not an optional no-Firebase backend.
 Enable the authentication providers you use in the Firebase project and configure
 its authorized frontend domains.
 
+The AI opponent leaves thinking settings at the model default. Do not add a
+blanket `thinkingBudget: 0`: the deployed Gemini 3 model rejects that setting
+with HTTP 400, causing move and chat failures. Validate a complete structured
+move request when changing models, including its explanation and legal move.
+See [Google's thinking configuration](https://ai.google.dev/gemini-api/docs/thinking)
+and [structured output guide](https://ai.google.dev/gemini-api/docs/structured-output).
+
 ## Gemini and Vertex modes
 
 The backend imports its shared GenAI client during startup. Configure the

@@ -13,6 +13,14 @@ export type AiGameEndReason =
 
 export type AiMoveSource = "llm" | "llm-retry" | "heuristic" | "random";
 
+// Concise final-answer explanation captured with a move, hidden until completion.
+export interface AiDecisionSummary {
+  summary: string;
+  alternatives: { move: string; reason: string }[];
+  threat: string;
+  plan: string;
+}
+
 export interface AiChatMessage {
   id: string;
   from: "player" | "bot";
@@ -44,6 +52,7 @@ export interface AiMoveMadeData {
   turn: "white" | "black";
   moveCount: number;
   isCheck: boolean;
+  aiNotice?: string | null;
 }
 
 export interface AiGameOverData {
@@ -67,6 +76,7 @@ export interface AiGameResumedData {
   chat: AiChatMessage[];
   status: AiGameStatus;
   botTurnInProgress: boolean;
+  aiNotice?: string | null;
   result: "1-0" | "0-1" | "1/2-1/2" | null;
   endReason: AiGameEndReason | null;
   winner: "player" | "bot" | null;
@@ -76,6 +86,7 @@ export interface AiReviewTurn {
   turnIndex: number;
   fenBefore: string;
   move: string;
+  decision?: AiDecisionSummary; // optional for games saved before structured summaries
   thinking: string;
   moveSource: AiMoveSource;
 }
@@ -111,21 +122,21 @@ export const AI_PERSONAS: AiPersonaPublic[] = [
     id: "rook-rodriguez",
     name: "Rook Rodriguez",
     emoji: "🃏",
-    tagline: "Club-night trash talker. Loves a cheap trick.",
+    tagline: "Tricky and adventurous. Looks for quick tactical chances.",
     rating: 900,
   },
   {
     id: "professor-petrova",
     name: "Professor Petrova",
     emoji: "👩‍🏫",
-    tagline: "Calm positional teacher. Explains just enough to worry you.",
+    tagline: "Patient and positional. Values structure and piece activity.",
     rating: 1500,
   },
   {
     id: "blitz-bogdan",
     name: "Blitz Bogdan",
     emoji: "⚡",
-    tagline: "Gambit maniac. Attacks first, counts material later.",
+    tagline: "An attacking risk-taker. Prefers gambits and open lines.",
     rating: 1300,
   },
 ];

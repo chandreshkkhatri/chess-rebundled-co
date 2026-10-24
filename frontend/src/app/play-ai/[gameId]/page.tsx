@@ -19,6 +19,7 @@ export default function PlayAiGamePage() {
   const gameId = params.gameId as string;
 
   const [showResignConfirm, setShowResignConfirm] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
 
   const { submitMove, sendChat, resign, reconnect } = useAiGameSocket();
@@ -35,6 +36,7 @@ export default function PlayAiGamePage() {
     chat,
     botTyping,
     botTurnInProgress,
+    aiNotice,
     result,
     endReason,
     winner,
@@ -172,10 +174,16 @@ export default function PlayAiGamePage() {
             </div>
           )}
 
-          <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-6 items-start">
+          {aiNotice && (
+            <p role="status" className="mb-4 p-3 rounded-lg bg-amber-900/30 text-sm text-amber-200">
+              {aiNotice}
+            </p>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6 items-start">
             {/* Board column — board capped to viewport height so the whole
                 position is always visible without scrolling */}
-            <div className="w-full max-w-[min(100%,calc(100vh-240px))] mx-auto">
+            <div className="w-full min-w-0 max-w-[min(100%,calc(100vh-240px))] mx-auto">
               {/* Status bar */}
               <div className="flex items-center justify-between mb-3">
                 <div className="text-sm text-slate-300 flex items-center gap-2 min-w-0">
@@ -261,15 +269,35 @@ export default function PlayAiGamePage() {
               </div>
             </div>
 
-            {/* Chat column — sticky on desktop so it stays in view */}
-            <AiChatPanel
-              persona={persona}
-              chat={chat}
-              botTyping={botTyping}
-              disabled={isGameOver || !isConnected}
-              onSend={handleSendChat}
-              className="h-[420px] lg:h-[calc(100vh-140px)] lg:max-h-[720px] lg:sticky lg:top-4"
-            />
+            <aside className="min-w-0 space-y-4 lg:sticky lg:top-4">
+              <div className="bg-slate-800 rounded-2xl p-5">
+                <h2 className="font-semibold text-slate-100">
+                  {persona?.emoji} {persona?.name || "AI Opponent"}
+                </h2>
+                <p className="mt-2 text-sm text-slate-400">{persona?.tagline}</p>
+                <p className="mt-4 text-sm text-slate-300">
+                  Play at your own pace. Review your opponent&apos;s move explanations after the game.
+                </p>
+                <button
+                  onClick={() => setChatOpen(open => !open)}
+                  aria-expanded={chatOpen}
+                  aria-controls="ai-conversation"
+                  className="mt-4 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-200"
+                >
+                  {chatOpen ? "Close conversation" : "Open optional conversation"}
+                </button>
+              </div>
+              <div id="ai-conversation" hidden={!chatOpen}>
+                {chatOpen && <AiChatPanel
+                  persona={persona}
+                  chat={chat}
+                  botTyping={botTyping}
+                  disabled={isGameOver || !isConnected}
+                  onSend={handleSendChat}
+                  className="h-[420px] lg:max-h-[60vh]"
+                />}
+              </div>
+            </aside>
           </div>
         </div>
 
@@ -323,7 +351,7 @@ export default function PlayAiGamePage() {
                   onClick={() => router.push(`/play-ai/${gameId}/review`)}
                   className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-lg transition-all"
                 >
-                  See what {persona?.name || "the AI"} was thinking →
+                  Review moves and decisions →
                 </button>
                 <button
                   onClick={() => router.push("/play-ai")}

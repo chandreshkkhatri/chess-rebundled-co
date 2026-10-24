@@ -91,10 +91,13 @@ export default function PlayAiReviewPage() {
         <div className="max-w-6xl mx-auto">
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-white mb-1">
-              Inside {review.persona.name}&apos;s head {review.persona.emoji}
+              Decisions with {review.persona.name} {review.persona.emoji}
             </h1>
             <p className="text-sm text-slate-400">
               {resultText} · {review.result}
+            </p>
+            <p className="mt-2 text-sm text-slate-400">
+              Explanations recorded when each move was chosen. These are AI-generated summaries and may contain chess mistakes.
             </p>
           </div>
 
@@ -166,12 +169,12 @@ export default function PlayAiReviewPage() {
                       <span className="text-sm font-bold text-slate-100">
                         {moveNumber}. {turn.move}
                       </span>
-                      {turn.moveSource !== "llm" && (
+                      {(turn.moveSource === "heuristic" || turn.moveSource === "random") && (
                         <span
                           className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-900/40 text-yellow-400 border border-yellow-800"
-                          title="The AI couldn't settle on a legal move here, so a fallback picked one"
+                          title="A simple chess fallback chose this move while the AI was unavailable"
                         >
-                          improvised
+                          fallback move
                         </span>
                       )}
                     </div>
@@ -199,10 +202,30 @@ export default function PlayAiReviewPage() {
                       </div>
                     )}
 
-                    {turn.thinking ? (
+                    {turn.decision ? (
+                      <div className="space-y-3 text-sm text-slate-300">
+                        <p>{turn.decision.summary}</p>
+                        {turn.decision.alternatives.length > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">Alternatives</p>
+                            {turn.decision.alternatives.map(alternative => (
+                              <p key={alternative.move} className="text-xs mt-1">
+                                <span className="font-semibold">{alternative.move}</span>: {alternative.reason}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-xs"><span className="font-semibold text-slate-400">Threat: </span>{turn.decision.threat}</p>
+                        <p className="text-xs"><span className="font-semibold text-slate-400">Plan: </span>{turn.decision.plan}</p>
+                      </div>
+                    ) : turn.moveSource === "heuristic" || turn.moveSource === "random" ? (
+                      <p className="text-xs text-slate-400">
+                        A simple chess fallback selected this move. No AI decision summary was recorded.
+                      </p>
+                    ) : turn.thinking ? (
                       <div className="bg-slate-900 rounded-lg p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-1">
-                          Private notes
+                          Earlier game notes
                         </div>
                         <p className="text-xs font-mono text-slate-300 whitespace-pre-wrap">
                           {turn.thinking}
@@ -210,7 +233,7 @@ export default function PlayAiReviewPage() {
                       </div>
                     ) : (
                       <p className="text-xs text-slate-500 italic">
-                        (no recorded thinking this turn)
+                        No decision summary was recorded for this move.
                       </p>
                     )}
                   </button>
