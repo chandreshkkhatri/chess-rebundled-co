@@ -121,7 +121,9 @@ The AI game page rejoins its room and reloads authoritative state on reconnect.
 
 [gameRepository.ts](../backend/src/services/gameRepository.ts) seeds five
 historical games only when the MongoDB catalog is empty. Deploying Compose with
-new volumes creates a new catalog; it does not copy a previous database.
+new volumes creates a new catalog; it does not copy a previous database. For
+existing imports, follow the [catalog recovery procedure](DEPLOYMENT.md#recovering-an-existing-playergame-catalog)
+to preserve game IDs and migration history.
 
 For bulk imports, supply a PGN path accessible from the host and review a dry run
 first. The importer does not load dotenv itself; this command explicitly loads

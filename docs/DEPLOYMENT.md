@@ -73,6 +73,39 @@ Run only one backend container. Multiplayer clock timers, queues, and Socket.io
 rooms currently belong to one process; Redis persistence alone does not support
 multiple backend workers.
 
+## Recovering an existing player/game catalog
+
+Do not infer the old database name solely from the current `.env` file. Inspect
+the existing MongoDB server for the actual chess database before importing new
+PGNs or changing connection settings. A connection URI without a database path
+can point at the default database even when an imported catalog lives elsewhere.
+
+For a one-time copy into Compose, keep the source database intact and back up
+both source and destination with `mongodump --archive --gzip`. Restore the source
+archive into uniquely named **staging collections** in the destination database
+using `mongorestore --nsFrom`/`--nsTo`, then check counts, schema, and existing-ID
+conflicts before merging. Preserve BSON `_id` values, as saved history may refer
+to those game IDs. Copy migration records as well as games.
+
+A merge with `whenMatched: "keepExisting"` and `whenNotMatched: "insert"` preserves
+existing records and can be repeated without inserting the same IDs twice.
+Verify every staged record against the result before removing staging. Compare
+canonical Extended JSON values: aggregation may change BSON field order even
+when the data is identical. Never use a database drop or overwrite the current
+catalog as a shortcut. See MongoDB's [namespace restore examples](https://www.mongodb.com/docs/database-tools/mongorestore/mongorestore-examples/).
+
+On `oci-dev-host`, the 2026-10-24 recovery copied the legacy
+`chess-rebundled-local` catalog into Compose's `chess-rebundled` database. The
+legacy source had 28,453 games; retaining the five existing sample records
+produced 28,458 games and 5,907 distinct player names. The original migration
+history and game IDs were preserved. The app continues to use the Compose
+MongoDB volume; no host database connection or new PGN download is required.
+
+Recovery artifacts are outside the checkout at
+`~/backups/chess-rebundled/catalog-20261024_090546/`: the legacy source archive,
+the pre-recovery Compose archive, SHA-256 checksums, and the merge/verification
+script. Ordinary deploys do not touch this directory or the MongoDB volume.
+
 ## Optional frontend deployment
 
 Fill in the `NEXT_PUBLIC_FIREBASE_*` settings in the root `.env`, and set
