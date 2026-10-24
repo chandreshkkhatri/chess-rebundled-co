@@ -2,6 +2,7 @@ name: chess-rebundled
 
 services:
   backend:
+    image: chess-rebundled-backend:production
     build:
       context: .
       dockerfile: backend/Dockerfile

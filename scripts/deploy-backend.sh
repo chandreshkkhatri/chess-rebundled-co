@@ -1,113 +1,62 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Run inside the production checkout, directly or through pnpm deploy:backend.
+# Node.js and pnpm run in the Docker build; the VM only needs Docker/Compose.
+set -Eeuo pipefail
 
-# Chess Rebundled Backend Deployment Script for Oracle Cloud VM
-# Usage: ./scripts/deploy-backend.sh <server-ip> [ssh-key-path] [ssh-user]
-#
-# Example:
-#   ./scripts/deploy-backend.sh 192.168.1.100
-#   ./scripts/deploy-backend.sh 192.168.1.100 ~/.ssh/oracle_key
-#   ./scripts/deploy-backend.sh 192.168.1.100 ~/.ssh/oracle_key opc
-
-set -e
-
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-# Configuration
-SERVER_IP="${1}"
-SSH_KEY="${2:-~/.ssh/id_rsa}"
-SSH_USER="${3:-opc}"  # Oracle Cloud default is 'opc' for Oracle Linux
-REMOTE_DIR="/home/$SSH_USER/chess-rebundled"
-APP_NAME="chess-backend"
-
-# Validate arguments
-if [ -z "$SERVER_IP" ]; then
-    echo -e "${RED}Error: Server IP is required${NC}"
-    echo "Usage: $0 <server-ip> [ssh-key-path] [ssh-user]"
-    echo "  ssh-user defaults to 'opc' (use 'ubuntu' for Ubuntu images)"
-    exit 1
+if (($#)); then
+  printf 'Usage: %s (run in the production checkout on the VM)\n' "$0" >&2
+  exit 2
 fi
+repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_dir"
 
-echo -e "${GREEN}=== Chess Rebundled Backend Deployment ===${NC}"
-echo "Server: $SSH_USER@$SERVER_IP"
-echo "SSH Key: $SSH_KEY"
-echo ""
-
-# Function to run commands on remote server
-run_remote() {
-    ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$SSH_USER@$SERVER_IP" "$1"
+command -v docker >/dev/null || { printf 'Docker Engine is required.\n' >&2; exit 1; }
+docker compose version >/dev/null
+[[ -f backend/.env ]] || {
+  printf 'Configure backend/.env before deploying; see docs/DEPLOYMENT.md.\n' >&2
+  exit 1
 }
 
-# Step 1: Check SSH connection
-echo -e "${YELLOW}[1/7] Testing SSH connection...${NC}"
-if ! run_remote "echo 'SSH connection successful'"; then
-    echo -e "${RED}Failed to connect to server${NC}"
-    exit 1
+# SSH deploys hold this same lock while updating the checkout. Local/manual
+# invocations acquire it here so builds cannot race another release.
+if [[ "${CHESS_DEPLOY_LOCKED:-0}" != 1 ]]; then
+  exec 9> "$(git rev-parse --git-path compose-deploy.lock)"
+  flock -w 1800 9
 fi
 
-# Step 2: Install Node.js if not present
-echo -e "${YELLOW}[2/7] Checking Node.js installation...${NC}"
-if ! run_remote "command -v node &> /dev/null"; then
-    echo "Installing Node.js 20.x..."
-    run_remote "curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs"
-fi
-run_remote "node --version"
-
-# Step 3: Install PM2 if not present
-echo -e "${YELLOW}[3/7] Checking PM2 installation...${NC}"
-if ! run_remote "command -v pm2 &> /dev/null"; then
-    echo "Installing PM2..."
-    run_remote "sudo npm install -g pm2"
+compose=(docker compose --project-directory "$repo_dir" -f "$repo_dir/compose.yaml")
+# This stable local tag must match compose.yaml. No registry push is needed.
+backend_image=chess-rebundled-backend:production
+wait_seconds=180
+"${compose[@]}" config --quiet
+previous_container=$("${compose[@]}" ps --all --quiet backend)
+previous_image=
+if [[ -n "$previous_container" ]]; then
+  previous_image=$(docker inspect --format '{{.Image}}' "$previous_container")
 fi
 
-# Step 4: Create directory and sync files
-echo -e "${YELLOW}[4/7] Syncing backend files...${NC}"
-run_remote "mkdir -p $REMOTE_DIR/backend"
+# Build before replacing the running backend. Installs use the frozen pnpm
+# workspace lockfile inside backend/Dockerfile; no host npm/PM2 is involved.
+"${compose[@]}" build backend
+if "${compose[@]}" up -d --no-build --wait --wait-timeout "$wait_seconds" backend; then
+  "${compose[@]}" ps backend
+  printf 'Production backend is healthy.\n'
+  exit 0
+fi
 
-# Use rsync to copy backend files (excluding node_modules and dist)
-rsync -avz --delete \
-    --exclude 'node_modules' \
-    --exclude 'dist' \
-    -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" \
-    ./backend/ "$SSH_USER@$SERVER_IP:$REMOTE_DIR/backend/"
-
-echo "Files synced successfully"
-
-# Step 5: Install dependencies and build
-echo -e "${YELLOW}[5/7] Installing dependencies and building...${NC}"
-run_remote "cd $REMOTE_DIR/backend && npm install && npm run build"
-
-# Step 6: Configure environment
-echo -e "${YELLOW}[6/7] Configuring environment...${NC}"
-read -p "Enter your frontend URL (e.g., https://your-app.vercel.app): " CLIENT_URL
-CLIENT_URL="${CLIENT_URL:-http://localhost:3000}"
-
-run_remote "if [ ! -f $REMOTE_DIR/backend/.env ]; then echo 'Missing backend/.env after sync'; exit 1; fi"
-run_remote "sed -i '/^CLIENT_URL=/d' $REMOTE_DIR/backend/.env && printf '\nCLIENT_URL=%s\n' '$CLIENT_URL' >> $REMOTE_DIR/backend/.env"
-
-# Step 7: Start/restart with PM2
-echo -e "${YELLOW}[7/7] Starting application with PM2...${NC}"
-run_remote "cd $REMOTE_DIR/backend && pm2 delete $APP_NAME 2>/dev/null || true && pm2 start dist/index.js --name $APP_NAME"
-run_remote "pm2 save"
-
-# Setup PM2 to start on boot (only needs to be done once)
-run_remote "pm2 startup 2>/dev/null | tail -1 | sudo bash || true"
-
-echo ""
-echo -e "${GREEN}=== Deployment Complete ===${NC}"
-echo ""
-echo "Backend is running at: http://$SERVER_IP:3001"
-echo ""
-echo -e "${YELLOW}Important: Make sure port 3001 is open in Oracle Cloud Security List${NC}"
-echo ""
-echo "Useful commands:"
-echo "  View logs:     ssh -i $SSH_KEY $SSH_USER@$SERVER_IP 'pm2 logs $APP_NAME'"
-echo "  Restart:       ssh -i $SSH_KEY $SSH_USER@$SERVER_IP 'pm2 restart $APP_NAME'"
-echo "  Stop:          ssh -i $SSH_KEY $SSH_USER@$SERVER_IP 'pm2 stop $APP_NAME'"
-echo "  Status:        ssh -i $SSH_KEY $SSH_USER@$SERVER_IP 'pm2 status'"
-echo ""
-echo "Set this in your frontend environment:"
-echo "  NEXT_PUBLIC_SOCKET_URL=http://$SERVER_IP:3001"
+printf 'Deployment failed its startup/health checks.\n' >&2
+"${compose[@]}" ps --all backend || true
+if [[ -n "$previous_image" ]]; then
+  printf 'Restoring the previous backend image.\n' >&2
+  if docker image tag "$previous_image" "$backend_image" && \
+      "${compose[@]}" up -d --no-build --no-deps --pull never \
+        --wait --wait-timeout "$wait_seconds" backend; then
+    printf 'Previous backend image is healthy; the deployment remains failed.\n' >&2
+  else
+    printf 'Rollback failed. Inspect docker compose ps and backend logs on the VM.\n' >&2
+  fi
+else
+  printf 'No previous Compose backend image exists to restore.\n' >&2
+fi
+# Never stop the entire stack, remove volumes, or launch the frontend here.
+exit 1

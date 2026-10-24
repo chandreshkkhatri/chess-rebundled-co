@@ -18,7 +18,17 @@ and `CLIENT_URL` to the URL of your existing frontend. Keep the Firebase private
 key quoted, with escaped `\n` characters as in local configuration. Secrets are
 provided to the backend at runtime and excluded from Docker build contexts.
 
-Then build and start the backend stack:
+Then run the deployment helper from the production checkout. The helper builds
+with pnpm inside Docker, waits for health checks, and attempts image rollback
+on a failed update:
+
+```bash
+bash scripts/deploy-backend.sh
+# Equivalent when pnpm is installed on the host:
+pnpm deploy:backend
+```
+
+For a direct Compose invocation without the helper's rollback handling:
 
 ```bash
 docker compose up -d --build --wait backend
@@ -87,7 +97,7 @@ assets, PWA worker, and blog content.
 After updating the checkout, rebuild the backend without starting the frontend:
 
 ```bash
-docker compose up -d --build --wait backend
+bash scripts/deploy-backend.sh
 docker compose logs --tail=100 -f backend
 ```
 
@@ -126,13 +136,88 @@ The image builds use the frozen root pnpm lockfile. Development dependencies are
 used in build stages; the backend runtime copies production dependencies and the
 frontend runtime uses Next.js standalone output.
 
-## Legacy deployment paths
+## Production CI/CD
 
-The root `pnpm deploy:backend` script still invokes
-[deploy-backend.sh](../scripts/deploy-backend.sh), an SSH/PM2 deployment helper.
-The [production](../.github/workflows/deploy-backend.yml) and
-[development](../.github/workflows/deploy-backend-dev.yml) GitHub workflows also
-remain SSH/PM2 paths. They are not Compose commands and have not been migrated
-automatically. The VM setup scripts still refer to Node.js 20 and these older
-paths run npm installs, so do not use them as the current Node.js/pnpm setup
-instructions. Use the Compose procedure above for the new deployment mechanism.
+The single [GitHub workflow](../.github/workflows/deploy-backend.yml) validates
+pull requests into `main`, relevant pushes to `main`, and manual runs. There is
+no development deployment workflow. Manual releases must select `main`; other
+refs can validate but cannot deploy.
+
+The **Validate** job installs the pinned pnpm version and Node.js from `.nvmrc`,
+uses `pnpm install --frozen-lockfile`, runs tests, lint, both TypeScript checks,
+and both package builds, tests the deployment helper, validates Compose, and
+builds the backend Docker image. This job uses no deployment or cloud secrets.
+Frontend compilation is a validation check; it does not deploy the frontend.
+
+The **Deploy production** job runs only after validation succeeds for `main`.
+It uses SSH to update `~/deployments/prod/chess-rebundled-co` to the exact tested
+commit, rather than deploying whichever commit happens to be newest later.
+Push filters include backend/frontend files, root workspace manifests/lockfile,
+Node settings, Docker context/Compose files, and deployment scripts/tests.
+
+Production jobs are serialized and an in-progress deployment is never cancelled
+by a newer deployment. A VM file lock also serializes checkout updates and
+manual helper runs. Pending validation jobs can be replaced by newer commits.
+The workflow declares the GitHub `production` environment; configure any desired
+environment branch restrictions or approval rules in repository settings.
+
+Configure these repository secrets, or secrets on the `production` environment:
+
+| Secret | Value |
+| --- | --- |
+| `HOST` | Production VM hostname or IP, reachable on SSH port 22. |
+| `USERNAME` | VM user owning the production checkout and able to use Docker. |
+| `SSH_KEY` | Private key authorized for that VM user. |
+| `SSH_KNOWN_HOSTS` | Verified SSH host-key record matching `HOST`, for example `api.example.com ssh-ed25519 AAAA...`. Obtain/verify the public host key through the VM console or another trusted channel. |
+
+Host-key checking is strict. SSH credentials are written only to temporary
+runner files with restricted permissions and removed after the step. Runtime
+Firebase/Gemini credentials and database URLs stay in the VM's environment files.
+The VM's Git remote must also have permission to fetch this repository.
+
+For a new VM, install Docker Engine with the Compose plugin, Git, and `flock`,
+and grant the deployment user access to Docker. The
+[Docker Engine installation guide](https://docs.docker.com/engine/install/)
+has OS-specific instructions. Then prepare the checkout:
+
+```bash
+bash scripts/setup-oracle-vm.sh
+```
+
+This clones `main` into the production path if absent and creates missing
+example environment files. It does not install Node/PM2, alter firewall rules,
+start containers, or replace existing configuration. Edit `.env` and
+`backend/.env`, then run the deployment helper on the VM for the first release.
+Host Node.js/pnpm is optional; application installs/builds use the Docker stages.
+
+## Updates, failures, and rollback
+
+The helper uses the stable local image tag `chess-rebundled-backend:production`.
+A build failure leaves the running backend untouched. Startup waits up to 180
+seconds for the backend and database health checks. If startup fails and a prior
+Compose backend container exists, the helper retags its immutable image ID and
+recreates **only the backend** using that image. A recovered deployment still
+returns failure so Actions reports the unsuccessful release. If rollback also
+fails, inspect `docker compose ps --all` and the VM's backend logs.
+
+This rollback restores the application image using the current Compose settings
+and environment files; it does not roll back database contents, config changes,
+or the checkout. A first deployment has no previous image to restore. Deployment
+never runs `down`, deletes volumes, prunes images, or starts the frontend.
+
+## Migrating the previous PM2 production deployment
+
+Before enabling the first Compose release:
+
+1. Back up the existing game database and configure root `.env` overrides to
+   reach that **same database** from inside Docker. The default Compose volumes
+   create a separate catalog; they do not copy the existing player/game data.
+   Keep the existing production Redis endpoint where active sessions must survive.
+2. Preserve Firebase/Gemini credentials and the correct `CLIENT_URL` in
+   `backend/.env`. Confirm `HOST`, `USERNAME`, `SSH_KEY`, and `SSH_KNOWN_HOSTS`.
+3. Stop the old `chess-backend` PM2 process once ready to switch, freeing the
+   backend port, then run `bash scripts/deploy-backend.sh` on the VM. Check health
+   and the existing HTTPS/WebSocket proxy before removing the old PM2 entry.
+
+Migration is an operator step. The workflow does not automatically stop PM2,
+move databases, change DNS/firewalls, or deploy the frontend.

@@ -16,7 +16,8 @@
     "test": "pnpm --filter backend test && pnpm --filter frontend test",
     "lint": "pnpm --filter frontend lint",
     "typecheck": "pnpm --filter backend exec tsc --noEmit && pnpm --filter frontend exec tsc --noEmit --incremental false",
-    "deploy:backend": "./scripts/deploy-backend.sh"
+    "deploy:backend": "./scripts/deploy-backend.sh",
+    "test:deployment": "bash scripts/tests/deploy-backend.test.sh"
   },
   "devDependencies": {
     "concurrently": "^10.0.6"

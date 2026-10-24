@@ -93,15 +93,18 @@ After preparing environment files and credentials as described in the
 [deployment guide](docs/DEPLOYMENT.md):
 
 ```bash
-docker compose up -d --build --wait backend
+bash scripts/deploy-backend.sh
+# Or, with pnpm available on the host: pnpm deploy:backend
 ```
 
 The backend binds to `127.0.0.1:3001` by default, databases have no host ports,
 and named volumes preserve their data. This stack uses its own database unless
 you configure external database URLs in the root `.env`. Use one backend
 container; multiplayer rooms, clocks, and mutation queues are process-local.
-The legacy SSH/PM2 scripts and GitHub deployment workflows are separate paths;
-adding Compose does not migrate an existing deployment.
+GitHub validates pull requests and deploys only production from `main` after
+checks pass, using this same Compose helper. Configure the SSH secrets and
+one-time VM/PM2 migration described in the [deployment guide](docs/DEPLOYMENT.md#production-cicd).
+The helper waits for health checks and attempts backend image rollback on failure.
 
 ## Playing and practicing
 
@@ -136,7 +139,7 @@ Additional PGN imports are available through the backend scripts described in
 frontend/       Next.js application, components, hooks, stores, and browser assets
 backend/        Fastify routes, Socket.io handlers, services, data, and scripts
 docs/           Setup, deployment, feature, architecture, and reliability guides
-scripts/        Legacy VM deployment helpers and ElevenLabs narration utilities
+scripts/        Production Compose deployment/setup, deployment tests, narration utilities
 compose.yaml    Default backend stack and optional frontend profile
 pnpm-lock.yaml  Shared dependency lockfile for the workspace
 ```

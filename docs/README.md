@@ -9,7 +9,7 @@ lockfile define dependency versions; `compose.yaml` defines deployment defaults.
 | [Features](FEATURES.md) | Speech practice, conversational AI, player selection, multiplayer, and progress. |
 | [Architecture](ARCHITECTURE.md) | Application boundaries, storage, HTTP/socket interfaces, and content. |
 | [Configuration](CONFIGURATION.md) | Environment files, Firebase, Gemini, browser URLs, and Compose precedence. |
-| [Deployment](DEPLOYMENT.md) | Default backend-only Compose stack, optional frontend, operations, and legacy paths. |
+| [Deployment](DEPLOYMENT.md) | Production-only CI/CD, backend Compose deployment, optional frontend, health checks, rollback, and PM2 migration. |
 | [Dependencies](DEPENDENCIES.md) | Supported tools, upgrade decisions, installation recovery, and checks. |
 | [Reliability](RELIABILITY.md) | Ownership, reconnection, quotas, game mutations, worker cancellation, and tests. |
 | [Narration script](marketing/NARRATION_SCRIPT.md) | Promotional narration source for the ElevenLabs utility; not a setup guide. |
@@ -18,6 +18,7 @@ lockfile define dependency versions; `compose.yaml` defines deployment defaults.
 
 - Start local development: [README](../README.md#local-development).
 - Deploy only the backend stack: [deployment](DEPLOYMENT.md#backend-deployment-default).
+- Configure production Actions: [deployment](DEPLOYMENT.md#production-cicd).
 - Explicitly include the frontend: [deployment](DEPLOYMENT.md#optional-frontend-deployment).
 - Configure a separate hosted frontend: [configuration](CONFIGURATION.md#backend-urls-and-cors).
 - Recover from a mixed npm/pnpm install: [dependencies](DEPENDENCIES.md#installation-recovery).

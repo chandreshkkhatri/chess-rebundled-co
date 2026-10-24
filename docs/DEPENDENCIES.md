@@ -2,8 +2,8 @@
 
 This is a pnpm workspace with one authoritative `pnpm-lock.yaml` at the repository
 root. Run installs from that root. `packageManager` pins pnpm 10.18.1 for local
-development and Docker builds. The legacy SSH/GitHub deployment paths still use
-npm; they are not the current Compose deployment workflow.
+development, GitHub validation, and Docker builds. Production deployment uses
+Docker Compose with frozen pnpm installs inside the Docker build stages.
 
 Use Node.js 24 LTS (`nvm install` and `nvm use` read `.nvmrc`). Node.js 22.13+ on
 the 22.x line is also supported. See the root manifest's `engines` for the exact
@@ -41,7 +41,8 @@ lockfile and your environment files.
 | `pnpm build` | Builds the frontend with Webpack, then compiles the backend. |
 | `pnpm start` | Starts the compiled backend only. |
 | `pnpm --filter frontend start` | Starts Next.js using the local production build. |
-| `pnpm deploy:backend` | Runs the legacy SSH/PM2 script; it is not a Compose alias. |
+| `pnpm deploy:backend` | Runs the production Compose helper locally on the VM; waits for health and attempts image rollback on failure. |
+| `pnpm test:deployment` | Tests release/rollback behavior with a fake Docker executable; starts no containers. |
 
 Use `pnpm --filter frontend ...` or `pnpm --filter backend ...` to target a
 workspace. `pnpm -w` selects the root; it does not select a workspace by name.

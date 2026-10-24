@@ -44,9 +44,9 @@ opt-in through the `frontend` profile. Use one backend process; multiplayer's
 rooms, clocks, queues, and matchmaking are not distributed.
 
 ```bash
-docker compose up -d --build --wait backend
+bash scripts/deploy-backend.sh
 ```
 
 See [deployment](docs/DEPLOYMENT.md) before running deployment commands. The
-existing SSH/PM2 scripts and GitHub workflows are separate legacy paths, not
-aliases for this Compose deployment.
+production-only GitHub workflow validates with pnpm, then deploys the tested
+`main` commit through the same Compose helper. Frontend deployment remains opt-in.
