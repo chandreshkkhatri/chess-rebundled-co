@@ -16,6 +16,7 @@ import { LiveGamificationBadge } from '@/components/LiveGamificationBadge';
 import { AchievementToastContainer } from '@/components/AchievementToast';
 import { useAppConfig } from '@/hooks/useAppConfig';
 import { useStockfish } from '@/hooks/useStockfish';
+import { evaluatePracticeMove } from '@/lib/practiceEvaluation';
 import { Chess } from 'chess.js';
 
 // Debug flag - matches PracticeVoiceInput
@@ -129,63 +130,24 @@ export default function PracticeGamePage() {
   );
 
   useEffect(() => {
-    if (lastMoveResult && !lastMoveResult.isCorrect && isStockfishReady) {
-      const { expectedMove, submittedMove } = lastMoveResult;
-      
-      const analyze = async () => {
-        setIsEvaluatingWrongMove(true);
-        setWrongMoveEvaluation(null);
-        try {
-          // 1. Play expected move
-          const chessExpected = new Chess(currentPosition);
-          try {
-            chessExpected.move(expectedMove);
-          } catch {}
-          const expectedFen = chessExpected.fen();
-          
-          // 2. Play submitted move
-          const chessSubmitted = new Chess(currentPosition);
-          try {
-            chessSubmitted.move(submittedMove);
-          } catch {}
-          const submittedFen = chessSubmitted.fen();
-          
-          // 3. Evaluate both
-          const expectedScore = await evaluatePosition(expectedFen, 10);
-          const submittedScore = await evaluatePosition(submittedFen, 10);
-          
-          // 4. Calculate centipawn loss (from perspective of side to move)
-          const sideToMove = currentPosition.split(' ')[1];
-          const loss = sideToMove === 'w' 
-            ? expectedScore - submittedScore 
-            : submittedScore - expectedScore;
-            
-          // 5. Classify
-          let classification = '';
-          if (loss >= 150) {
-            classification = `Blunder (-${(loss / 100).toFixed(2)})`;
-          } else if (loss >= 50) {
-            classification = `Mistake (-${(loss / 100).toFixed(2)})`;
-          } else if (loss >= 20) {
-            classification = `Inaccuracy (-${(loss / 100).toFixed(2)})`;
-          } else {
-            classification = 'Playable alternative';
-          }
-          
-          setWrongMoveEvaluation(classification);
-        } catch (err) {
-          console.error('[Stockfish Eval] Error evaluating wrong move:', err);
-        } finally {
-          setIsEvaluatingWrongMove(false);
-        }
-      };
-      
-      analyze();
-    } else {
-      setWrongMoveEvaluation(null);
-      setIsEvaluatingWrongMove(false);
-    }
-  }, [lastMoveResult, isStockfishReady, currentPosition, evaluatePosition]);
+    setWrongMoveEvaluation(null);
+    setIsEvaluatingWrongMove(false);
+    if (!lastMoveResult || lastMoveResult.isCorrect || !isStockfishReady || !selectedGame) return;
+
+    const controller = new AbortController();
+    setIsEvaluatingWrongMove(true);
+    void evaluatePracticeMove(selectedGame.moves, lastMoveResult, evaluatePosition, controller.signal)
+      .then(classification => {
+        if (!controller.signal.aborted) setWrongMoveEvaluation(classification);
+      })
+      .catch(error => {
+        if (!controller.signal.aborted) console.error('[Stockfish Eval] Analysis failed:', error);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsEvaluatingWrongMove(false);
+      });
+    return () => controller.abort();
+  }, [lastMoveResult, isStockfishReady, selectedGame, evaluatePosition]);
 
   const handleAbandon = useCallback(() => {
     if (window.confirm('Abandon this practice session? Your progress will be lost.')) {

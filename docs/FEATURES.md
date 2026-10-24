@@ -28,6 +28,11 @@ bot, and multiplayer moves. Frontend regressions cover AI reconnection and guest
 credential persistence. Tests use local stores and mocked cloud operations.
 See [README.md](../README.md) for environment and service setup.
 
+See [Gameplay reliability](RELIABILITY.md) for socket validation and parsing
+quotas, serialized multiplayer updates and clock expiry, queued/cancellable
+Stockfish requests, corrected practice grading, profile data, and regression
+coverage. Multiplayer currently requires one backend process.
+
 ---
 
 ## 🎙️ 1. Voice & Waveform UX

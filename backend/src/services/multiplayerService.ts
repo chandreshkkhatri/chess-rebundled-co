@@ -1,5 +1,6 @@
 import { Chess } from 'chess.js';
 import { chessFromHistory } from '../lib/chessHistory.js';
+import { runGameMutation } from '../lib/gameMutationQueue.js';
 import { Server } from 'socket.io';
 import { ClientToServerEvents, ServerToClientEvents } from '../types/index.js';
 import {
@@ -85,6 +86,15 @@ export class MultiplayerService {
     joinerName: string,
     joinerSocketId: string
   ): Promise<{ game: MultiplayerGameState; creatorColor: 'white' | 'black' } | null> {
+    return runGameMutation(gameId, () => this.joinGameLocked(gameId, joinerUid, joinerName, joinerSocketId));
+  }
+
+  private async joinGameLocked(
+    gameId: string,
+    joinerUid: string,
+    joinerName: string,
+    joinerSocketId: string
+  ): Promise<{ game: MultiplayerGameState; creatorColor: 'white' | 'black' } | null> {
     const game = await multiplayerStore.getGame(gameId);
     if (!game || game.status !== 'waiting') return null;
 
@@ -156,6 +166,25 @@ export class MultiplayerService {
     blackTimeMs?: number;
     error?: string;
   }> {
+    return runGameMutation(gameId, () => this.processMoveLocked(gameId, uid, moveSan));
+  }
+
+  private async processMoveLocked(
+    gameId: string,
+    uid: string,
+    moveSan: string
+  ): Promise<{
+    success: boolean;
+    move?: { san: string; from: string; to: string };
+    fen?: string;
+    turn?: 'white' | 'black';
+    moveCount?: number;
+    isCheck?: boolean;
+    gameOver?: { result: '1-0' | '0-1' | '1/2-1/2'; reason: GameEndReason; winner: 'white' | 'black' | null };
+    whiteTimeMs?: number;
+    blackTimeMs?: number;
+    error?: string;
+  }> {
     const game = await multiplayerStore.getGame(gameId);
     if (!game || game.status !== 'active') {
       return { success: false, error: 'Game not active' };
@@ -168,6 +197,10 @@ export class MultiplayerService {
     }
     if (game.turn !== playerColor) {
       return { success: false, error: 'Not your turn' };
+    }
+
+    if (await this.chargeClock(game)) {
+      return { success: false, error: 'Time expired' };
     }
 
     // Validate and apply the move
@@ -199,13 +232,10 @@ export class MultiplayerService {
     game.lastMove = { from: moveResult.from, to: moveResult.to, san: moveResult.san };
     game.drawOfferedBy = null; // Clear any draw offer on a new move
 
-    // Apply time increment to the player who just moved
+    // The clock was charged before move validation, including expiry checks.
     if (game.timeControl) {
-      const now = Date.now();
-      const elapsed = now - game.lastTickAt;
       const mover = playerColor === 'white' ? game.white : game.black;
-      mover.timeRemainingMs = Math.max(0, mover.timeRemainingMs - elapsed + game.timeControl.incrementMs);
-      game.lastTickAt = now;
+      mover.timeRemainingMs += game.timeControl.incrementMs;
     }
 
     // Check for game-ending conditions
@@ -251,11 +281,17 @@ export class MultiplayerService {
   }
 
   async resign(gameId: string, uid: string): Promise<MultiplayerGameOverData | null> {
+    return runGameMutation(gameId, () => this.resignLocked(gameId, uid));
+  }
+
+  private async resignLocked(gameId: string, uid: string): Promise<MultiplayerGameOverData | null> {
     const game = await multiplayerStore.getGame(gameId);
     if (!game || game.status !== 'active') return null;
 
     const playerColor = this.getPlayerColor(game, uid);
     if (!playerColor) return null;
+
+    if (await this.chargeClock(game)) return null;
 
     const winner = playerColor === 'white' ? 'black' : 'white';
     game.status = 'completed';
@@ -270,11 +306,17 @@ export class MultiplayerService {
   }
 
   async offerDraw(gameId: string, uid: string): Promise<'white' | 'black' | null> {
+    return runGameMutation(gameId, () => this.offerDrawLocked(gameId, uid));
+  }
+
+  private async offerDrawLocked(gameId: string, uid: string): Promise<'white' | 'black' | null> {
     const game = await multiplayerStore.getGame(gameId);
     if (!game || game.status !== 'active') return null;
 
     const playerColor = this.getPlayerColor(game, uid);
     if (!playerColor) return null;
+
+    if (await this.chargeClock(game)) return null;
 
     game.drawOfferedBy = playerColor;
     await multiplayerStore.setGame(gameId, game);
@@ -282,11 +324,17 @@ export class MultiplayerService {
   }
 
   async respondToDraw(gameId: string, uid: string, accept: boolean): Promise<MultiplayerGameOverData | null> {
+    return runGameMutation(gameId, () => this.respondToDrawLocked(gameId, uid, accept));
+  }
+
+  private async respondToDrawLocked(gameId: string, uid: string, accept: boolean): Promise<MultiplayerGameOverData | null> {
     const game = await multiplayerStore.getGame(gameId);
     if (!game || game.status !== 'active' || !game.drawOfferedBy) return null;
 
     const playerColor = this.getPlayerColor(game, uid);
     if (!playerColor || playerColor === game.drawOfferedBy) return null; // Can't accept own draw offer
+
+    if (await this.chargeClock(game)) return null;
 
     if (!accept) {
       game.drawOfferedBy = null;
@@ -307,32 +355,47 @@ export class MultiplayerService {
   }
 
   async handlePlayerDisconnect(gameId: string, uid: string): Promise<void> {
+    return runGameMutation(gameId, () => this.handlePlayerDisconnectLocked(gameId, uid));
+  }
+
+  private async handlePlayerDisconnectLocked(gameId: string, uid: string): Promise<void> {
     const game = await multiplayerStore.getGame(gameId);
     if (!game || game.status === 'completed') return;
 
-    const player = game.white.uid === uid ? game.white : game.black;
+    const playerColor = this.getPlayerColor(game, uid);
+    if (!playerColor || await this.chargeClock(game)) return;
+    const player = playerColor === 'white' ? game.white : game.black;
     player.connected = false;
     player.socketId = null;
 
     if (game.status === 'active') {
       game.status = 'paused';
+      this.stopClock(gameId);
       await multiplayerStore.setGame(gameId, game);
 
       // Start abandonment timer
-      const timer = setTimeout(async () => {
+      const timer = setTimeout(() => {
         this.disconnectTimers.delete(gameId);
-        await this.handleAbandonment(gameId, uid);
+        void this.handleAbandonment(gameId, uid).catch(error => console.error('[Multiplayer] Abandonment failed:', error));
       }, DISCONNECT_GRACE_PERIOD_MS);
       this.disconnectTimers.set(gameId, timer);
     } else if (game.status === 'waiting') {
       // Waiting game - just clean up
-      await this.cleanupGame(gameId);
+      await this.cleanupGameLocked(gameId);
     } else {
       await multiplayerStore.setGame(gameId, game);
     }
   }
 
   async handlePlayerReconnect(
+    gameId: string,
+    uid: string,
+    newSocketId: string
+  ): Promise<MultiplayerGameResumedData | null> {
+    return runGameMutation(gameId, () => this.handlePlayerReconnectLocked(gameId, uid, newSocketId));
+  }
+
+  private async handlePlayerReconnectLocked(
     gameId: string,
     uid: string,
     newSocketId: string
@@ -399,6 +462,10 @@ export class MultiplayerService {
   }
 
   async cleanupGame(gameId: string): Promise<void> {
+    return runGameMutation(gameId, () => this.cleanupGameLocked(gameId));
+  }
+
+  private async cleanupGameLocked(gameId: string): Promise<void> {
     const game = await multiplayerStore.getGame(gameId);
     if (game) {
       await multiplayerStore.deleteUidMapping(game.white.uid);
@@ -423,8 +490,8 @@ export class MultiplayerService {
   private startClock(gameId: string): void {
     this.stopClock(gameId); // Clear any existing interval
 
-    const interval = setInterval(async () => {
-      await this.tickClock(gameId);
+    const interval = setInterval(() => {
+      void this.tickClock(gameId).catch(error => console.error('[Multiplayer] Clock update failed:', error));
     }, 1000);
 
     this.clockIntervals.set(gameId, interval);
@@ -439,37 +506,17 @@ export class MultiplayerService {
   }
 
   private async tickClock(gameId: string): Promise<void> {
+    return runGameMutation(gameId, () => this.tickClockLocked(gameId));
+  }
+
+  private async tickClockLocked(gameId: string): Promise<void> {
     const game = await multiplayerStore.getGame(gameId);
     if (!game || game.status !== 'active') {
       this.stopClock(gameId);
       return;
     }
 
-    const now = Date.now();
-    const elapsed = now - game.lastTickAt;
-    game.lastTickAt = now;
-
-    // Decrement the active player's time
-    const activePlayer = game.turn === 'white' ? game.white : game.black;
-    activePlayer.timeRemainingMs = Math.max(0, activePlayer.timeRemainingMs - elapsed);
-
-    // Check for timeout
-    if (activePlayer.timeRemainingMs <= 0) {
-      const winner = game.turn === 'white' ? 'black' : 'white';
-      game.status = 'completed';
-      game.result = winner === 'white' ? '1-0' : '0-1';
-      game.endReason = 'timeout';
-      game.winner = winner;
-
-      this.stopClock(gameId);
-      await multiplayerStore.setGame(gameId, game);
-
-      // Broadcast game over
-      const gameOverData = this.buildGameOverData(game);
-      this.io.to(`mp:${gameId}`).emit('mp-game-over', gameOverData);
-      return;
-    }
-
+    if (await this.chargeClock(game)) return;
     await multiplayerStore.setGame(gameId, game);
 
     // Broadcast clock update
@@ -479,12 +526,37 @@ export class MultiplayerService {
     });
   }
 
+  private async chargeClock(game: MultiplayerGameState): Promise<boolean> {
+    if (!game.timeControl || game.status !== 'active') return false;
+    const now = Date.now();
+    const elapsed = Math.max(0, now - game.lastTickAt);
+    game.lastTickAt = now;
+    const active = game.turn === 'white' ? game.white : game.black;
+    active.timeRemainingMs = Math.max(0, active.timeRemainingMs - elapsed);
+    if (active.timeRemainingMs > 0) return false;
+
+    game.status = 'completed';
+    game.winner = game.turn === 'white' ? 'black' : 'white';
+    game.result = game.winner === 'white' ? '1-0' : '0-1';
+    game.endReason = 'timeout';
+    this.stopClock(game.id);
+    await multiplayerStore.setGame(game.id, game);
+    this.io.to(`mp:${game.id}`).emit('mp-game-over', this.buildGameOverData(game));
+    return true;
+  }
+
   private async handleAbandonment(gameId: string, disconnectedUid: string): Promise<void> {
+    return runGameMutation(gameId, () => this.handleAbandonmentLocked(gameId, disconnectedUid));
+  }
+
+  private async handleAbandonmentLocked(gameId: string, disconnectedUid: string): Promise<void> {
     const game = await multiplayerStore.getGame(gameId);
     if (!game || game.status === 'completed') return;
 
     const playerColor = this.getPlayerColor(game, disconnectedUid);
     if (!playerColor) return;
+    const disconnected = playerColor === 'white' ? game.white : game.black;
+    if (disconnected.connected) return;
 
     const winner = playerColor === 'white' ? 'black' : 'white';
     game.status = 'completed';

@@ -105,6 +105,12 @@ MongoDB, Redis, Firebase, or Gemini. Live integration testing requires the servi
 and credentials above. Production also needs the frontend running with
 `pnpm --filter frontend start`; the root `pnpm start` command starts the backend.
 
+See [Gameplay reliability](docs/RELIABILITY.md) for the request limits, engine
+cancellation behavior, and manual checks. Multiplayer uses one backend process
+for its game queues, clocks, and Socket.io rooms; Redis persistence alone does
+not support multiple backend workers. Stop the development server before running
+a production build because both use the same `.next` directory.
+
 ## Tech Stack
 
 - **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS, Zustand

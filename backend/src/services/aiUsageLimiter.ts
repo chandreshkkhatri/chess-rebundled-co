@@ -9,8 +9,9 @@ const COUNTER_TTL = 26 * 60 * 60; // seconds; outlives the UTC day it tracks
 
 export const DAILY_GAME_LIMIT = 10;
 export const DAILY_LLM_TURN_LIMIT = 400;
+export const DAILY_PARSE_LIMIT = 1000;
 
-type CounterKind = "games" | "turns";
+type CounterKind = "games" | "turns" | "parses";
 
 function counterKey(kind: CounterKind, uid: string): string {
   const day = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
@@ -18,7 +19,7 @@ function counterKey(kind: CounterKind, uid: string): string {
 }
 
 export class AiUsageLimiter {
-  private memoryCounters: Map<string, number> = new Map();
+  private memoryCounters: Map<string, { count: number; expiresAt: number }> = new Map();
 
   private async increment(kind: CounterKind, uid: string): Promise<number> {
     const key = counterKey(kind, uid);
@@ -26,19 +27,23 @@ export class AiUsageLimiter {
 
     if (redis && isRedisAvailable()) {
       try {
-        const count = await redis.incr(key);
-        if (count === 1) {
-          await redis.expire(key, COUNTER_TTL);
-        }
-        return count;
+        return Number(await redis.eval(
+          'local n = redis.call("INCR", KEYS[1]); if n == 1 then redis.call("EXPIRE", KEYS[1], ARGV[1]); end; return n',
+          1, key, COUNTER_TTL,
+        ));
       } catch (error) {
         console.error("[AiUsageLimiter] Error incrementing counter:", error);
-        return 0; // fail open — a broken limiter shouldn't block play
+        return Number.POSITIVE_INFINITY;
       }
     }
 
-    const count = (this.memoryCounters.get(key) || 0) + 1;
-    this.memoryCounters.set(key, count);
+    const now = Date.now();
+    for (const [storedKey, entry] of this.memoryCounters) {
+      if (entry.expiresAt <= now) this.memoryCounters.delete(storedKey);
+    }
+    const previous = this.memoryCounters.get(key);
+    const count = (previous?.count || 0) + 1;
+    this.memoryCounters.set(key, { count, expiresAt: previous?.expiresAt ?? now + COUNTER_TTL * 1000 });
     return count;
   }
 
@@ -56,7 +61,7 @@ export class AiUsageLimiter {
       }
     }
 
-    return this.memoryCounters.get(key) || 0;
+    return this.memoryCounters.get(key)?.count || 0;
   }
 
   /** Returns true if the user may start another game today (and counts it). */
@@ -71,6 +76,11 @@ export class AiUsageLimiter {
       return false;
     }
     return (await this.increment("turns", uid)) <= DAILY_LLM_TURN_LIMIT;
+  }
+
+  /** Shared across practice/multiplayer and reconnects, including guest IPs. */
+  async tryConsumeParse(identity: string): Promise<boolean> {
+    return (await this.increment('parses', identity)) <= DAILY_PARSE_LIMIT;
   }
 }
 

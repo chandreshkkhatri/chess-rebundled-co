@@ -19,6 +19,8 @@ import {
 } from "../services/gameRepository.js";
 import crypto from "crypto";
 import { ownsPracticeSession } from "../lib/practiceOwnership.js";
+import { guardSocketRequest, hasText, isRecord, validAudioParse, validPracticeOptions, validTextParse } from "../lib/socketRequest.js";
+import { aiUsageLimiter } from "../services/aiUsageLimiter.js";
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 
@@ -123,40 +125,35 @@ export class GameHandler {
   }
 
   register(socket: GameSocket): void {
-    // Practice mode events
-    socket.on("start-practice", (data) =>
-      this.handleStartPractice(socket, data),
-    );
-    socket.on("start-practice-random", (data) =>
-      this.handleStartPracticeRandom(socket, data),
-    );
-    socket.on("start-practice-by-player", (data) =>
-      this.handleStartPracticeByPlayer(socket, data),
-    );
-    socket.on("get-random-practice-game", () =>
-      this.handleGetRandomPracticeGame(socket),
-    );
-    socket.on("get-player-practice-game", (data) =>
-      this.handleGetPlayerPracticeGame(socket, data),
-    );
-    socket.on("get-player-list", () => this.handleGetPlayerList(socket));
-    socket.on("submit-practice-move", (data) =>
-      this.handleSubmitPracticeMove(socket, data),
-    );
-    socket.on("abandon-practice", (data) =>
-      this.handleAbandonPractice(socket, data),
-    );
-    socket.on("resume-session", (data) =>
-      this.handleResumeSession(socket, data),
-    );
-    socket.on("parse-move-with-ai", (data) =>
-      this.handleParseMoveWithAI(socket, data),
-    );
-    socket.on("parse-audio-move-with-gemini", (data) =>
-      this.handleParseAudioMoveWithGemini(socket, data),
-    );
+    const guard = <T>(handler: (data: T) => void | Promise<void>, valid: (data: unknown) => boolean,
+      event: 'practice-error' | 'parse-error' | 'audio-parse-error' = 'practice-error') =>
+      guardSocketRequest(handler, valid, message => socket.emit(event, { message }));
+    const session = (data: unknown) => hasText(data, 'sessionId');
+    const player = (data: unknown) => hasText(data, 'historicalPlayerName') && isRecord(data) &&
+      (data.role === 'white' || data.role === 'black');
 
-    socket.on("disconnect", () => this.handleDisconnect(socket));
+    socket.on('start-practice', guard(this.handleStartPractice.bind(this, socket), validPracticeOptions));
+    socket.on('start-practice-random', guard(this.handleStartPracticeRandom.bind(this, socket), validPracticeOptions));
+    socket.on('start-practice-by-player', guard(this.handleStartPracticeByPlayer.bind(this, socket),
+      data => validPracticeOptions(data) && player(data)));
+    socket.on('get-random-practice-game', guard(() => this.handleGetRandomPracticeGame(socket), () => true));
+    socket.on('get-player-practice-game', guard(this.handleGetPlayerPracticeGame.bind(this, socket), player));
+    socket.on('get-player-list', guard(() => this.handleGetPlayerList(socket), () => true));
+    socket.on('submit-practice-move', guard(this.handleSubmitPracticeMove.bind(this, socket),
+      data => session(data) && hasText(data, 'move', 100)));
+    socket.on('abandon-practice', guard(this.handleAbandonPractice.bind(this, socket), session));
+    socket.on('resume-session', guard(this.handleResumeSession.bind(this, socket), session));
+    socket.on('parse-move-with-ai', guard(this.handleParseMoveWithAI.bind(this, socket),
+      data => session(data) && validTextParse(data), 'parse-error'));
+    socket.on('parse-audio-move-with-gemini', guard(this.handleParseAudioMoveWithGemini.bind(this, socket),
+      data => session(data) && validAudioParse(data), 'audio-parse-error'));
+    socket.on('disconnect', guard(() => this.handleDisconnect(socket), () => true));
+  }
+
+  private async allowParsing(socket: GameSocket): Promise<boolean> {
+    const identity = socket.data.uid ? `user:${socket.data.uid}` :
+      `guest-ip:${crypto.createHash('sha256').update(socket.handshake.address || 'unknown').digest('hex')}`;
+    return aiUsageLimiter.tryConsumeParse(identity);
   }
 
   private async handleDisconnect(socket: GameSocket): Promise<void> {
@@ -540,7 +537,10 @@ export class GameHandler {
       let parsed = this.getCachedAIParse(transcriptForAI, currentFen);
 
       if (!parsed) {
-        // Cache miss - call AI
+        if (!(await this.allowParsing(socket))) {
+          socket.emit('parse-error', { message: 'Daily voice parsing limit reached. Please type your move.' });
+          return;
+        }
         const confusionMap = await this.getUserConfusionMap(socket.data.uid);
         parsed = await parseChessMoveWithAI(
           transcriptForAI,
@@ -591,6 +591,10 @@ export class GameHandler {
     const legalMoves = await this.practiceService.getLegalMoves(data.sessionId);
 
     try {
+      if (!(await this.allowParsing(socket))) {
+        socket.emit('audio-parse-error', { message: 'Daily voice parsing limit reached. Please type your move.' });
+        return;
+      }
       const confusionMap = await this.getUserConfusionMap(socket.data.uid);
       const parsed = await parseChessMoveFromAudio(
         data.audioBase64,

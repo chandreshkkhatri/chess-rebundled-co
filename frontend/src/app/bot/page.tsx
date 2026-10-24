@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Chess } from 'chess.js';
 import { ChessBoard } from '@/components/ChessBoard';
@@ -15,8 +15,10 @@ function BotPlayContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  const difficulty = (searchParams.get('difficulty') || 'easy') as BotDifficulty;
-  const playerColor = (searchParams.get('color') || 'white') as 'white' | 'black';
+  const requestedDifficulty = searchParams.get('difficulty') || 'easy';
+  const difficulty: BotDifficulty = Object.hasOwn(DIFFICULTY_MAP, requestedDifficulty)
+    ? requestedDifficulty as BotDifficulty : 'easy';
+  const playerColor = searchParams.get('color') === 'black' ? 'black' : 'white';
 
   const [chess] = useState(new Chess());
   const [fen, setFen] = useState(chess.fen());
@@ -50,7 +52,8 @@ function BotPlayContent() {
   }, [chess]);
 
   const makeHumanMove = useCallback((moveSanOrLan: string) => {
-    if (isGameOver || moveState === 'bot-thinking') return false;
+    const humanTurn = chess.turn() === (playerColor === 'white' ? 'w' : 'b');
+    if (!humanTurn || isGameOver || moveState === 'bot-thinking') return false;
     
     try {
       const moveResult = chess.move(moveSanOrLan, { strict: false });
@@ -66,48 +69,37 @@ function BotPlayContent() {
       console.warn("Invalid human move:", moveSanOrLan);
     }
     return false;
-  }, [chess, isGameOver, moveState, checkGameOver]);
-
-  const makeBotMove = useCallback(async () => {
-    try {
-      setMoveState('bot-thinking');
-      const bestMoveSanOrLan = await findBestMove(chess.fen(), difficulty);
-      
-      const moveResult = chess.move(bestMoveSanOrLan, { strict: false });
-      if (moveResult) {
-        setFen(chess.fen());
-        setMoves(prev => [...prev, moveResult.san]);
-        if (!checkGameOver()) {
-          setMoveState('human-thinking');
-        }
-      }
-    } catch (error) {
-      console.error("Bot failed to generate move:", error);
-      setMoveState('idle');
-    }
-  }, [chess, difficulty, findBestMove, checkGameOver]);
+  }, [chess, playerColor, isGameOver, moveState, checkGameOver]);
 
   // Handle bot's turn
   useEffect(() => {
-    if (!isReady || isGameOver) return;
-    
-    const isBotTurn = (chess.turn() === 'w' && playerColor === 'black') || 
-                      (chess.turn() === 'b' && playerColor === 'white');
-                      
-    if (isBotTurn && moveState !== 'bot-thinking') {
-      makeBotMove();
-    }
-  }, [isReady, fen, playerColor, isGameOver, moveState, makeBotMove, chess]);
+    if (!isReady || isGameOver || chess.turn() === (playerColor === 'white' ? 'w' : 'b')) return;
+
+    const controller = new AbortController();
+    setMoveState('bot-thinking');
+    void (async () => {
+      try {
+        const bestMove = await findBestMove(fen, difficulty, controller.signal);
+        if (controller.signal.aborted || chess.fen() !== fen) return;
+        const move = chess.move(bestMove, { strict: false });
+        setFen(chess.fen());
+        setMoves(previous => [...previous, move.san]);
+        if (!checkGameOver()) setMoveState('human-thinking');
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error('Bot failed to generate move:', error);
+          setMoveState('idle');
+        }
+      }
+    })();
+    return () => controller.abort();
+  }, [isReady, fen, playerColor, isGameOver, findBestMove, difficulty, checkGameOver, chess]);
 
   // Handle piece drop (manual drag)
   const onPieceDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
-    let promotion = piece[1]?.toLowerCase();
     const isPawn = piece[1]?.toLowerCase() === 'p';
     const isEndRank = targetSquare[1] === '1' || targetSquare[1] === '8';
-    
-    if (isPawn && isEndRank && !promotion) {
-       promotion = 'q';
-    }
+    const promotion = isPawn && isEndRank ? 'q' : '';
 
     const moveString = `${sourceSquare}${targetSquare}${promotion ? promotion : ''}`;
     return makeHumanMove(moveString);

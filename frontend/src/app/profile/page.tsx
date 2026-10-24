@@ -41,6 +41,10 @@ export default function ProfilePage() {
   const [nameError, setNameError] = useState<string | null>(null);
   const [equippedBadge, setEquippedBadge] = useState<{ id: string; name: string; emoji: string } | null>(null);
 
+  useEffect(() => {
+    if (!isLoading && !user) router.replace('/login?redirect=%2Fprofile');
+  }, [isLoading, user, router]);
+
   // Load user equipped badge
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -171,7 +175,7 @@ export default function ProfilePage() {
     }
   };
 
-  if (isLoading || loadingProfile) {
+  if (isLoading || !user || loadingProfile) {
     return (
       <PageLayout>
         <div className="px-4 py-8">
@@ -185,11 +189,6 @@ export default function ProfilePage() {
         </div>
       </PageLayout>
     );
-  }
-
-  if (!user) {
-    router.replace('/login?redirect=%2Fprofile');
-    return null;
   }
 
   return (

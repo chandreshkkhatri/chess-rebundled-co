@@ -11,6 +11,8 @@ import { TimeControl } from "../types/multiplayer.js";
 import { WaitingPlayer } from "../services/matchmakingService.js";
 import { getVoiceCalibration } from "../services/firestoreService.js";
 import crypto from "crypto";
+import { guardSocketRequest, hasText, isRecord, validAudioParse, validTextParse, validTimeControl } from "../lib/socketRequest.js";
+import { aiUsageLimiter } from "../services/aiUsageLimiter.js";
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 
@@ -50,35 +52,27 @@ export class MultiplayerHandler {
   }
 
   register(socket: GameSocket): void {
-    // Matchmaking
-    socket.on("mp-find-game", (data) => this.handleFindGame(socket, data));
-    socket.on("mp-cancel-find", () => this.handleCancelFind(socket));
-    socket.on("mp-create-invite", (data) =>
-      this.handleCreateInvite(socket, data),
-    );
-    socket.on("mp-join-invite", (data) => this.handleJoinInvite(socket, data));
-
-    // Gameplay
-    socket.on("mp-submit-move", (data) => this.handleSubmitMove(socket, data));
-    socket.on("mp-resign", (data) => this.handleResign(socket, data));
-    socket.on("mp-offer-draw", (data) => this.handleOfferDraw(socket, data));
-    socket.on("mp-respond-draw", (data) =>
-      this.handleRespondDraw(socket, data),
-    );
-
-    // Connection
-    socket.on("mp-reconnect", (data) => this.handleReconnect(socket, data));
-
-    // AI parsing
-    socket.on("mp-parse-move-with-ai", (data) =>
-      this.handleParseMoveWithAI(socket, data),
-    );
-    socket.on("mp-parse-audio-move-with-gemini", (data) =>
-      this.handleParseAudioMove(socket, data),
-    );
-
-    // Disconnect
-    socket.on("disconnect", () => this.handleDisconnect(socket));
+    const guard = <T>(handler: (data: T) => void | Promise<void>, valid: (data: unknown) => boolean,
+      event: 'mp-error' | 'mp-parse-error' | 'mp-audio-parse-error' = 'mp-error') =>
+      guardSocketRequest(handler, valid, message => socket.emit(event, { message }));
+    const game = (data: unknown) => hasText(data, 'gameId');
+    socket.on('mp-find-game', guard(this.handleFindGame.bind(this, socket),
+      data => isRecord(data) && validTimeControl(data.timeControl, true)));
+    socket.on('mp-cancel-find', guard(() => this.handleCancelFind(socket), () => true));
+    socket.on('mp-create-invite', guard(this.handleCreateInvite.bind(this, socket),
+      data => isRecord(data) && validTimeControl(data.timeControl)));
+    socket.on('mp-join-invite', guard(this.handleJoinInvite.bind(this, socket), data => hasText(data, 'inviteCode', 8)));
+    socket.on('mp-submit-move', guard(this.handleSubmitMove.bind(this, socket), data => game(data) && hasText(data, 'move', 100)));
+    socket.on('mp-resign', guard(this.handleResign.bind(this, socket), game));
+    socket.on('mp-offer-draw', guard(this.handleOfferDraw.bind(this, socket), game));
+    socket.on('mp-respond-draw', guard(this.handleRespondDraw.bind(this, socket),
+      data => game(data) && isRecord(data) && typeof data.accept === 'boolean'));
+    socket.on('mp-reconnect', guard(this.handleReconnect.bind(this, socket), game));
+    socket.on('mp-parse-move-with-ai', guard(this.handleParseMoveWithAI.bind(this, socket),
+      data => game(data) && validTextParse(data), 'mp-parse-error'));
+    socket.on('mp-parse-audio-move-with-gemini', guard(this.handleParseAudioMove.bind(this, socket),
+      data => game(data) && validAudioParse(data), 'mp-audio-parse-error'));
+    socket.on('disconnect', guard(() => this.handleDisconnect(socket), () => true));
   }
 
   // --- Matchmaking ---
@@ -503,8 +497,8 @@ export class MultiplayerHandler {
     data: { gameId: string; transcript: string; rawTranscript?: string },
   ): Promise<void> {
     const game = await this.multiplayerService.getGame(data.gameId);
-    if (!game) {
-      socket.emit("mp-parse-error", { message: "Game not found" });
+    if (!game || !socket.data.uid || !this.multiplayerService.getPlayerColor(game, socket.data.uid) || game.status !== 'active') {
+      socket.emit("mp-parse-error", { message: "Game not found or access denied" });
       return;
     }
 
@@ -523,6 +517,10 @@ export class MultiplayerHandler {
       ) {
         parsed = cached.result;
       } else {
+        if (!(await aiUsageLimiter.tryConsumeParse(`user:${socket.data.uid}`))) {
+          socket.emit('mp-parse-error', { message: 'Daily voice parsing limit reached. Please type your move.' });
+          return;
+        }
         const confusionMap = await this.getUserConfusionMap(socket.data.uid);
         parsed = await parseChessMoveWithAI(
           transcriptForAI,
@@ -555,14 +553,18 @@ export class MultiplayerHandler {
     data: { gameId: string; audioBase64: string; mimeType: string },
   ): Promise<void> {
     const game = await this.multiplayerService.getGame(data.gameId);
-    if (!game) {
-      socket.emit("mp-audio-parse-error", { message: "Game not found" });
+    if (!game || !socket.data.uid || !this.multiplayerService.getPlayerColor(game, socket.data.uid) || game.status !== 'active') {
+      socket.emit("mp-audio-parse-error", { message: "Game not found or access denied" });
       return;
     }
 
     const legalMoves = this.multiplayerService.getLegalMoves(game.fen);
 
     try {
+      if (!(await aiUsageLimiter.tryConsumeParse(`user:${socket.data.uid}`))) {
+        socket.emit('mp-audio-parse-error', { message: 'Daily voice parsing limit reached. Please type your move.' });
+        return;
+      }
       const confusionMap = await this.getUserConfusionMap(socket.data.uid);
       const parsed = await parseChessMoveFromAudio(
         data.audioBase64,

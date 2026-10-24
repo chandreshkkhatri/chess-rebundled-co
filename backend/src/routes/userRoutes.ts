@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { verifyIdToken } from "../lib/firebase-admin.js";
+import { createDefaultGamification } from "../services/gamificationService.js";
 import {
   getUserProfile,
   getUserSessions,
@@ -44,6 +45,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
     if (!profile) {
       // Return empty profile for users without Firestore data yet
       return {
+        gamification: createDefaultGamification(),
         stats: {
           totalSessions: 0,
           totalMoves: 0,
@@ -71,6 +73,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         lastPlayedAt: profile.stats.lastPlayedAt?.toDate?.() || null,
       },
       preferences: profile.preferences,
+      gamification: profile.gamification ?? createDefaultGamification(),
     };
   });
 
