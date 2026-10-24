@@ -45,7 +45,7 @@ export function XPProgressBar({ totalXp, level, xpToNextLevel, showDetails = tru
           <span className="text-2xl">{tierIcon}</span>
           <div>
             <span className="text-white font-bold">Level {level}</span>
-            <span className={`ml-2 text-sm bg-gradient-to-r ${tierColor} bg-clip-text text-transparent font-medium`}>
+            <span className={`ml-2 text-sm bg-linear-to-r ${tierColor} bg-clip-text text-transparent font-medium`}>
               {tier}
             </span>
           </div>
@@ -60,7 +60,7 @@ export function XPProgressBar({ totalXp, level, xpToNextLevel, showDetails = tru
       <div className="relative">
         <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
           <div
-            className={`h-full bg-gradient-to-r ${tierColor} transition-all duration-500 ease-out`}
+            className={`h-full bg-linear-to-r ${tierColor} transition-all duration-500 ease-out`}
             style={{ width: `${progressPercent}%` }}
           />
         </div>

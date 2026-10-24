@@ -325,7 +325,7 @@ export default function PracticeSelectPage() {
                 }}
                 onKeyDown={(e) => e.key === 'Enter' && !isSubmitting && handleEnterName()}
                 placeholder="Enter your name"
-                className={`w-full px-4 py-3 border rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none placeholder-slate-400 ${
+                className={`w-full px-4 py-3 border rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-hidden placeholder-slate-400 ${
                   nameError ? 'border-red-500' : 'border-slate-600'
                 }`}
                 maxLength={20}
@@ -361,7 +361,7 @@ export default function PracticeSelectPage() {
               <li>3. Speak the moves using voice input</li>
               <li>4. Track your accuracy and improve!</li>
             </ol>
-            <div className="mt-3 p-2 bg-slate-700/50 rounded text-xs text-slate-300 max-w-sm mx-auto">
+            <div className="mt-3 p-2 bg-slate-700/50 rounded-sm text-xs text-slate-300 max-w-sm mx-auto">
               <span className="text-yellow-400 font-semibold">Tip:</span> Use phonetic alphabet for clearer recognition:
               <span className="text-blue-300"> &quot;delta 4&quot;</span> for d4,
               <span className="text-blue-300"> &quot;bravo 3&quot;</span> for b3
@@ -485,7 +485,7 @@ export default function PracticeSelectPage() {
                 value={playerSearch}
                 onChange={(e) => setPlayerSearch(e.target.value)}
                 placeholder="Search players..."
-                className="w-full px-4 py-2 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none placeholder-slate-400 text-sm"
+                className="w-full px-4 py-2 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-hidden placeholder-slate-400 text-sm"
               />
             </div>
 
@@ -510,7 +510,7 @@ export default function PracticeSelectPage() {
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-semibold text-slate-100">{player.name}</span>
                         {recentPlayers.includes(player.name) && (
-                          <span className="text-[10px] bg-slate-600 text-slate-300 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                          <span className="text-[10px] bg-slate-600 text-slate-300 px-1.5 py-0.5 rounded-sm uppercase tracking-wider">
                             Recent
                           </span>
                         )}
@@ -529,7 +529,7 @@ export default function PracticeSelectPage() {
                         </p>
                       )}
                     </div>
-                    <span className="ml-3 text-purple-400 text-lg flex-shrink-0">&#8250;</span>
+                    <span className="ml-3 text-purple-400 text-lg shrink-0">&#8250;</span>
                   </button>
                 ))}
               </div>
@@ -571,7 +571,7 @@ export default function PracticeSelectPage() {
                 disabled={!isConnected}
                 className="w-full flex items-center p-4 border-2 border-slate-600 rounded-xl hover:border-purple-500 hover:bg-purple-900/30 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-slate-600 disabled:hover:bg-transparent"
               >
-                <div className="flex-shrink-0 w-12 h-12 bg-purple-900/50 rounded-lg flex items-center justify-center mr-4">
+                <div className="shrink-0 w-12 h-12 bg-purple-900/50 rounded-lg flex items-center justify-center mr-4">
                   <span className="text-2xl">&#127922;</span>
                 </div>
                 <div>
@@ -585,7 +585,7 @@ export default function PracticeSelectPage() {
                 disabled={!isConnected}
                 className="w-full flex items-center p-4 border-2 border-slate-600 rounded-xl hover:border-purple-500 hover:bg-purple-900/30 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-slate-600 disabled:hover:bg-transparent"
               >
-                <div className="flex-shrink-0 w-12 h-12 bg-purple-900/50 rounded-lg flex items-center justify-center mr-4">
+                <div className="shrink-0 w-12 h-12 bg-purple-900/50 rounded-lg flex items-center justify-center mr-4">
                   <span className="text-2xl">&#9817;</span>
                 </div>
                 <div>
@@ -636,7 +636,7 @@ export default function PracticeSelectPage() {
                 disabled={!isConnected}
                 className="w-full flex items-center p-4 border-2 border-slate-600 rounded-xl hover:border-purple-500 hover:bg-purple-900/30 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-slate-600 disabled:hover:bg-transparent"
               >
-                <div className="flex-shrink-0 w-12 h-12 bg-purple-900/50 rounded-lg flex items-center justify-center mr-4">
+                <div className="shrink-0 w-12 h-12 bg-purple-900/50 rounded-lg flex items-center justify-center mr-4">
                   <span className="text-2xl">&#9812;&#9818;</span>
                 </div>
                 <div>
@@ -650,7 +650,7 @@ export default function PracticeSelectPage() {
                 disabled={!isConnected}
                 className="w-full flex items-center p-4 border-2 border-slate-600 rounded-xl hover:border-purple-500 hover:bg-purple-900/30 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-slate-600 disabled:hover:bg-transparent"
               >
-                <div className="flex-shrink-0 w-12 h-12 bg-purple-900/50 rounded-lg flex items-center justify-center mr-4">
+                <div className="shrink-0 w-12 h-12 bg-purple-900/50 rounded-lg flex items-center justify-center mr-4">
                   <span className="text-2xl">&#9812;</span>
                 </div>
                 <div>

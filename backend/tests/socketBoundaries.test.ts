@@ -1,11 +1,11 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import admin from 'firebase-admin';
+import { initializeApp } from 'firebase-admin/app';
 import { randomUUID } from 'node:crypto';
 
 process.env.GOOGLE_API_KEY = 'test-placeholder';
 delete process.env.REDIS_URL;
-admin.initializeApp({ projectId: 'socket-boundary-tests' });
+initializeApp({ projectId: 'socket-boundary-tests' });
 const { MultiplayerHandler } = await import('../src/socket/multiplayerHandler.js');
 const { GameHandler } = await import('../src/socket/gameHandler.js');
 const { MultiplayerService } = await import('../src/services/multiplayerService.js');

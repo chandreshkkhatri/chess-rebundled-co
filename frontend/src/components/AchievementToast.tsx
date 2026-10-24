@@ -78,10 +78,10 @@ export function AchievementToast({ achievement, onClose, autoHideDuration = 5000
         aria-label={`Dismiss achievement: ${achievement.name}`}
         className={`
           w-full text-left
-          bg-gradient-to-r ${styles.bg}
+          bg-linear-to-r ${styles.bg}
           border-2 ${styles.border}
           rounded-xl p-4 shadow-lg ${styles.glow}
-          cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/50
+          cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-white/50
         `}
       >
         <div className="flex items-start gap-3">

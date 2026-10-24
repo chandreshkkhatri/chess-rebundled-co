@@ -122,7 +122,7 @@ export function UserMenu() {
             <div className="px-4 py-3 border-b border-slate-700">
               <p className="text-sm font-medium text-slate-100 truncate flex items-center gap-1.5">
                 {equippedBadge && (
-                  <span className="bg-purple-900/60 text-purple-300 text-[10px] font-black px-1.5 py-0.5 rounded border border-purple-500/20" title={equippedBadge.name}>
+                  <span className="bg-purple-900/60 text-purple-300 text-[10px] font-black px-1.5 py-0.5 rounded-sm border border-purple-500/20" title={equippedBadge.name}>
                     {equippedBadge.emoji}
                   </span>
                 )}

@@ -32,7 +32,7 @@ Chess Rebundled flips the script: you're shown a position and must **speak the n
 
 ### Prerequisites
 
-- Node.js 22+ (the MongoDB 7 driver requires a recent Node.js runtime)
+- Node.js 24 LTS recommended (`nvm use`); Node.js 22.13+ on the 22.x line is also supported
 - pnpm
 - MongoDB instance
 - Firebase project with Authentication and Firestore enabled, plus an Admin service account
@@ -49,8 +49,13 @@ Chess Rebundled flips the script: you're shown a position and must **speak the n
 
 2. Install dependencies:
    ```bash
+   corepack enable
    pnpm install --frozen-lockfile
    ```
+
+   Use pnpm from the repository root. If `npm install` failed with
+   `Cannot read properties of null (reading 'matches')`, see
+   [dependency setup](docs/DEPENDENCIES.md).
 
 3. Set environment variables:
    ```bash
@@ -113,12 +118,25 @@ a production build because both use the same `.next` directory.
 
 ## Tech Stack
 
-- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS, Zustand
+- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS 4, Zustand 5
 - **Backend**: Node.js, Fastify, Socket.io, TypeScript
 - **Database**: MongoDB
 - **AI**: Google Gemini through the Developer API or Vertex AI
 - **Voice**: Web Speech API
 - **Chess**: chess.js, react-chessboard
+
+## Docker deployment
+
+The default Compose stack runs the backend, MongoDB, and Redis. The frontend is
+optional and requires the explicit `frontend` profile. Configure environment
+files first, then run:
+
+```bash
+docker compose up -d --build --wait backend
+```
+
+See [deployment instructions](docs/DEPLOYMENT.md) for setup, database persistence,
+the optional frontend, and update commands.
 
 ## Project Structure
 

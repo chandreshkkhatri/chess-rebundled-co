@@ -518,7 +518,7 @@ export default function CoordinateTrainerPage() {
               {/* Correct/Incorrect Overlay flash on board */}
               {isCorrect !== null && (
                 <div className="absolute inset-0 bg-transparent flex items-center justify-center pointer-events-none z-10">
-                  <div className={`text-6xl font-black rounded-full px-6 py-4 backdrop-blur-sm animate-ping duration-300 ${
+                  <div className={`text-6xl font-black rounded-full px-6 py-4 backdrop-blur-xs animate-ping duration-300 ${
                     isCorrect ? "text-green-500" : "text-red-500"
                   }`}>
                     {isCorrect ? "\u2713" : "\u2717"}
@@ -595,7 +595,7 @@ export default function CoordinateTrainerPage() {
                       placeholder="e.g. e4"
                       value={typedInput}
                       onChange={(e) => setTypedInput(e.target.value.toLowerCase())}
-                      className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white font-mono text-lg font-bold w-full uppercase focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white font-mono text-lg font-bold w-full uppercase focus:outline-hidden focus:ring-2 focus:ring-purple-500"
                     />
                     <button
                       type="submit"
@@ -629,7 +629,7 @@ export default function CoordinateTrainerPage() {
                           <button
                             key={f}
                             onClick={() => setTypedInput((prev) => f + (prev[1] || ""))}
-                            className={`py-1.5 rounded bg-slate-900 hover:bg-slate-750 border border-slate-700 text-xs font-bold text-slate-300 uppercase transition-colors ${
+                            className={`py-1.5 rounded-sm bg-slate-900 hover:bg-slate-750 border border-slate-700 text-xs font-bold text-slate-300 uppercase transition-colors ${
                               typedInput[0] === f ? "bg-purple-600/30 text-purple-300 border-purple-500" : ""
                             }`}
                           >
@@ -642,7 +642,7 @@ export default function CoordinateTrainerPage() {
                           <button
                             key={r}
                             onClick={() => setTypedInput((prev) => (prev[0] || "a") + r)}
-                            className={`py-1.5 rounded bg-slate-900 hover:bg-slate-750 border border-slate-700 text-xs font-bold text-slate-300 transition-colors ${
+                            className={`py-1.5 rounded-sm bg-slate-900 hover:bg-slate-750 border border-slate-700 text-xs font-bold text-slate-300 transition-colors ${
                               typedInput[1] === r ? "bg-purple-600/30 text-purple-300 border-purple-500" : ""
                             }`}
                           >
@@ -657,7 +657,7 @@ export default function CoordinateTrainerPage() {
                           }
                         }}
                         disabled={typedInput.length !== 2 || isCorrect !== null}
-                        className="w-full bg-slate-700 hover:bg-slate-650 text-white font-bold py-2 rounded text-xs tracking-wider uppercase disabled:opacity-50 transition-colors"
+                        className="w-full bg-slate-700 hover:bg-slate-650 text-white font-bold py-2 rounded-sm text-xs tracking-wider uppercase disabled:opacity-50 transition-colors"
                       >
                         Tap to Confirm Guess
                       </button>
@@ -791,7 +791,7 @@ export default function CoordinateTrainerPage() {
                 {!isPlaying ? (
                   <button
                     onClick={startGame}
-                    className="w-full py-4 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-extrabold rounded-xl transition-all shadow-[0_4px_20px_rgba(168,85,247,0.35)] hover:shadow-[0_4px_25px_rgba(168,85,247,0.5)] transform hover:-translate-y-0.5 text-center text-sm uppercase tracking-wider"
+                    className="w-full py-4 bg-linear-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-extrabold rounded-xl transition-all shadow-[0_4px_20px_rgba(168,85,247,0.35)] hover:shadow-[0_4px_25px_rgba(168,85,247,0.5)] transform hover:-translate-y-0.5 text-center text-sm uppercase tracking-wider"
                   >
                     Start Training Challenge ⚡
                   </button>

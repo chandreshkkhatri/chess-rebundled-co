@@ -12,21 +12,20 @@
     "migrate:01": "tsx src/scripts/migrations/01-seed-famous-players.ts"
   },
   "dependencies": {
-    "@fastify/cors": "^9.0.1",
-    "@google/genai": "^1.38.0",
-    "adm-zip": "^0.5.16",
-    "chess.js": "^1.0.0-beta.8",
-    "dotenv": "^17.2.3",
-    "fastify": "^4.28.1",
-    "firebase-admin": "^13.6.0",
-    "ioredis": "^5.9.2",
-    "mongodb": "^7.0.0",
-    "socket.io": "^4.7.5"
+    "@fastify/cors": "^11.3.1",
+    "@google/genai": "^2.31.0",
+    "adm-zip": "^0.6.1",
+    "chess.js": "^1.4.0",
+    "dotenv": "^18.0.9",
+    "fastify": "^5.12.7",
+    "firebase-admin": "^14.5.0",
+    "ioredis": "^6.0.0",
+    "mongodb": "^7.7.0",
+    "socket.io": "^4.8.4"
   },
   "devDependencies": {
-    "@types/adm-zip": "^0.5.7",
-    "@types/node": "^20.14.10",
-    "tsx": "^4.16.2",
-    "typescript": "^5.5.3"
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3"
   }
 }

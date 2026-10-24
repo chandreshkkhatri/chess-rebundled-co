@@ -837,7 +837,7 @@ export function UniversalInputPanel({
       {/* Main content area - left side with fixed zones */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {/* ZONE 1: Status Bar - Heard/Interpreted/Alternatives or Processing/Error */}
-        <div className="min-h-[20px] flex-shrink-0 flex items-center justify-center">
+        <div className="min-h-[20px] shrink-0 flex items-center justify-center">
           {!isActive && pendingOpponentMove ? (
             <div className="text-amber-200 text-xs font-medium">
               Opponent played:{" "}
@@ -891,7 +891,7 @@ export function UniversalInputPanel({
                               onMoveSubmit(moveStr, 1.0);
                             }
                           }}
-                          className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-slate-200 border border-slate-600 rounded text-[10px] font-mono transition-colors"
+                          className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-slate-200 border border-slate-600 rounded-sm text-[10px] font-mono transition-colors"
                         >
                           {moveStr}
                         </button>
@@ -978,7 +978,7 @@ export function UniversalInputPanel({
                         ? getPieceAriaLabel(option)
                         : option
                     }
-                    className={`py-1 sm:py-2 px-0.5 rounded font-mono transition-all border min-h-[36px] sm:min-h-[44px] flex flex-col items-center justify-center ${
+                    className={`py-1 sm:py-2 px-0.5 rounded-sm font-mono transition-all border min-h-[36px] sm:min-h-[44px] flex flex-col items-center justify-center ${
                       option.length > 4
                         ? "text-xs"
                         : option.length > 3
@@ -1016,10 +1016,10 @@ export function UniversalInputPanel({
         </div>
 
         {/* ZONE 3: Feedback (h-8) - Fixed height */}
-        <div className="h-8 flex-shrink-0 flex items-center justify-center">
+        <div className="h-8 shrink-0 flex items-center justify-center">
           {lastMoveResult ? (
             <div
-              className={`w-full text-center py-1 px-2 rounded text-xs font-bold uppercase tracking-wide ${
+              className={`w-full text-center py-1 px-2 rounded-sm text-xs font-bold uppercase tracking-wide ${
                 lastMoveResult.isCorrect
                   ? "bg-green-900/40 text-green-400 border border-green-800"
                   : "bg-red-900/40 text-red-400 border border-red-800"
@@ -1063,7 +1063,7 @@ export function UniversalInputPanel({
       </div>
 
       {/* Action buttons - right side, stacked vertically */}
-      <div className="flex flex-col gap-2 flex-shrink-0 w-20">
+      <div className="flex flex-col gap-2 shrink-0 w-20">
         <button
           onClick={handleReset}
           disabled={isSubmitting || !isActive}

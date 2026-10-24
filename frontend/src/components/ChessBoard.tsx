@@ -37,7 +37,7 @@ class ChessBoardErrorBoundary extends Component<{ children: ReactNode }, ErrorBo
   render() {
     if (this.state.hasError) {
       return (
-        <div className="w-full h-full aspect-square bg-slate-700 rounded flex items-center justify-center">
+        <div className="w-full h-full aspect-square bg-slate-700 rounded-sm flex items-center justify-center">
           <div className="text-center text-slate-400 p-4">
             <p className="text-sm">Unable to display board</p>
             <p className="text-xs mt-1">Invalid position data</p>

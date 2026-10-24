@@ -26,7 +26,7 @@ runElevenLabs();
 // ============================================================================
 
 async function runElevenLabs() {
-  const { ElevenLabsClient } = require('elevenlabs');
+  const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
 
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
@@ -42,10 +42,9 @@ async function runElevenLabs() {
     console.log(`   Text length: ${text.length} characters`);
 
     try {
-      const audio = await client.generate({
-        voice: voiceId,
+      const audio = await client.textToSpeech.convert(voiceId, {
         text: text,
-        model_id: 'eleven_monolingual_v1',
+        modelId: 'eleven_multilingual_v2',
       });
 
       const outputDir = path.dirname(outputPath);

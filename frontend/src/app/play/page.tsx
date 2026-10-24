@@ -509,7 +509,7 @@ export default function PlayLobbyPage() {
                     onChange={(e) => setJoinCode(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleJoinInvite()}
                     placeholder="Enter invite code"
-                    className="w-full px-4 py-3 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none placeholder-slate-400 font-mono tracking-wider"
+                    className="w-full px-4 py-3 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-hidden placeholder-slate-400 font-mono tracking-wider"
                     maxLength={20}
                   />
                 </div>

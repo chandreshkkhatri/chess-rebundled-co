@@ -1,6 +1,6 @@
-import admin from 'firebase-admin';
-import type { Auth, DecodedIdToken } from 'firebase-admin/auth';
-import type { Firestore } from 'firebase-admin/firestore';
+import { cert, getApps, initializeApp, type ServiceAccount } from 'firebase-admin/app';
+import { getAuth, type Auth, type DecodedIdToken } from 'firebase-admin/auth';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
 // Initialize Firebase Admin SDK
 // Credentials come from environment variables
@@ -12,19 +12,19 @@ const firebaseConfig = {
 };
 
 // Only initialize if not already initialized
-if (!admin.apps.length) {
+if (!getApps().length) {
   if (!firebaseConfig.projectId || !firebaseConfig.clientEmail || !firebaseConfig.privateKey) {
     console.warn('Firebase Admin SDK not configured - missing environment variables');
   } else {
-    admin.initializeApp({
-      credential: admin.credential.cert(firebaseConfig as admin.ServiceAccount),
+    initializeApp({
+      credential: cert(firebaseConfig as ServiceAccount),
     });
     console.log('Firebase Admin SDK initialized');
   }
 }
 
-export const auth: Auth = admin.auth();
-export const firestore: Firestore = admin.firestore();
+export const auth: Auth = getAuth();
+export const firestore: Firestore = getFirestore();
 
 // Verify a Firebase ID token and return the decoded token
 export async function verifyIdToken(idToken: string): Promise<DecodedIdToken | null> {
@@ -36,5 +36,3 @@ export async function verifyIdToken(idToken: string): Promise<DecodedIdToken | n
     return null;
   }
 }
-
-export default admin;

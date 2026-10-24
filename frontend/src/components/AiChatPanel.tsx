@@ -137,7 +137,7 @@ export function AiChatPanel({
             }}
             placeholder={disabled ? "Game over" : "Talk to your opponent…"}
             disabled={disabled}
-            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500 disabled:opacity-50"
+            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-hidden focus:border-purple-500 disabled:opacity-50"
           />
           <button
             onClick={handleSend}

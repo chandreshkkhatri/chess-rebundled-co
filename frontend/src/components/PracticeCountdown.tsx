@@ -87,7 +87,7 @@ export function PracticeCountdown({
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-slate-900 to-slate-800">
+    <main className="min-h-screen flex items-center justify-center p-4 bg-linear-to-b from-slate-900 to-slate-800">
       <div
         className={`max-w-lg w-full transition-all duration-500 ${
           isVisible ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform translate-y-4'

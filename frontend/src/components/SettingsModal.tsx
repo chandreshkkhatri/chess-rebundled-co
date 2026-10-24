@@ -44,7 +44,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               role="switch"
               aria-checked={autoSubmitEnabled}
               aria-label="Auto-submit moves"
-              className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
+              className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
                 autoSubmitEnabled ? 'bg-purple-500' : 'bg-slate-600'
               }`}
             >

@@ -274,7 +274,7 @@ export function LeagueLeaderboard({ totalXp, displayName }: LeagueLeaderboardPro
             // Promotion Zone
             zoneClass = "border-green-500/20 bg-green-500/5";
             zoneIndicator = (
-              <span className="text-[9px] font-extrabold text-green-400 flex items-center gap-0.5 bg-green-950/50 px-1.5 py-0.5 rounded border border-green-500/20" title="Promotes to next league">
+              <span className="text-[9px] font-extrabold text-green-400 flex items-center gap-0.5 bg-green-950/50 px-1.5 py-0.5 rounded-sm border border-green-500/20" title="Promotes to next league">
                 ▲ PROMOTION
               </span>
             );
@@ -282,7 +282,7 @@ export function LeagueLeaderboard({ totalXp, displayName }: LeagueLeaderboardPro
             // Demotion Zone
             zoneClass = "border-red-500/20 bg-red-500/5";
             zoneIndicator = (
-              <span className="text-[9px] font-extrabold text-red-400 flex items-center gap-0.5 bg-red-950/50 px-1.5 py-0.5 rounded border border-red-500/20" title="Demotes to previous league">
+              <span className="text-[9px] font-extrabold text-red-400 flex items-center gap-0.5 bg-red-950/50 px-1.5 py-0.5 rounded-sm border border-red-500/20" title="Demotes to previous league">
                 ▼ DEMOTION
               </span>
             );
@@ -325,13 +325,13 @@ export function LeagueLeaderboard({ totalXp, displayName }: LeagueLeaderboardPro
                 }`}>
                   {isUser ? (
                     equippedBadge && (
-                      <span className="bg-purple-900/60 text-purple-300 text-[10px] font-black px-1.5 py-0.5 rounded border border-purple-500/20 flex items-center gap-1 flex-shrink-0" title={equippedBadge.name}>
+                      <span className="bg-purple-900/60 text-purple-300 text-[10px] font-black px-1.5 py-0.5 rounded-sm border border-purple-500/20 flex items-center gap-1 shrink-0" title={equippedBadge.name}>
                         <span>{equippedBadge.emoji}</span>
                       </span>
                     )
                   ) : (
                     item.badge && (
-                      <span className="bg-slate-900/60 text-slate-400 text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-700/50 flex items-center gap-1 flex-shrink-0" title={item.badge.name}>
+                      <span className="bg-slate-900/60 text-slate-400 text-[10px] font-bold px-1.5 py-0.5 rounded-sm border border-slate-700/50 flex items-center gap-1 shrink-0" title={item.badge.name}>
                         <span>{item.badge.emoji}</span>
                       </span>
                     )

@@ -2,6 +2,10 @@
 
 This document provides a comprehensive overview of the pedagogical, interactive, and gamified features added to **Chess Rebundled** to improve user experience, learning speed, and player retention.
 
+For installation and framework versions, see [dependency maintenance](DEPENDENCIES.md).
+For the default backend-only Docker stack and optional frontend profile, see
+[Docker deployment](DEPLOYMENT.md).
+
 ## Session ownership and game correctness
 
 Practice socket handlers authorize every resume, move, abandonment, text parse,

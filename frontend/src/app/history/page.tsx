@@ -91,7 +91,7 @@ export default function HistoryPage() {
         <div className="px-4 py-8">
           <div className="max-w-2xl mx-auto">
             <div className="animate-pulse space-y-4">
-              <div className="h-8 bg-slate-700 rounded w-1/3"></div>
+              <div className="h-8 bg-slate-700 rounded-sm w-1/3"></div>
               {[1, 2, 3].map((i) => (
                 <div key={i} className="h-28 bg-slate-700 rounded-xl"></div>
               ))}
@@ -223,7 +223,7 @@ export default function HistoryPage() {
 
                       {/* Right: accuracy number */}
                       {accPct !== null && (
-                        <div className="flex-shrink-0 text-right">
+                        <div className="shrink-0 text-right">
                           <p className={`text-2xl font-black ${colors.text}`}>{accPct}%</p>
                           <p className="text-[10px] text-slate-500 mt-0.5">
                             {session.summary!.correctMoves}/{session.summary!.totalMoves} moves

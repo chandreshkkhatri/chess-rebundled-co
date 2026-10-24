@@ -181,9 +181,9 @@ export default function ProfilePage() {
         <div className="px-4 py-8">
           <div className="max-w-2xl mx-auto">
             <div className="animate-pulse space-y-4">
-              <div className="h-8 bg-slate-700 rounded w-1/3"></div>
-              <div className="h-32 bg-slate-700 rounded"></div>
-              <div className="h-48 bg-slate-700 rounded"></div>
+              <div className="h-8 bg-slate-700 rounded-sm w-1/3"></div>
+              <div className="h-32 bg-slate-700 rounded-sm"></div>
+              <div className="h-48 bg-slate-700 rounded-sm"></div>
             </div>
           </div>
         </div>
@@ -229,7 +229,7 @@ export default function ProfilePage() {
                       placeholder="Enter your name"
                       maxLength={20}
                       disabled={isSavingName}
-                      className={`w-full px-3 py-2 border rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none placeholder-slate-400 text-lg ${
+                      className={`w-full px-3 py-2 border rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-hidden placeholder-slate-400 text-lg ${
                         nameError ? 'border-red-500' : 'border-slate-600'
                       }`}
                       autoFocus
@@ -257,7 +257,7 @@ export default function ProfilePage() {
                 ) : (
                   <div className="flex items-center gap-2">
                     {equippedBadge && (
-                      <span className="bg-purple-900/60 text-purple-300 text-xs font-black px-2 py-0.5 rounded border border-purple-500/20 flex items-center gap-1 select-none" title={equippedBadge.name}>
+                      <span className="bg-purple-900/60 text-purple-300 text-xs font-black px-2 py-0.5 rounded-sm border border-purple-500/20 flex items-center gap-1 select-none" title={equippedBadge.name}>
                         <span>{equippedBadge.emoji}</span>
                         <span>{equippedBadge.name}</span>
                       </span>

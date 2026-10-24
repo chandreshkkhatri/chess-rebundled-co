@@ -113,7 +113,7 @@ function BotPlayContent() {
           Log
         </h3>
         <div className="flex items-center gap-2">
-          <span className="text-[9px] font-mono bg-slate-700/50 px-2 py-0.5 rounded text-slate-400">
+          <span className="text-[9px] font-mono bg-slate-700/50 px-2 py-0.5 rounded-sm text-slate-400">
             {Math.ceil(moves.length / 2)} PND
           </span>
           <button 
@@ -133,7 +133,7 @@ function BotPlayContent() {
           </div>
         ) : (
           Array.from({ length: Math.ceil(moves.length / 2) }).map((_, i) => (
-            <div key={i} className="grid grid-cols-4 items-center text-[10px] bg-slate-800/20 rounded p-1.5 border border-white/5 hover:bg-slate-700/20 transition-colors">
+            <div key={i} className="grid grid-cols-4 items-center text-[10px] bg-slate-800/20 rounded-sm p-1.5 border border-white/5 hover:bg-slate-700/20 transition-colors">
               <span className="col-span-1 text-slate-600 font-mono text-center">{i + 1}</span>
               <div className="col-span-1 flex items-center justify-center font-mono font-bold text-slate-300">
                 {moves[i * 2]}
@@ -180,7 +180,7 @@ function BotPlayContent() {
           </button>
           
           <span className="text-[10px] text-slate-600 uppercase font-black hidden sm:inline">Lvl {DIFFICULTY_MAP[difficulty].skillLevel}</span>
-          <span className="px-2 py-0.5 bg-purple-900/40 text-purple-400 border border-purple-800/30 rounded text-[10px] font-bold uppercase tracking-tighter">
+          <span className="px-2 py-0.5 bg-purple-900/40 text-purple-400 border border-purple-800/30 rounded-sm text-[10px] font-bold uppercase tracking-tighter">
             {difficulty}
           </span>
         </div>
@@ -191,13 +191,13 @@ function BotPlayContent() {
         
         {/* 1. Main Game Section (Left / Top) */}
         {/* Reduced max widths to absolutely guarantee no scrolling on any desktop viewport */}
-        <div className="flex justify-center flex-shrink-0 lg:flex-none lg:w-[calc(100vh-280px)] xl:w-[calc(100vh-200px)] min-h-0 min-w-0">
+        <div className="flex justify-center shrink-0 lg:flex-none lg:w-[calc(100vh-280px)] xl:w-[calc(100vh-200px)] min-h-0 min-w-0">
           <div className="w-full max-w-[min(100%,calc(100vh-320px))] lg:max-w-full flex flex-col justify-center gap-1">
             
             {/* Top Plate - Stockfish */}
             <div className="flex items-center justify-between px-1 text-white">
               <div className="flex items-center gap-2">
-                <div className={`w-6 h-6 lg:w-8 lg:h-8 rounded flex items-center justify-center text-sm lg:text-xl ${playerColor === 'white' ? 'bg-slate-700' : 'bg-slate-200 text-slate-800'}`}>
+                <div className={`w-6 h-6 lg:w-8 lg:h-8 rounded-sm flex items-center justify-center text-sm lg:text-xl ${playerColor === 'white' ? 'bg-slate-700' : 'bg-slate-200 text-slate-800'}`}>
                   {playerColor === 'white' ? '♚' : '♔'}
                 </div>
                 <div className="font-semibold text-sm lg:text-base truncate flex items-center gap-2">
@@ -205,7 +205,7 @@ function BotPlayContent() {
                 </div>
               </div>
               {moveState === 'bot-thinking' && (
-                <div className="flex items-center gap-2 px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded">
+                <div className="flex items-center gap-2 px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded-sm">
                    <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
                    <span className="text-[9px] text-purple-400 font-black uppercase tracking-widest hidden sm:inline">Processing</span>
                 </div>
@@ -213,7 +213,7 @@ function BotPlayContent() {
             </div>
 
             {/* Board Container */}
-            <div className="w-full aspect-square relative shadow-2xl shadow-black/80 ring-4 lg:ring-8 ring-slate-800/20 rounded-sm bg-slate-800">
+            <div className="w-full aspect-square relative shadow-2xl shadow-black/80 ring-4 lg:ring-8 ring-slate-800/20 rounded-xs bg-slate-800">
               {/* Thinking animation overlay */}
               {moveState === 'bot-thinking' && (
                  <div className="absolute inset-x-0 top-0 pointer-events-none z-10">
@@ -235,13 +235,13 @@ function BotPlayContent() {
 
               {/* Game Over Screen */}
               {isGameOver && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in transition-all">
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs animate-in fade-in transition-all">
                   <div className="bg-slate-800 p-6 lg:p-8 rounded-2xl shadow-2xl border border-slate-700 text-center max-w-[90%] lg:max-w-sm w-full mx-auto transform animate-in zoom-in-95 duration-300">
                     <h2 className="text-xl lg:text-2xl font-black text-white mb-2 uppercase tracking-tighter underline decoration-purple-500 decoration-4 underline-offset-4">Game Over</h2>
                     <p className="text-sm lg:text-base text-slate-300 mt-4 lg:mt-6 mb-6 lg:mb-8 font-medium italic">{gameOverMessage}</p>
                     <button
                       onClick={() => router.push('/play')}
-                      className="w-full py-2 lg:py-3 bg-purple-600 hover:bg-purple-500 text-white rounded font-black uppercase tracking-widest transition-all shadow-lg shadow-purple-900/20 active:scale-95"
+                      className="w-full py-2 lg:py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-sm font-black uppercase tracking-widest transition-all shadow-lg shadow-purple-900/20 active:scale-95"
                     >
                       Lobby
                     </button>
@@ -253,7 +253,7 @@ function BotPlayContent() {
             {/* Bottom Plate - Human */}
             <div className="flex items-center justify-between px-1 text-white">
               <div className="flex items-center gap-2">
-                <div className={`w-6 h-6 lg:w-8 lg:h-8 rounded flex items-center justify-center text-sm lg:text-xl font-bold ${playerColor === 'white' ? 'bg-slate-200 text-slate-800' : 'bg-slate-700'}`}>
+                <div className={`w-6 h-6 lg:w-8 lg:h-8 rounded-sm flex items-center justify-center text-sm lg:text-xl font-bold ${playerColor === 'white' ? 'bg-slate-200 text-slate-800' : 'bg-slate-700'}`}>
                   {playerColor === 'white' ? '♔' : '♚'}
                 </div>
                 <div className="font-semibold text-sm lg:text-base truncate flex items-center gap-2">
@@ -304,7 +304,7 @@ function BotPlayContent() {
       {/* Mobile Log Overlay (Drawer) */}
       {showLogModal && (
         <div 
-          className="lg:hidden absolute inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-sm animate-in fade-in"
+          className="lg:hidden absolute inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-xs animate-in fade-in"
           onClick={() => setShowLogModal(false)}
         >
           <div 

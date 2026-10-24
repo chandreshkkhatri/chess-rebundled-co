@@ -245,9 +245,9 @@ export default function SettingsPage() {
         <div className="px-4 py-8">
           <div className="max-w-2xl mx-auto">
             <div className="animate-pulse space-y-4">
-              <div className="h-8 bg-slate-700 rounded w-1/3"></div>
-              <div className="h-32 bg-slate-700 rounded"></div>
-              <div className="h-32 bg-slate-700 rounded"></div>
+              <div className="h-8 bg-slate-700 rounded-sm w-1/3"></div>
+              <div className="h-32 bg-slate-700 rounded-sm"></div>
+              <div className="h-32 bg-slate-700 rounded-sm"></div>
             </div>
           </div>
         </div>
@@ -319,7 +319,7 @@ export default function SettingsPage() {
                     placeholder="Enter your name"
                     maxLength={20}
                     disabled={isSavingName}
-                    className={`w-full px-3 py-2 border rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none placeholder-slate-400 ${
+                    className={`w-full px-3 py-2 border rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-hidden placeholder-slate-400 ${
                       nameError ? "border-red-500" : "border-slate-600"
                     }`}
                     autoFocus

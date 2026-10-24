@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
-import admin from 'firebase-admin';
+import { initializeApp } from 'firebase-admin/app';
 import { guestTokenHash } from '../src/lib/practiceOwnership.js';
 import { sessionStore } from '../src/services/redisSessionStore.js';
 import { HISTORICAL_GAMES } from '../src/data/historicalGames.js';
@@ -10,7 +10,7 @@ import type { PracticeSession } from '../src/types/index.js';
 // Initialize SDK objects without credentials; these tests never call cloud services.
 delete process.env.REDIS_URL;
 process.env.GOOGLE_API_KEY = 'test-placeholder';
-admin.initializeApp({ projectId: 'repo-tests' });
+initializeApp({ projectId: 'repo-tests' });
 const { GameHandler } = await import('../src/socket/gameHandler.js');
 const { PracticeService } = await import('../src/services/practiceService.js');
 

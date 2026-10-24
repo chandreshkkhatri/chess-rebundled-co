@@ -243,7 +243,7 @@ export default function MultiplayerGamePage() {
                           inputMode === "voice-tap" ? "tap-only" : "voice-tap",
                         )
                       }
-                      className={`px-2 py-1 text-xs rounded ${
+                      className={`px-2 py-1 text-xs rounded-sm ${
                         inputMode === "voice-tap"
                           ? "bg-purple-600 text-white"
                           : "bg-slate-600 text-slate-300"
@@ -267,7 +267,7 @@ export default function MultiplayerGamePage() {
                               : "webspeech-haiku",
                           )
                         }
-                        className={`px-2 py-1 text-xs rounded ${
+                        className={`px-2 py-1 text-xs rounded-sm ${
                           voiceParsingMode === "gemini-audio"
                             ? "bg-blue-600 text-white"
                             : "bg-slate-600 text-slate-300"
@@ -420,7 +420,7 @@ export default function MultiplayerGamePage() {
       {/* Main content: Board + Controls */}
       <div className="flex-1 flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 p-3 lg:p-6">
         {/* Board */}
-        <div className="flex-shrink-0 relative bg-slate-800 rounded-sm">
+        <div className="shrink-0 relative bg-slate-800 rounded-xs">
           {isGameActive && !isMyTurn && (
             <div className="absolute inset-x-0 top-0 pointer-events-none z-10">
               <div className="h-1 bg-purple-400 animate-tubelight-top w-full rounded-t-[4px]" />

@@ -19,11 +19,15 @@
     "deploy:backend": "./scripts/deploy-backend.sh"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^10.0.6"
   },
   "dependencies": {
-    "@google-cloud/text-to-speech": "^6.4.0",
-    "dotenv": "^17.2.3",
-    "elevenlabs": "^1.59.0"
+    "dotenv": "^18.0.9",
+    "@elevenlabs/elevenlabs-js": "^2.74.0"
+  },
+  "packageManager": "pnpm@10.18.1",
+  "engines": {
+    "node": "^22.13.0 || >=24.0.0",
+    "pnpm": ">=10 <11"
   }
 }

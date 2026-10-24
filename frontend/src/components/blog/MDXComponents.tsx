@@ -43,7 +43,7 @@ export const mdxComponents = {
     </blockquote>
   ),
   code: ({ children }: ComponentProps) => (
-    <code className="bg-slate-700 text-amber-300 px-1.5 py-0.5 rounded text-sm font-mono">
+    <code className="bg-slate-700 text-amber-300 px-1.5 py-0.5 rounded-sm text-sm font-mono">
       {children}
     </code>
   ),

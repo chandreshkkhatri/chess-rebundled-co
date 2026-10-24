@@ -276,7 +276,7 @@ export default function PracticeGamePage() {
           <div className="flex items-center justify-between gap-2">
             <button
               onClick={handleAbandon}
-              className="py-1 px-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors text-sm"
+              className="py-1 px-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-sm transition-colors text-sm"
               title="Exit practice"
             >
               ←
@@ -333,7 +333,7 @@ export default function PracticeGamePage() {
             {/* Live accuracy - only show after first move */}
             {moveResults.length > 0 && (
               <div
-                className={`text-xs font-medium px-2 py-0.5 rounded ${
+                className={`text-xs font-medium px-2 py-0.5 rounded-sm ${
                   liveAccuracy >= 80
                     ? 'bg-green-600/20 text-green-400'
                     : liveAccuracy >= 60
@@ -360,7 +360,7 @@ export default function PracticeGamePage() {
             </div>
             {/* Player indicator with name and avatar */}
             <div
-              className={`text-xs font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${
+              className={`text-xs font-bold px-1.5 py-0.5 rounded-sm flex items-center gap-1 ${
                 (mode === 'one-side' && playerColor ? playerColor : currentSide) === 'white'
                   ? 'bg-white text-slate-800'
                   : 'bg-slate-600 text-white'
@@ -402,7 +402,7 @@ export default function PracticeGamePage() {
         {/* Game area with mobile sidebar */}
         <div className="flex flex-row gap-1 lg:gap-3 flex-1 min-h-0 overflow-hidden">
           {/* Mobile left sidebar */}
-          <div className="flex lg:hidden flex-col items-center justify-between py-2 px-1 bg-slate-800/50 rounded-lg flex-shrink-0">
+          <div className="flex lg:hidden flex-col items-center justify-between py-2 px-1 bg-slate-800/50 rounded-lg shrink-0">
             {/* Top group */}
             <div className="flex flex-col items-center gap-1">
               {discordInviteUrl && (
@@ -481,12 +481,12 @@ export default function PracticeGamePage() {
 
           {/* Main content: board + practice controls */}
           <div className="flex flex-col lg:flex-row gap-1 lg:gap-4 flex-1 min-h-0 overflow-hidden">
-            <div className="flex justify-center flex-shrink-0 lg:flex-[1.15] lg:flex-shrink min-h-0">
+            <div className="flex justify-center shrink-0 lg:flex-[1.15] lg:shrink min-h-0">
               <div className="w-full max-w-[min(100%,calc(100vh-250px))] lg:max-w-[min(58vh,620px)] xl:max-w-[min(64vh,700px)] flex flex-col justify-center">
                 
                 {/* Top Player Plate (Opponent in One-Side Mode) */}
                 <div className="flex items-center gap-2 px-1 py-1.5 lg:py-2 text-white">
-                  <div className={`w-8 h-8 rounded flex items-center justify-center text-xl bg-slate-700`}>
+                  <div className={`w-8 h-8 rounded-sm flex items-center justify-center text-xl bg-slate-700`}>
                     {boardOrientation === 'white' ? '♚' : '♔'}
                   </div>
                   <div className="font-semibold truncate">
@@ -517,13 +517,13 @@ export default function PracticeGamePage() {
 
                 {/* Bottom Player Plate (User in One-Side Mode) */}
                 <div className="flex items-center gap-2 px-1 py-1.5 lg:py-2 text-white">
-                  <div className={`w-8 h-8 rounded flex items-center justify-center text-xl font-bold bg-slate-200 text-slate-800`}>
+                  <div className={`w-8 h-8 rounded-sm flex items-center justify-center text-xl font-bold bg-slate-200 text-slate-800`}>
                     {boardOrientation === 'white' ? '♔' : '♚'}
                   </div>
                   <div className="font-semibold truncate flex items-center gap-2">
                     {boardOrientation === 'white' ? selectedGame.white.name : selectedGame.black.name}
                     {mode === 'one-side' && (
-                      <span className="text-xs font-normal bg-purple-600/50 text-purple-200 px-2 py-0.5 rounded">You</span>
+                      <span className="text-xs font-normal bg-purple-600/50 text-purple-200 px-2 py-0.5 rounded-sm">You</span>
                     )}
                   </div>
                 </div>
@@ -571,7 +571,7 @@ export default function PracticeGamePage() {
                   {unlockedTrivia.map((item, idx) => (
                     <div 
                       key={idx} 
-                      className={`p-2 rounded text-xs transition-all duration-500 border ${
+                      className={`p-2 rounded-sm text-xs transition-all duration-500 border ${
                         item.unlocked 
                           ? 'bg-purple-900/10 border-purple-500/20 text-purple-200 animate-unlock-pulse' 
                           : 'bg-slate-900/40 border-slate-800 text-slate-500 select-none'

@@ -666,7 +666,7 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
               }
             }
           }}
-          className={`flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold border transition-colors ${
+          className={`flex items-center gap-1 px-2 py-0.5 rounded-sm text-[9px] font-bold border transition-colors ${
             ttsEnabled
               ? "bg-purple-600 border-purple-500 text-white shadow-[0_0_8px_rgba(168,85,247,0.3)]"
               : "bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200"
@@ -701,7 +701,7 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
       <div className="flex gap-3 items-start bg-slate-900/60 rounded-xl p-3.5 border border-slate-800">
         
         {/* Caster Avatar Bubble */}
-        <div className="w-10 h-10 rounded-full bg-purple-900/50 border border-purple-500/30 flex items-center justify-center text-xl flex-shrink-0 select-none shadow-inner">
+        <div className="w-10 h-10 rounded-full bg-purple-900/50 border border-purple-500/30 flex items-center justify-center text-xl shrink-0 select-none shadow-inner">
           {currentCaster.emoji}
         </div>
         
@@ -730,11 +730,11 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
             chatMessages.map((msg) => (
               <div key={msg.id} className="flex items-start gap-1 leading-normal break-all">
                 {msg.badge && (
-                  <span className="text-[9px] flex-shrink-0 mr-0.5 select-none" title={msg.badge}>
+                  <span className="text-[9px] shrink-0 mr-0.5 select-none" title={msg.badge}>
                     {msg.badge}
                   </span>
                 )}
-                <span className={`font-bold mr-1 flex-shrink-0 ${msg.color}`}>
+                <span className={`font-bold mr-1 shrink-0 ${msg.color}`}>
                   {msg.username}:
                 </span>
                 <span className={msg.isUser ? "text-purple-300 font-medium" : "text-slate-300"}>
@@ -753,7 +753,7 @@ export function AICasterPanel({ moves, fen }: AICasterPanelProps) {
             value={userChatText}
             onChange={(e) => setUserChatText(e.target.value)}
             placeholder="Send a chat message..."
-            className="flex-1 bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-[10px] text-slate-200 outline-none focus:ring-1 focus:ring-purple-500 focus:border-transparent font-sans"
+            className="flex-1 bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-[10px] text-slate-200 outline-hidden focus:ring-1 focus:ring-purple-500 focus:border-transparent font-sans"
           />
           <button
             type="submit"

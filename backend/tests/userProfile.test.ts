@@ -1,11 +1,13 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import Fastify from 'fastify';
-import admin from 'firebase-admin';
+import { initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 
-admin.initializeApp({ projectId: 'profile-tests' });
-const auth = admin.auth();
-const firestore = admin.firestore();
+initializeApp({ projectId: 'profile-tests' });
+const auth = getAuth();
+const firestore = getFirestore();
 const { userRoutes } = await import('../src/routes/userRoutes.js');
 const { createDefaultGamification } = await import('../src/services/gamificationService.js');
 

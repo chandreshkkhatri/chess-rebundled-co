@@ -300,28 +300,28 @@ export function AestheticShop({ totalXp }: AestheticShopProps) {
                 
                 {/* Visual Preview */}
                 {activeTab === "skins" && colors ? (
-                  <div className="w-14 h-14 rounded overflow-hidden grid grid-cols-2 grid-rows-2 border border-slate-700 flex-shrink-0">
+                  <div className="w-14 h-14 rounded-sm overflow-hidden grid grid-cols-2 grid-rows-2 border border-slate-700 shrink-0">
                     <div style={{ backgroundColor: colors.light }} />
                     <div style={{ backgroundColor: colors.dark }} />
                     <div style={{ backgroundColor: colors.dark }} />
                     <div style={{ backgroundColor: colors.light }} />
                   </div>
                 ) : activeTab === "badges" ? (
-                  <div className="w-14 h-14 bg-purple-950/40 border border-purple-500/25 rounded flex items-center justify-center text-3xl select-none flex-shrink-0">
+                  <div className="w-14 h-14 bg-purple-950/40 border border-purple-500/25 rounded-sm flex items-center justify-center text-3xl select-none shrink-0">
                     {item.emoji}
                   </div>
                 ) : (
-                  <div className="w-14 h-14 bg-slate-900 border border-slate-800 rounded flex flex-col items-center justify-center gap-1 flex-shrink-0">
+                  <div className="w-14 h-14 bg-slate-900 border border-slate-800 rounded-sm flex flex-col items-center justify-center gap-1 shrink-0">
                     <button
                       onClick={() => playSoundPreview(item.id, "move")}
-                      className="p-1 rounded bg-purple-600/30 text-purple-400 hover:bg-purple-600/50 transition-colors text-[10px] font-bold w-11 text-center"
+                      className="p-1 rounded-sm bg-purple-600/30 text-purple-400 hover:bg-purple-600/50 transition-colors text-[10px] font-bold w-11 text-center"
                       title="Preview Move"
                     >
                       ▶ Move
                     </button>
                     <button
                       onClick={() => playSoundPreview(item.id, "capture")}
-                      className="p-1 rounded bg-indigo-600/30 text-indigo-400 hover:bg-indigo-600/50 transition-colors text-[10px] font-bold w-11 text-center"
+                      className="p-1 rounded-sm bg-indigo-600/30 text-indigo-400 hover:bg-indigo-600/50 transition-colors text-[10px] font-bold w-11 text-center"
                       title="Preview Capture"
                     >
                       💥 Capt.
@@ -334,7 +334,7 @@ export function AestheticShop({ totalXp }: AestheticShopProps) {
                   <h4 className="font-bold text-white flex items-center gap-1.5 text-sm sm:text-base">
                     {item.name}
                     {isActive && (
-                      <span className="text-[10px] bg-purple-600/40 text-purple-300 px-1.5 py-0.5 rounded font-black uppercase tracking-wider">
+                      <span className="text-[10px] bg-purple-600/40 text-purple-300 px-1.5 py-0.5 rounded-sm font-black uppercase tracking-wider">
                         Active
                       </span>
                     )}
@@ -373,7 +373,7 @@ export function AestheticShop({ totalXp }: AestheticShopProps) {
                     disabled={!canAfford}
                     className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
                       canAfford
-                        ? "bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-400 hover:to-indigo-500 hover:shadow-[0_0_12px_rgba(168,85,247,0.35)]"
+                        ? "bg-linear-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-400 hover:to-indigo-500 hover:shadow-[0_0_12px_rgba(168,85,247,0.35)]"
                         : "bg-slate-800 text-slate-600 border border-slate-750 cursor-not-allowed"
                     }`}
                     title={!canAfford ? `Need ${item.cost - balance} more XP` : ""}

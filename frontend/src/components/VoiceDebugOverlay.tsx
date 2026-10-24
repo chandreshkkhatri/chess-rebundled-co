@@ -38,7 +38,7 @@ export function VoiceDebugOverlay({
                     <span>Volume:</span>
                     <span>{(volumeLevel * 100).toFixed(1)}%</span>
                 </div>
-                <div className="h-3 bg-slate-700 rounded overflow-hidden relative">
+                <div className="h-3 bg-slate-700 rounded-sm overflow-hidden relative">
                     {/* Threshold marker */}
                     <div
                         className="absolute top-0 bottom-0 w-0.5 bg-yellow-400 z-10"

@@ -9,7 +9,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../backend/.env') });
 
 async function listVoices() {
-  const { ElevenLabsClient } = require('elevenlabs');
+  const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
 
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
@@ -30,7 +30,7 @@ async function listVoices() {
 
     voices.forEach((voice, index) => {
       console.log(`\n${index + 1}. ${voice.name}`);
-      console.log(`   ID: ${voice.voice_id}`);
+      console.log(`   ID: ${voice.voiceId}`);
       if (voice.description) {
         console.log(`   Description: ${voice.description}`);
       }

@@ -154,7 +154,7 @@ export function MoveHistory({
           return (
             <div
               key={pair.moveNumber}
-              className={`flex items-center font-mono rounded border-l-2 ${padding} ${
+              className={`flex items-center font-mono rounded-sm border-l-2 ${padding} ${
                 isDark ? 'bg-slate-700/30' : 'bg-gray-50'
               } ${
                 hasIncorrect
@@ -168,7 +168,7 @@ export function MoveHistory({
             >
               {/* Move number */}
               <span
-                className={`flex-shrink-0 w-6 ${textSize} ${
+                className={`shrink-0 w-6 ${textSize} ${
                   isDark ? 'text-slate-500' : 'text-gray-500'
                 }`}
               >

@@ -17,7 +17,7 @@ export function OAuthButtons({
       <button
         onClick={onGoogle}
         disabled={disabled}
-        className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-slate-100 font-medium rounded-xl border border-slate-600 shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+        className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-slate-100 font-medium rounded-xl border border-slate-600 shadow-xs hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-xs active:scale-[0.98] focus:outline-hidden focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-800"
       >
         <svg className="w-5 h-5" viewBox="0 0 24 24">
           <path
@@ -44,7 +44,7 @@ export function OAuthButtons({
       <button
         onClick={onGithub}
         disabled={disabled}
-        className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-xl border border-slate-700 shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+        className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-xl border border-slate-700 shadow-xs hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-xs active:scale-[0.98] focus:outline-hidden focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-800"
       >
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
           <path

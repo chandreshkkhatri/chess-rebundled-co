@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 import withPWAInit from 'next-pwa';
+import path from 'node:path';
 
 const withPWA = withPWAInit({
   dest: 'public',
@@ -7,6 +8,8 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig = {
+  output: 'standalone',
+  outputFileTracingRoot: path.resolve(import.meta.dirname, '..'),
   reactStrictMode: true,
   async headers() {
     return [

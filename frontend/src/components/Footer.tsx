@@ -8,7 +8,7 @@ export function Footer() {
   const { discordInviteUrl } = useAppConfig();
 
   return (
-    <footer className="bg-slate-900/80 backdrop-blur-sm border-t border-slate-700/50">
+    <footer className="bg-slate-900/80 backdrop-blur-xs border-t border-slate-700/50">
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           {/* Copyright */}

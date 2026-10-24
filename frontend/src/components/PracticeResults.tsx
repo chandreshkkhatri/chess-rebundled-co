@@ -41,7 +41,7 @@ export function PracticeResults({ data, gamification, onPlayAgain }: PracticeRes
 
       {/* XP Earned Section */}
       {gamification && (
-        <div className="mb-6 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg p-4 text-white">
+        <div className="mb-6 bg-linear-to-r from-purple-500 to-indigo-600 rounded-lg p-4 text-white">
           <div className="flex items-center justify-between mb-2">
             <span className="font-semibold">XP Earned</span>
             <span className="text-2xl font-bold">+{gamification.xp.totalXp}</span>
@@ -103,7 +103,7 @@ export function PracticeResults({ data, gamification, onPlayAgain }: PracticeRes
             {gamification.newAchievements.map((achievement) => (
               <div
                 key={achievement.id}
-                className="flex items-center justify-between bg-slate-700 rounded-lg p-3 shadow-sm"
+                className="flex items-center justify-between bg-slate-700 rounded-lg p-3 shadow-xs"
               >
                 <div>
                   <p className="font-medium text-slate-100">{achievement.name}</p>
@@ -170,7 +170,7 @@ export function PracticeResults({ data, gamification, onPlayAgain }: PracticeRes
           <h3 className="font-semibold text-slate-300 mb-2">Did You Know? 💡</h3>
           <div className="space-y-2">
             {data.trivia.slice(0, 2).map((fact, idx) => (
-              <div key={idx} className="text-sm text-slate-300 bg-yellow-900/30 p-3 rounded">
+              <div key={idx} className="text-sm text-slate-300 bg-yellow-900/30 p-3 rounded-sm">
                 {fact}
               </div>
             ))}

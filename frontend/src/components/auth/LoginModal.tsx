@@ -31,7 +31,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
     <div className="fixed inset-0 z-50 flex items-start pt-16 sm:items-center sm:pt-0 justify-center overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/60 backdrop-blur-xs"
         onClick={onClose}
       />
 

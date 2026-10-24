@@ -23,7 +23,7 @@ pnpm -w backend run build      # Run in backend workspace
 
 ## Project Structure
 
-- `frontend/` - Next.js 15 app with React 19
+- `frontend/` - Next.js 16 app with React 19 and Tailwind CSS 4
 - `backend/` - Fastify server with Socket.io
 
 ## Environment Variables

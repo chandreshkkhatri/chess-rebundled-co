@@ -56,8 +56,8 @@ export default function Home() {
       <PageLayout>
         <div className="flex items-center justify-center p-4 py-16">
           <div className="animate-pulse text-center">
-            <div className="h-10 w-48 bg-slate-700 rounded mx-auto mb-4"></div>
-            <div className="h-4 w-64 bg-slate-700 rounded mx-auto"></div>
+            <div className="h-10 w-48 bg-slate-700 rounded-sm mx-auto mb-4"></div>
+            <div className="h-4 w-64 bg-slate-700 rounded-sm mx-auto"></div>
           </div>
         </div>
       </PageLayout>

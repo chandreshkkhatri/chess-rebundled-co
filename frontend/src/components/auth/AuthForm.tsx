@@ -154,7 +154,7 @@ export function AuthForm({
     <>
       {/* Header (optional) */}
       {showHeader && (
-        <div className="relative px-6 py-5 bg-gradient-to-r from-purple-600 to-indigo-600">
+        <div className="relative px-6 py-5 bg-linear-to-r from-purple-600 to-indigo-600">
           <h2 className="text-xl font-bold text-white">
             {view === 'forgot-password' ? 'Reset Password' : 'Welcome Back'}
           </h2>
@@ -210,7 +210,7 @@ export function AuthForm({
                       onChange={(e) => setEmail(e.target.value)}
                       required
                       disabled={isSubmitting}
-                      className="w-full pl-10 pr-4 py-2.5 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none disabled:bg-slate-600 placeholder-slate-400"
+                      className="w-full pl-10 pr-4 py-2.5 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-hidden disabled:bg-slate-600 placeholder-slate-400"
                       placeholder="you@example.com"
                     />
                   </div>
@@ -315,7 +315,7 @@ export function AuthForm({
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={isSubmitting}
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none disabled:bg-slate-600 placeholder-slate-400"
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-hidden disabled:bg-slate-600 placeholder-slate-400"
                     placeholder="you@example.com"
                   />
                 </div>
@@ -338,7 +338,7 @@ export function AuthForm({
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     disabled={isSubmitting}
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none disabled:bg-slate-600 placeholder-slate-400"
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-hidden disabled:bg-slate-600 placeholder-slate-400"
                     placeholder="••••••••"
                   />
                 </div>
@@ -371,7 +371,7 @@ export function AuthForm({
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
                       disabled={isSubmitting}
-                      className="w-full pl-10 pr-4 py-2.5 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none disabled:bg-slate-600 placeholder-slate-400"
+                      className="w-full pl-10 pr-4 py-2.5 border border-slate-600 rounded-lg bg-slate-700 text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-hidden disabled:bg-slate-600 placeholder-slate-400"
                       placeholder="••••••••"
                     />
                   </div>
