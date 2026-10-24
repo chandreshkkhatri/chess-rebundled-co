@@ -55,6 +55,70 @@ Socket.io. Provide HTTPS at that proxy for browser microphone access. To expose
 the backend on another interface or port, edit `BIND_ADDRESS` and `BACKEND_PORT`
 in the root `.env` file. `CLIENT_URL` remains the browser's frontend origin.
 
+## Public API HTTPS and browser access
+
+The API hostname must resolve to the intended VM, and Nginx must have a
+`server_name` and certificate covering that **exact hostname**. Otherwise Nginx
+can serve another site's default certificate, causing
+`ERR_CERT_COMMON_NAME_INVALID` for both `/api/*` and Socket.IO. A wildcard such
+as `*.rebundled.co` does not cover `api.chess.rebundled.co`.
+
+The current production API is `https://api.chess.rebundled.co`, proxied to
+`127.0.0.1:3001`. Its Nginx vhost is
+`/etc/nginx/sites-available/chess-api.conf`, enabled through `sites-enabled`.
+It forwards WebSocket upgrade headers and uses a Let's Encrypt certificate for
+`api.chess.rebundled.co`. The frontend stays hosted separately at
+`https://chess.rebundled.co`.
+
+For a **new** Debian/Ubuntu Nginx vhost, after installing Nginx and Certbot's
+Nginx plugin, use the [HTTP bootstrap template](../deploy/nginx/chess-api.http-bootstrap.conf).
+Back up existing Nginx configuration first, confirm these target files are not
+already managing a TLS site, then run:
+
+```bash
+sudo install -m 0644 deploy/nginx/chess-api.http-bootstrap.conf /etc/nginx/sites-available/chess-api.conf
+sudo ln -s /etc/nginx/sites-available/chess-api.conf /etc/nginx/sites-enabled/chess-api.conf
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx --non-interactive --agree-tos --redirect --cert-name api.chess.rebundled.co -d api.chess.rebundled.co
+sudo certbot renew --dry-run --cert-name api.chess.rebundled.co
+```
+
+Certbot reuses an existing ACME account; on a new installation, supply your
+account email with `--email` when first registering. It adds HTTPS and an HTTP
+redirect to the vhost. Keep the resulting Certbot-managed configuration on the
+VM rather than reapplying the HTTP bootstrap template. Confirm that the
+`certbot.timer` renewal service is active. See the
+[Certbot guide](https://eff-certbot.readthedocs.io/en/stable/using.html#nginx) and
+[Nginx WebSocket instructions](https://nginx.org/en/docs/http/websocket.html).
+
+A valid certificate is only one browser requirement. Set
+`CLIENT_URL=https://chess.rebundled.co` in the VM's `backend/.env`; leaving it as
+`http://localhost:3000` makes production HTTP responses fail browser CORS checks.
+Apply an environment-only change with
+`docker compose up -d --no-build --wait backend`. The frontend's
+`NEXT_PUBLIC_SOCKET_URL` must use the HTTPS API hostname. Neither changing the
+backend CORS setting nor configuring Nginx requires deploying the frontend.
+
+To verify the deployed route without bypassing certificate checks:
+
+```bash
+curl --fail https://api.chess.rebundled.co/health
+curl --fail -D - -H 'Origin: https://chess.rebundled.co' https://api.chess.rebundled.co/api/config
+curl --fail 'https://api.chess.rebundled.co/socket.io/?EIO=4&transport=polling'
+```
+
+The config response must allow `https://chess.rebundled.co`, and the socket
+request should return an Engine.IO handshake. Verify secure WebSockets in a
+browser as well. On 2026-10-24, the missing API vhost/certificate and a localhost
+CORS origin were repaired on `oci-dev-host`. The pre-repair Nginx configuration
+and restricted-permission environment backup are under
+`~/backups/chess-rebundled/tls-20261024_111054/`.
+
+The frontend already sets `Cross-Origin-Opener-Policy: same-origin-allow-popups`
+for Firebase popup authentication. A `window.closed` policy warning alone does
+not diagnose a failed login; inspect the actual Firebase error separately from
+API certificate or CORS failures.
+
 ## Database configuration
 
 Compose supplies internal MongoDB and Redis URLs by default, overriding those

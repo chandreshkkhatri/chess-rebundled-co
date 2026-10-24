@@ -106,6 +106,12 @@ Fastify applies `CLIENT_URL` to HTTP CORS outside development. Socket.io has its
 own CORS setup; session/game ownership is enforced by its handlers rather than
 by the HTTP CORS configuration. Preserve WebSocket forwarding through your proxy.
 
+For production HTTPS, the API certificate must cover the exact public hostname.
+A wrong certificate blocks both HTTP requests and sockets before authentication.
+See [public API HTTPS setup](DEPLOYMENT.md#public-api-https-and-browser-access).
+Keep `CLIENT_URL` set to the deployed frontend origin, not the local development
+origin. Backend environment changes require recreating the backend container.
+
 Microphone features need browser support, permission, and a secure context such
 as HTTPS or localhost. Text/tap input remains available without microphone access.
 
