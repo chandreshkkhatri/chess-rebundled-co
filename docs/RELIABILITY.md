@@ -1,5 +1,20 @@
 # Gameplay reliability
 
+## Session ownership and reconnection
+
+Practice allows guests. Signed-in sessions require the original Firebase UID
+for resume, move submission, abandonment, and voice parsing. New guest sessions
+use a random per-tab credential carried in the socket handshake; only its hash
+is stored on the backend. The credential survives reconnects and authentication
+token updates through session storage. If that storage is unavailable, it lasts
+only for the page load. Legacy guest sessions without a credential are limited
+to their original socket and must restart after disconnecting.
+
+Multiplayer and conversational AI games require sign-in. The AI game page
+rejoins its room and reloads authoritative state whenever its connection is
+restored, including a disconnect during the opponent's thinking phase. Stored
+SAN history is replayed for multiplayer/AI threefold-repetition detection.
+
 ## Bot turns and engine requests
 
 The bot page derives whose turn it is from chess.js. A change to the position
@@ -45,6 +60,14 @@ operation fails, the AI request is denied. When Redis is unavailable, local
 counters expire after 26 hours and reset on backend restart. The guest limit
 uses the actual socket peer address; behind a reverse proxy, guest connections
 may share its allowance. Untrusted forwarded-IP headers are not used.
+
+## Conversational AI allowances
+
+Conversational AI games have separate UTC-day counters: up to 10 game starts and
+400 LLM calls per signed-in user. Bot turns, chat-only replies, and generated
+farewells can consume the LLM allowance. Bot turns can use a legal-move fallback
+when generation is unavailable. These limits are independent of the 1,000 voice
+parses described above.
 
 ## Multiplayer mutations and clocks
 

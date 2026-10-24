@@ -1,239 +1,193 @@
-# Chess Rebundled - Feature Documentation & Architecture
+# Features and routes
 
-This document provides a comprehensive overview of the pedagogical, interactive, and gamified features added to **Chess Rebundled** to improve user experience, learning speed, and player retention.
+For setup, see the [README](../README.md). Configuration, storage boundaries, and
+operational limits are described in [configuration](CONFIGURATION.md),
+[architecture](ARCHITECTURE.md), and [reliability](RELIABILITY.md).
 
-For installation and framework versions, see [dependency maintenance](DEPENDENCIES.md).
-For the default backend-only Docker stack and optional frontend profile, see
-[Docker deployment](DEPLOYMENT.md).
+## Historical practice
 
-## Session ownership and game correctness
+Choose a game, request a random game, or select a historical player at
+`/practice`. Practice both sides or only White/Black. New MongoDB catalogs are
+seeded with five games; larger catalogs depend on imports performed by the
+operator.
 
-Practice socket handlers authorize every resume, move, abandonment, text parse,
-and audio parse before reading game data or changing a socket mapping. Signed-in
-sessions require the stored Firebase UID. New guest sessions use a per-tab random
-credential in the Socket.io handshake; the server stores only its SHA-256 hash.
-Auth-token updates preserve that guest credential. Legacy guest sessions without
-a credential remain limited to their original socket and need restarting after a
-disconnect. If browser session storage is unavailable, the credential lasts only
-for the current page load.
+The game page shows the board, expected move, move history, progress, and
+historical trivia. Answers can use text, staged piece/destination selection,
+browser speech recognition, or recorded audio interpreted by Gemini. Board
+arrows and legal-destination highlights support move selection. Settings control
+input behavior and automatic submission.
 
-AI socket requests validate payload types and catch async handler failures so
-malformed messages cannot produce unhandled promise rejections. The AI game page
-requests authoritative state and rejoins its game room on every restored
-connection, including when the opponent was thinking at disconnect time.
+Correctness means matching the historical move. On an incorrect answer, the
+sequence advances along the historical game and the app can compare the
+expected move with the submitted legal alternative using browser Stockfish.
+Analysis reconstructs the position before submission and scores from the
+original side's perspective:
 
-AI and multiplayer move validation rebuild chess.js state from the stored SAN
-history. This retains prior positions needed for threefold-repetition draws.
+| Loss relative to the expected move | Label |
+| --- | --- |
+| At least 150 centipawns | Blunder |
+| At least 50 centipawns | Mistake |
+| At least 20 centipawns | Inaccuracy |
+| Below 20 centipawns | Playable alternative |
+| Submitted move is illegal | Illegal move; no engine comparison |
 
-Run `pnpm test`, `pnpm lint`, `pnpm typecheck`, and `pnpm build` from the repository
-root. Backend regressions cover all practice access paths, owner and guest
-reconnection, malformed AI requests, async failures, and repetition after player,
-bot, and multiplayer moves. Frontend regressions cover AI reconnection and guest
-credential persistence. Tests use local stores and mocked cloud operations.
-See [README.md](../README.md) for environment and service setup.
+These labels compare against the historical move, which is not necessarily the
+engine's best move. Stockfish analysis runs through a cancellable request queue;
+leaving the page or receiving a new result prevents stale feedback.
 
-See [Gameplay reliability](RELIABILITY.md) for socket validation and parsing
-quotas, serialized multiplayer updates and clock expiry, queued/cancellable
-Stockfish requests, corrected practice grading, profile data, and regression
-coverage. Multiplayer currently requires one backend process.
+Guests can practice and reconnect using their per-tab credential. Signed-in
+completed sessions are saved for `/history`, including move results, accuracy,
+and timings. See [session ownership](RELIABILITY.md#session-ownership-and-reconnection).
 
----
+Sources: [practice setup](../frontend/src/app/practice/page.tsx),
+[game page](../frontend/src/app/practice/[sessionId]/page.tsx),
+[evaluation](../frontend/src/lib/practiceEvaluation.ts),
+[practice service](../backend/src/services/practiceService.ts).
 
-## 🎙️ 1. Voice & Waveform UX
+## Voice and notation input
 
-To make voice-controlled chess inputs feel responsive and premium, we introduced real-time visual feedback.
+Two stored parsing modes are supported:
 
-### [Audio Waveform Component](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/AudioWaveform.tsx)
-*   **Purpose**: Renders microphone activity when the system is actively listening.
-*   **Implementation**: 
-    *   Constructed of 7 dynamic, animated bars that change height smoothly using `requestAnimationFrame` interpolation.
-    *   Exposes a pulsing red dot during active voice recording chunks.
-    *   Changes color themes based on listening states (e.g., active vs. standby).
-    *   Includes a mathematical fallback (time-based sine wave animation) to keep the waveform alive when the browser Web Speech API is used, providing a reassurance that the app is listening even when raw volume levels are unavailable.
+- `webspeech-haiku`: the legacy setting name for browser speech recognition with
+  local move parsing and Gemini text interpretation when needed. It does not
+  select an Anthropic/Haiku service.
+- `gemini-audio`: microphone recording submitted to Gemini for transcription and
+  move interpretation.
 
-### [Clickable "Did you mean?" Alternative Suggestions](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/UniversalInputPanel.tsx)
-*   **Purpose**: Prevents speech-to-text mismatch frustration.
-*   **Implementation**:
-    *   Triggers when the AI speech parser returns a move with confidence below `85%`.
-    *   Renders alternative parses as clickable text buttons.
-    *   Tapping an alternative automatically selects or submits the move (if `autoSubmitEnabled` is active and the move is legal).
+The input panel shows listening/recording feedback and can offer alternative
+parses. Voice calibration records speech confusions and stores them in a
+signed-in user's Firestore profile. Browser speech and microphone support vary;
+use HTTPS or localhost, grant microphone access, and retain text/tap fallback.
 
----
+Practice and multiplayer Gemini text cache misses and audio requests share the
+[daily parsing allowance](RELIABILITY.md#socket-request-boundaries-and-ai-quotas).
 
-## 🏁 2. Notation Helpers & Board Highlights
+Sources: [input panel](../frontend/src/components/UniversalInputPanel.tsx),
+[browser speech](../frontend/src/hooks/useVoiceRecognition.ts),
+[audio capture](../frontend/src/hooks/useGeminiVoice.ts),
+[calibration](../frontend/src/components/VoiceCalibration.tsx).
 
-Mastering algebraic notation can be difficult for beginners. The board now helps players visualize their moves.
+## Online multiplayer
 
-### Coordinate Highlighter
-*   **Implementation**: Built into [ChessBoard.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/ChessBoard.tsx) and wired in [UniversalInputPanel.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/UniversalInputPanel.tsx).
-*   **Behavior**: When a user selects a piece (via click, touch, or voice stage), the panel queries legal chess moves for that piece. It immediately highlights all legal destination coordinates on the board using a semi-transparent purple radial gradient dot.
+At `/play`, signed-in players can join matchmaking or create/join a private
+invitation. Matches support untimed play or a time control with increments. Moves
+are validated on the server; players can resign or offer/respond to a draw.
+Active games support reconnection and a disconnect grace period.
 
----
+Game mutations and clock ticks are serialized per game in one backend process.
+Clock expiry is checked before accepting a move or adding its increment. Stored
+SAN history is replayed for repetition detection. This is not a horizontally
+scaled multiplayer deployment; see [reliability](RELIABILITY.md#multiplayer-mutations-and-clocks).
 
-## 📚 3. Pedagogical & Educational Value
+Sources: [lobby](../frontend/src/app/play/page.tsx),
+[game page](../frontend/src/app/play/[gameId]/page.tsx),
+[service](../backend/src/services/multiplayerService.ts).
 
-Errors are converted into direct learning moments, and games are enriched with historical context.
+## Stockfish bot
 
-### [Live Stockfish Blunder Classification](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/practice/%5BsessionId%5D/page.tsx)
-*   **Purpose**: Grades incorrect moves in Practice Mode to explain *why* they were wrong.
-*   **Implementation**:
-    *   Runs the browser-based Stockfish worker in the background on FEN transitions.
-    *   When the user submits an incorrect move, Stockfish evaluates both the historic expected move and the user's submitted move.
-    *   Computes the centipawn loss from the player's perspective:
-        *   *White's turn*: `loss = expectedScore - submittedScore`
-        *   *Black's turn*: `loss = submittedScore - expectedScore`
-    *   **Move Grade Classification**:
-        *   `loss >= 1.50`: **Blunder (-X.XX)** (Material or tactical loss)
-        *   `loss >= 0.50`: **Mistake (-X.XX)** (Positional concession)
-        *   `loss >= 0.20`: **Inaccuracy (-X.XX)** (Sub-optimal choice)
-        *   `loss < 0.20`: **Playable alternative** (Slight deviation from history)
-    *   Displays a pulsing `(Analyzing...)` indicator in the feedback zone during background evaluation, followed by the grade (e.g., `❌ Mistake (-0.75): MISSED E4`).
+The bot setup in `/play` opens `/bot` with a difficulty and color. Stockfish runs
+in a browser worker using assets under `frontend/public/stockfish/`; it is
+separate from the conversational Gemini opponent. Human turns support staged
+notation input and board dragging.
 
-### [Progress-Unlocked Historical Insights](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/practice/%5BsessionId%5D/page.tsx)
-*   **Purpose**: Incentivizes players to complete practice games by connecting moves to historical trivia.
-*   **Behavior**: 
-    *   Trivia facts unlock at milestone achievements (`25%`, `50%`, and `75%` completion of the game's moves).
-    *   Locked slots show mystery placeholders: `🔒 Locked (50% progress)`.
-    *   Unlocking triggers a sleek CSS purple fade pulse (`unlock-pulse` keyframes in `globals.css`).
-    *   Features a desktop sidebar card and a mobile tooltip dropdown listing unlocked facts.
+| Difficulty | Skill level | Search depth | Move-time limit |
+| --- | --- | --- | --- |
+| Easy | 0 | 5 | 1 second |
+| Medium | 10 | 10 | 2 seconds |
+| Hard | 15 | 15 | 3 seconds |
+| Expert | 20 | 20 | 5 seconds |
 
----
+Requests wait for engine readiness. Searches run sequentially and support
+cancellation, worker failure handling, and a 30-second timeout. A failed engine
+can be initialized again by reloading the page.
 
-## 🎯 4. Coordinate & Notation Vision Trainer
+Sources: [bot page](../frontend/src/app/bot/page.tsx),
+[difficulty configuration](../frontend/src/hooks/useStockfish.ts),
+[worker client](../frontend/src/lib/stockfishClient.ts).
 
-To build notation speed, we created a dedicated gamified warmup page.
+## Conversational AI games
 
-### [Trainer Page](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/trainer/page.tsx)
-*   **Route**: `/trainer` (linked on dashboard and quick links).
-*   **Game Modes**:
-    1.  **Find Square**: Shows a target coordinate (e.g., "e4"); user must click it on the board.
-    2.  **Name Square**: Highlights a square on the board; user must enter its coordinate.
-*   **Features**:
-    *   **30-Second Time Attack**: Challenges players to guess as many coordinates as possible. Includes an animated SVG circle timer that shifts colors (green ➔ yellow ➔ pulsing red).
-    *   **Streak Flame Multiplier**: Tracks streaks and displays a flame badge (`🔥 5 STREAK`) for consecutive correct guesses.
-    *   **NATO Phonetics Voice Recognition**: Users can shout out answers in Name Square mode using direct coordinate codes ("e4") or NATO phonetics ("delta four", "alpha two", "bravo six", "hotel eight").
-    *   **Skins & Setup Configs**: Fully customizable orientation (White/Black/Random), board layouts (Standard Pieces vs. Empty Board), and input options.
+Signed-in players choose Rook Rodriguez, Professor Petrova, or Blitz Bogdan at
+`/play-ai`, then choose White, Black, or a random color. Gemini generates opponent
+moves and conversation; server-side chess validation and legal-move fallbacks
+keep play valid. Persona rating labels describe the selected characters, not a
+measured matchmaking rating.
 
----
+The game page resynchronizes after reconnecting. Completed games can be reviewed
+at `/play-ai/[gameId]/review`, with moves, chat, thinking text, and generated
+commentary. Completed AI games are saved in the user's Firestore `aiGames`
+collection so review can outlive session expiry. AI game creation and LLM turns
+have separate daily limits from voice parsing.
 
-## 🎨 5. Cosmetics Shop & Sound Packs
+Sources: [setup](../frontend/src/app/play-ai/page.tsx),
+[AI service](../backend/src/services/aiGameService.ts),
+[personas](../backend/src/data/aiPersonas.ts),
+[limits](../backend/src/services/aiUsageLimiter.ts).
 
-Players can spend their hard-earned XP to unlock premium board visuals and sound effects.
+## Coordinate trainer
 
-### [Aesthetic Shop Widget](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/AestheticShop.tsx)
-*   **Persistence**: Handled fully client-side via `localStorage` (deducts from Firestore `totalXp` balance locally, preserving offline support and database stability).
-*   **Unlocks**:
-    *   **Board Skins**:
-        *   *Classic Forest*: standard green and cream (Free).
-        *   *Cyberpunk Neon*: deep indigo and glowing purple (500 XP).
-        *   *Royal Amber*: gold and amber mahogany (1000 XP).
-        *   *Glassmorphic*: frosted slate and translucent black (1500 XP).
-    *   **Sound Packs**:
-        *   *Classic Wood*: traditional wooden chess clocks (Free).
-        *   *Mechanical Switch*: clicky mechanical keyboard keys (400 XP).
-        *   *Retro Arcade*: 8-bit synth blips and beeps (800 XP).
+`/trainer` offers two 30-second exercises: click the requested square, or name the
+highlighted square. Board orientation can be White, Black, or random, with pieces
+or an empty board. Name-square exercises support typed/tap answers and browser
+speech recognition, including phonetic coordinates. Score, answer streaks, audio
+feedback, and the high score are handled in the browser; the high score is stored
+under `chess_trainer_highscore` in local storage.
 
-### [Audio & Theme Integration](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/ChessBoard.tsx)
-*   **Board Skins**: Listens to custom global event `active_cosmetics_changed`. When equipped, the light and dark squares instantly recolor across all board screens in the app without page reloads.
-*   **Move Audio**: Tracks FEN updates in the board component. By comparing piece counts before and after FEN updates, the board detects moves vs. captures and synthesizes matching sound effects in real-time using browser-native oscillators and filters (Web Audio API), avoiding large static asset downloads.
+Source: [trainer page](../frontend/src/app/trainer/page.tsx).
 
----
+## Profiles and progress
 
-## 🎙️ 6. AI Streamer & Caster Commentary
+Signed-in completed practice sessions update accuracy, move/session totals, XP,
+levels, streaks, and achievement unlocks. The profile endpoint includes
+`gamification`, using defaults for new or older profiles. The home dashboard
+shows loaded profile totals; `/profile` contains progress widgets and
+`/history` lists saved practice sessions. Signed-out profile visits redirect to
+sign-in after authentication resolves.
 
-Brings bot matches and practice mode to life with live commentary.
+Sources: [profile](../frontend/src/app/profile/page.tsx),
+[history](../frontend/src/app/history/page.tsx),
+[gamification](../backend/src/services/gamificationService.ts),
+[Firestore persistence](../backend/src/services/firestoreService.ts).
 
-### [AI Caster Panel](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/AICasterPanel.tsx)
-*   **Casters**:
-    *   **Hikaru** (`👑`): Fast, repeating speedrun phrases (e.g., *"Takes takes takes. Yeah, that is literally completely winning, guys."*).
-    *   **GothamChess (Levy)** (`🎙️`): High drama, tactical shouting (e.g., *"HE SACRIFICED THE ROOOOOOK!"*).
-    *   **Andrea Botez** (`💅`): Chat drama, energy, fears of the "Botez Gambit" (e.g., *"OMG guys, did he blunder his queen?!"*).
-    *   **Magnus Carlsen** (`🏆`): Elite, calm, confident, dry dismissals (e.g., *"e4 is fine. Not challenging, but playable."*).
-*   **Text-to-Speech (TTS)**: Built-in Read Aloud button that uses the browser's native `speechSynthesis` API. Assigns distinct voices, pitches, and speeds to match each personality.
-*   **Integration**:
-    *   *Bot Matches* ([page.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/bot/page.tsx)): Desktop sidebar slot and mobile drawer overlay next to the move log.
-    *   *Practice Mode* ([page.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/practice/%5BsessionId%5D/page.tsx)): Desktop sidebar card below unlocked insights.
+## Browser-local customization and simulations
 
----
+These components use local browser state rather than shared competition or
+server-authoritative purchases:
 
-## 🏆 7. Duolingo-Style Weekly Leagues & Leaderboards
+- **Cosmetics shop:** skins, sound packs, and badges use local storage. Available
+  spending balance is the fetched lifetime XP minus browser-local `chess_spent_xp`;
+  purchases do not deduct Firestore XP. Cosmetics are not synchronized across
+  devices, and their storage keys are not scoped to a Firebase UID. Purchased
+  badges are separate from backend-awarded achievements.
+- **League display:** nine generated competitors surround the user's XP. The
+  cycle lasts three days; the division is derived from lifetime XP. Promotion and
+  demotion zones are display markers, with no server-managed end-of-cycle
+  promotion/demotion or real shared leaderboard.
+- **Caster panel:** named commentator styles select local reaction templates,
+  browser text-to-speech, and generated chat messages. User chat receives scripted
+  replies. This panel does not connect to a real stream or call Gemini; it is
+  separate from the conversational opponent.
 
-Provides a competitive framework for daily practice using simulated divisions.
+Clearing browser storage resets these local selections and standings. Board
+skins and synthesized move sounds propagate through the
+`active_cosmetics_changed` browser event.
 
-### [League Leaderboard Component](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/LeagueLeaderboard.tsx)
-*   **6-Division Progression**:
-    *   *Pawn League*: Entry level, 0 - 999 XP.
-    *   *Knight League*: 1000 - 2499 XP.
-    *   *Bishop League*: 2500 - 4999 XP.
-    *   *Rook League*: 5000 - 7999 XP.
-    *   *Queen League*: 8000 - 11999 XP.
-    *   *King League*: >= 12000 XP.
-*   **XP Standing Tracker**:
-    *   Simulates 9 competitor chess-themed players with randomized base scores.
-    *   Determines current position in the division based on user's live profile XP.
-    *   **Standings Zones**:
-        *   Ranks 1-3: **Promotion Zone** (Highlighted in green, triggers promotion to higher league on cycle end).
-        *   Ranks 4-7: **Safe Zone** (Safe from demotion).
-        *   Ranks 8-10: **Demotion Zone** (Highlighted in red, triggers regression on cycle end).
-    *   **Active Simulator**: Listens to changes in the user's XP. When the user gains XP, competitors randomly gain +10 to +40 XP in the background to simulate dynamic competition.
-    *   **League Timer**: Countdown clock (e.g. `2d 12h remaining`) resetting every 3 days.
-*   **Integration**:
-    *   *Profile Page* ([page.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/profile/page.tsx)): Rendered as a core dashboard widget above the Aesthetic Customization Shop.
+Sources: [shop](../frontend/src/components/AestheticShop.tsx),
+[league](../frontend/src/components/LeagueLeaderboard.tsx),
+[caster](../frontend/src/components/AICasterPanel.tsx),
+[board](../frontend/src/components/ChessBoard.tsx).
 
----
+## PWA and blog
 
-## 🎖️ 8. Profile Badges & League Achievements
+Production Webpack builds generate the PWA service worker and install experience
+through `next-pwa`; PWA generation is disabled in development. Installing the app
+does not make backend-dependent practice, multiplayer, or Gemini requests work
+offline.
 
-To celebrate milestones and reward users, players can now unlock and equip unique Profile Badges, which are showcased dynamically across the application's competitive and social elements.
+Blog posts are local MDX files with metadata and reading-time estimates. The
+optional frontend Docker image copies public/static assets and blog content
+alongside the standalone Next.js server.
 
-### [Aesthetic Shop Integration](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/AestheticShop.tsx)
-*   Introduced a **"Profile Badges"** tab in the shop.
-*   **Available Badges**:
-    *   👑 **Pawn Maestro** (0 XP / Free): Master of the opening moves.
-    *   ⚡ **Speed Demon** (300 XP): Scored 15+ in Coordinate Trainer.
-    *   🧠 **Tactical Genius** (600 XP): Completed a practice session with zero blunders.
-    *   🎙️ **Caster Fanatic** (500 XP): Fan of the AI streamer commentary.
-    *   💎 **High Spender** (1000 XP): Unlocked premium board styles.
-*   Unlocks and selections are fully persisted to `localStorage` under `unlocked_badges` and `active_badge`, and propagate globally via the `active_cosmetics_changed` custom window event.
-
-### Standings & Social Showcases
-*   **[Weekly League Leaderboard](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/LeagueLeaderboard.tsx)**: Displays the player's equipped badge emoji right next to their name. Additionally, simulated competitors also equip randomized badges, making the leaderboard feel highly personalized and alive.
-*   **[User Menu Dropdown](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/auth/UserMenu.tsx)**: Renders the active badge emoji next to the user's name at the top of the dropdown.
-*   **[Profile Card](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/profile/page.tsx)**: Displays the equipped badge name and emoji in a sleek, glassmorphic pill next to their profile avatar and username.
-
----
-
-## 💬 9. Twitch-Style Commentary Chat
-
-Brings bot play and practice mode sidebar commentary to life with an active simulated Twitch chat scroll.
-
-### [Simulated Chat Log](file:///home/ubuntu/code/chess-rebundled/frontend/src/components/AICasterPanel.tsx)
-*   **Move Reactions**: When a move is played (categorized into checks, captures, promotions, castling, checkmates, etc.), the panel fires a staggered delay (stretching from 100ms to 1500ms) to print 3-4 reaction messages from random simulated chatters (e.g. `BlunderGod`, `SackTheQueen`).
-*   **Streamer Personalities**: The chat templates are customized to match the active commentator:
-    *   *Hikaru*: Repeat takes, speedrun references, Juicer slang, and GG spam.
-    *   *GothamChess*: Levy content hyping, ROOOOOOK sacrifices, and tactical shouting.
-    *   *Andrea Botez*: Hype chat, panic checks, and Botez Gambit spams.
-    *   *Magnus Carlsen*: GIGACHAD Norway memes, calm dry analysis, and GOAT spams.
-*   **Twitch-style Formatting**: Chatters are color-coded with Twitch username colors and equip custom badges (Mod `🛡️`, Sub `⭐`, VIP `💎`).
-*   **Interactive Input Box**: The user can type and submit their own messages into the chat, which triggers automated replies from the simulated chatters.
-
----
-
-## 🎯 10. UX Polish — Iteration 12
-
-### Enriched Practice History Cards ([history/page.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/history/page.tsx))
-*   **Accuracy Progress Bar**: Each session card now shows a color-coded horizontal bar (green ≥80%, yellow ≥50%, red below) that visually conveys performance at a glance.
-*   **Relative Timestamps**: Dates now display as human-readable relative strings ("2 days ago", "just now", "yesterday") making history feel current.
-*   **Side & Mode Badges**: Pill badges show which colour the player practised as (♔ White / ♚ Black) and whether it was a Both-Sides or One-Side session.
-*   **Abandoned Badge**: Sessions that were quit early are flagged with an amber "Abandoned" badge.
-*   **Summary Header**: The page header shows total completed count and average accuracy at a glance.
-
-### Dashboard Quick-Stats Banner ([page.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/page.tsx))
-*   **4-Cell Stats Grid**: Logged-in users see a compact banner between the welcome message and mode cards showing: 🔥 Daily Streak, ⚡ Total XP, accuracy %, and total sessions.
-*   **Progressive Reveal**: The banner only appears once profile data has loaded, silently skipping if the fetch fails — ensuring no disruption to users.
-
-### Upgraded Bot Difficulty Picker ([play/page.tsx](file:///home/ubuntu/code/chess-rebundled/frontend/src/app/play/page.tsx))
-*   **Expert Tier Added**: A fourth `expert` difficulty (💀 Brutal — near-perfect play, Stockfish Lvl 20, depth 20) completes the difficulty ladder.
-*   **Colour-Coded Cards**: Each difficulty tier now uses its own border and background accent — green for Easy, yellow for Medium, orange for Hard, red for Expert — providing instant visual scanning.
-*   **Richer Descriptions**: Each difficulty card shows an icon, label, a one-line description, and the Stockfish skill label for transparency.
-*   **`useStockfish` Updated**: The `BotDifficulty` type and `DIFFICULTY_MAP` now include `expert` with appropriate engine parameters.
+Sources: [Next.js configuration](../frontend/next.config.mjs),
+[install prompt](../frontend/src/components/PWAInstallPrompt.tsx),
+[blog loader](../frontend/src/lib/mdx.ts).

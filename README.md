@@ -1,102 +1,69 @@
 # Chess Rebundled
 
-**Master chess notation by speaking moves from the greatest games ever played.**
+Learn chess notation by speaking, typing, or selecting moves from historical
+games. The app also includes online multiplayer, a browser-based Stockfish bot,
+a coordinate trainer, and conversational Gemini opponents.
 
-Chess Rebundled is a voice-powered training app that helps you internalize chess notation and famous game patterns. Instead of passively watching game replays, you actively participate by speaking each move aloud—training both your pattern recognition and your ability to read and communicate chess positions.
+## Documentation
 
-## Why Chess Rebundled?
+Start with the [documentation index](docs/README.md).
 
-Learning chess notation is essential for studying games, analyzing positions, and communicating with other players. But traditional methods—staring at notation sheets or clicking through databases—can feel passive and tedious.
+- [Features and routes](docs/FEATURES.md)
+- [Architecture and data storage](docs/ARCHITECTURE.md)
+- [Environment configuration](docs/CONFIGURATION.md)
+- [Docker Compose deployment](docs/DEPLOYMENT.md)
+- [Dependencies and verification](docs/DEPENDENCIES.md)
+- [Gameplay reliability and limits](docs/RELIABILITY.md)
 
-Chess Rebundled flips the script: you're shown a position and must **speak the next move** from a famous historical game. An AI interprets your voice input (handling accents, mumbles, and creative pronunciations), and you get instant feedback. It's like having a patient coach who quizzes you on the classics.
+## Local development
 
-**Perfect for:**
-- Players learning algebraic notation
-- Intermediate players wanting to study master games actively
-- Anyone who learns better by speaking than clicking
-- Chess enthusiasts who want to internalize famous patterns
+### Requirements
 
-## Features
+- Node.js 24 LTS recommended; the Node.js 22.13+ line is also supported.
+- pnpm 10.18.1, pinned in [package.json](package.json).
+- MongoDB for the historical game catalog.
+- Firebase Authentication and Firestore, with a backend Admin service account.
+- A Gemini API key or the supported Vertex AI configuration for AI modes.
+- Redis is optional locally; without it, active session state uses process memory.
 
-- **Solo Practice Mode**: Practice identifying moves from famous chess games
-- **Voice Input**: Speak your moves using natural language or phonetic alphabet
-- **AI-Powered Move Parsing**: Google Gemini interprets spoken moves and recorded audio
-- **Historical Games**: Play through famous games like The Opera Game, The Immortal Game, and more
-- **Move Visualization**: See moves with arrows showing piece movement from source to destination
-- **Progress Tracking**: See your accuracy and timing statistics
-- **Flexible Practice**: Play as both sides or focus on just White or Black moves
-- **Multiplayer**: Play other users through matchmaking or private challenges, with optional clocks
-- **AI Opponents**: Play a conversational Gemini opponent and review completed games
+If using nvm, run `nvm install` and `nvm use` to select [.nvmrc](.nvmrc).
+Install dependencies from the repository root:
 
-## Getting Started
+```bash
+corepack enable
+pnpm install --frozen-lockfile
+```
 
-### Prerequisites
+Use pnpm consistently. If `npm install` failed with
+`Cannot read properties of null (reading 'matches')`, follow the
+[installation recovery instructions](docs/DEPENDENCIES.md#installation-recovery).
 
-- Node.js 24 LTS recommended (`nvm use`); Node.js 22.13+ on the 22.x line is also supported
-- pnpm
-- MongoDB instance
-- Firebase project with Authentication and Firestore enabled, plus an Admin service account
-- Google Gemini API key, or Vertex AI credentials
-- Redis (optional; sessions use an in-memory fallback when it is unavailable)
+Create local environment files without overwriting existing ones:
 
-### Installation
+```bash
+cp -n backend/.env.example backend/.env
+cp -n frontend/.env.example frontend/.env.local
+```
 
-1. Clone the repository:
-   ```bash
-   git clone <your-repository-url>
-   cd chess-rebundled-co
-   ```
+Fill in Firebase and Gemini settings. For separate local servers, use
+`MONGODB_URI=mongodb://localhost:27017/chess-rebundled` in `backend/.env` and
+`NEXT_PUBLIC_SOCKET_URL=http://localhost:3001` in `frontend/.env.local`.
+See [configuration](docs/CONFIGURATION.md) for all environment variables and
+Vertex AI alternatives. MongoDB, Firebase, and Gemini credentials are not
+provisioned by `pnpm install`.
 
-2. Install dependencies:
-   ```bash
-   corepack enable
-   pnpm install --frozen-lockfile
-   ```
+With MongoDB available, start both development servers:
 
-   Use pnpm from the repository root. If `npm install` failed with
-   `Cannot read properties of null (reading 'matches')`, see
-   [dependency setup](docs/DEPENDENCIES.md).
+```bash
+pnpm dev
+```
 
-3. Set environment variables:
-   ```bash
-   # backend/.env
-   MONGODB_URI=mongodb://localhost:27017/chess-rebundled
-   GOOGLE_API_KEY=your_gemini_api_key
-   FIREBASE_PROJECT_ID=your_firebase_project_id
-   FIREBASE_CLIENT_EMAIL=your_service_account_email
-   FIREBASE_PRIVATE_KEY="your_private_key_with_escaped_newlines"
-   CLIENT_URL=http://localhost:3000
-   # Optional: REDIS_URL=redis://localhost:6379
+Open <http://localhost:3000>. The backend listens on port 3001 by default.
+Practice supports guests; online multiplayer, conversational AI games, and saved
+profile/history data require sign-in. Enable your chosen email/password, Google,
+or GitHub provider in Firebase Authentication.
 
-   # frontend/.env.local
-   NEXT_PUBLIC_SOCKET_URL=http://localhost:3001
-   NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_web_api_key
-   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
-   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
-   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_firebase_sender_id
-   NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
-   # Optional: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_analytics_measurement_id
-   ```
-
-4. Start the development servers:
-   ```bash
-   # Start both frontend and backend
-   pnpm dev
-   ```
-
-5. Open http://localhost:3000 and start practicing!
-
-For Vertex AI, set `GOOGLE_GENAI_USE_VERTEXAI=true`. With an API key, use a Vertex
-express-mode key. Without a key, set `GOOGLE_CLOUD_PROJECT` and
-`GOOGLE_CLOUD_LOCATION` and grant the Firebase service account Vertex AI access.
-The shared client also supports Application Default Credentials; the AI opponent
-availability check currently requires a key or the Firebase service-account variables.
-Override the default model with `GEMINI_MODEL` when needed.
-
-### Verification
-
-Run these from the repository root:
+### Checks
 
 ```bash
 pnpm test
@@ -105,99 +72,68 @@ pnpm typecheck
 pnpm build
 ```
 
-Regression tests use local fixtures and mocked AI responses; they do not contact
-MongoDB, Redis, Firebase, or Gemini. Live integration testing requires the services
-and credentials above. Production also needs the frontend running with
-`pnpm --filter frontend start`; the root `pnpm start` command starts the backend.
+Tests use local fixtures and mocked cloud operations. Live microphone, Firebase,
+Gemini, MongoDB, and Redis behavior needs a configured environment. Lint runs
+ESLint directly; development and production builds use Webpack for the existing
+PWA integration. Stop the development server before building because both use
+the frontend's `.next` directory.
 
-See [Gameplay reliability](docs/RELIABILITY.md) for the request limits, engine
-cancellation behavior, and manual checks. Multiplayer uses one backend process
-for its game queues, clocks, and Socket.io rooms; Redis persistence alone does
-not support multiple backend workers. Stop the development server before running
-a production build because both use the same `.next` directory.
-
-## Tech Stack
-
-- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS 4, Zustand 5
-- **Backend**: Node.js, Fastify, Socket.io, TypeScript
-- **Database**: MongoDB
-- **AI**: Google Gemini through the Developer API or Vertex AI
-- **Voice**: Web Speech API
-- **Chess**: chess.js, react-chessboard
+`pnpm start` starts the compiled backend only. The frontend's
+`pnpm --filter frontend start` script starts Next.js from a local build; the
+Docker image uses the generated standalone server instead.
 
 ## Docker deployment
 
-The default Compose stack runs the backend, MongoDB, and Redis. The frontend is
-optional and requires the explicit `frontend` profile. Configure environment
-files first, then run:
+Docker Compose runs **backend, MongoDB, and Redis by default**. The frontend is
+optional and requires the explicit `frontend` profile.
+
+After preparing environment files and credentials as described in the
+[deployment guide](docs/DEPLOYMENT.md):
 
 ```bash
 docker compose up -d --build --wait backend
 ```
 
-See [deployment instructions](docs/DEPLOYMENT.md) for setup, database persistence,
-the optional frontend, and update commands.
+The backend binds to `127.0.0.1:3001` by default, databases have no host ports,
+and named volumes preserve their data. This stack uses its own database unless
+you configure external database URLs in the root `.env`. Use one backend
+container; multiplayer rooms, clocks, and mutation queues are process-local.
+The legacy SSH/PM2 scripts and GitHub deployment workflows are separate paths;
+adding Compose does not migrate an existing deployment.
 
-## Project Structure
+## Playing and practicing
 
+| Route | Purpose |
+| --- | --- |
+| `/practice` | Choose a historical game, random game, or player and a practice side. |
+| `/practice/[sessionId]` | Follow historical moves with voice, text, or staged selection. |
+| `/play` | Matchmaking, private invitations, and Stockfish bot setup. |
+| `/play/[gameId]` | An authenticated multiplayer game with optional clocks. |
+| `/bot` | Play the browser-based Stockfish bot. |
+| `/play-ai` | Choose a conversational Gemini opponent and color. |
+| `/play-ai/[gameId]/review` | Review a completed AI game. |
+| `/trainer` | Thirty-second square recognition exercises. |
+| `/profile`, `/history`, `/settings` | Progress, completed practice sessions, and preferences. |
+| `/blog` | Articles from local MDX content. |
+
+In historical practice, the expected answer is the move played in that game.
+A different legal move can receive engine feedback while still counting as a
+missed historical move. Say "knight f3", "echo four", "bishop takes d5", or
+"castle kingside"; typed and tap input remain available when voice processing
+is unavailable or quota-limited.
+
+An empty MongoDB catalog is seeded with five games: The Immortal Game, The Opera
+Game, The Game of the Century, Kasparov vs Topalov, and the Evergreen Game.
+Additional PGN imports are available through the backend scripts described in
+[architecture](docs/ARCHITECTURE.md#game-catalog-and-content).
+
+## Repository layout
+
+```text
+frontend/       Next.js application, components, hooks, stores, and browser assets
+backend/        Fastify routes, Socket.io handlers, services, data, and scripts
+docs/           Setup, deployment, feature, architecture, and reliability guides
+scripts/        Legacy VM deployment helpers and ElevenLabs narration utilities
+compose.yaml    Default backend stack and optional frontend profile
+pnpm-lock.yaml  Shared dependency lockfile for the workspace
 ```
-chess-rebundled/
-├── frontend/          # Next.js frontend application
-│   ├── src/
-│   │   ├── app/       # Next.js App Router pages
-│   │   ├── components/# React components
-│   │   ├── hooks/     # Custom React hooks
-│   │   ├── stores/    # Zustand state stores
-│   │   └── lib/       # Utility functions
-│   └── ...
-├── backend/           # Node.js backend server
-│   ├── src/
-│   │   ├── services/  # Business logic
-│   │   ├── socket/    # Socket.io handlers
-│   │   └── types/     # TypeScript types
-│   └── ...
-└── ...
-```
-
-## How It Works
-
-1. **Select a Mode**: Choose to identify all moves (both sides) or just one color
-2. **Listen and Respond**: A famous historical game is loaded; speak the expected move
-3. **AI Interpretation**: Your voice input is parsed by Gemini to determine the chess move
-4. **Get Feedback**: See if your move was correct with visual feedback
-5. **Track Progress**: View your accuracy percentage at the end
-
-## Voice Input Tips
-
-- Use standard algebraic notation: "e4", "Knight f3", "Castle kingside"
-- Phonetic alphabet works well: "Echo 4", "Knight Foxtrot 3"
-- Captures: "Bishop takes d5" or "Bxd5"
-- Castling: "Castle kingside" or "O-O"
-
-## Featured Games
-
-Practice with some of the most celebrated games in chess history:
-
-- **The Immortal Game (1851)** - Anderssen's brilliant sacrifices against Kieseritzky
-- **The Opera Game (1858)** - Morphy's elegant attack played during an opera performance
-- **The Evergreen Game (1852)** - Another Anderssen masterpiece with a stunning queen sacrifice
-- **The Game of the Century (1956)** - 13-year-old Bobby Fischer's legendary victory
-- **Kasparov vs Topalov (1999)** - "Kasparov's Immortal" with breathtaking tactics
-
-Each game includes historical trivia and context to enrich your learning experience.
-
-## Session Access and Reconnection
-
-Solo practice supports guests. Signed-in sessions require the same Firebase user
-to resume or submit moves. Guest sessions use a random reconnect credential held
-in the browser tab's session storage; only its hash is stored on the backend.
-Existing guest sessions created without that credential can continue on their
-original socket, but must be restarted after disconnecting.
-
-Multiplayer and AI opponent games require sign-in. AI games rejoin their room and
-reload the authoritative state whenever the connection is restored. Both game
-services retain move history when checking threefold repetition.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -35,6 +35,10 @@ The backend waits for database health checks. MongoDB and Redis have named data
 volumes, restart automatically, and have no host ports. Backend and frontend
 images run as the unprivileged `node` user and contain production dependencies.
 
+`/health` is a liveness endpoint after startup; it does not continuously check
+cloud providers or database readiness. Firebase Authentication/Firestore and
+Gemini are external services and are not provisioned by this Compose stack.
+
 The backend binds to host loopback on port 3001 by default. Point your existing
 reverse proxy at `http://127.0.0.1:3001` and enable WebSocket forwarding for
 Socket.io. Provide HTTPS at that proxy for browser microphone access. To expose
@@ -50,8 +54,10 @@ it does not import an existing database automatically.
 To retain externally managed databases, set `MONGODB_URI` and `REDIS_URL` in the
 root `.env` file before starting. Container URLs must use addresses reachable
 from inside Docker; `localhost` refers to the container itself. The local
-database services still start as dependencies. You can remove them and their
-`depends_on` entries in an environment-specific Compose override if unwanted.
+database services still start as dependencies. If those local services are
+unwanted, create an environment-specific Compose configuration that removes
+both services and their backend `depends_on` entries; changing only the URLs
+does not stop them from starting.
 
 Run only one backend container. Multiplayer clock timers, queues, and Socket.io
 rooms currently belong to one process; Redis persistence alone does not support
@@ -107,5 +113,26 @@ docker compose config --services
 docker compose --profile frontend config --services
 ```
 
-The older PM2/SSH workflows are separate deployment paths and are not switched
-to Docker automatically by adding this configuration.
+## Build-only validation
+
+These commands build images without deploying the application:
+
+```bash
+docker compose build backend
+docker compose --profile frontend build frontend
+```
+
+The image builds use the frozen root pnpm lockfile. Development dependencies are
+used in build stages; the backend runtime copies production dependencies and the
+frontend runtime uses Next.js standalone output.
+
+## Legacy deployment paths
+
+The root `pnpm deploy:backend` script still invokes
+[deploy-backend.sh](../scripts/deploy-backend.sh), an SSH/PM2 deployment helper.
+The [production](../.github/workflows/deploy-backend.yml) and
+[development](../.github/workflows/deploy-backend-dev.yml) GitHub workflows also
+remain SSH/PM2 paths. They are not Compose commands and have not been migrated
+automatically. The VM setup scripts still refer to Node.js 20 and these older
+paths run npm installs, so do not use them as the current Node.js/pnpm setup
+instructions. Use the Compose procedure above for the new deployment mechanism.
