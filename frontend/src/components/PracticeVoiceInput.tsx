@@ -57,9 +57,9 @@ export function PracticeVoiceInput({
       aiParseError={aiParseError}
       isAIParsing={isAIParsing}
       onMoveSubmit={onMoveSubmit}
-      onParseMoveWithText={(text, rawTranscript) => {
+      onParseMoveWithText={(text, rawTranscript, transcripts) => {
         if (sessionId) {
-          parseMoveWithAI(sessionId, text, rawTranscript);
+          parseMoveWithAI(sessionId, text, rawTranscript, transcripts);
         }
       }}
       onParseMoveWithAudio={(audioBase64, mimeType) => {

@@ -461,9 +461,9 @@ export default function MultiplayerGamePage() {
               aiParseError={aiParseError}
               isAIParsing={isAIParsing}
               onMoveSubmit={handleMoveSubmit}
-              onParseMoveWithText={(text, rawTranscript) => {
+              onParseMoveWithText={(text, rawTranscript, transcripts) => {
                 if (gameId) {
-                  parseMoveWithAI(gameId, text, rawTranscript);
+                  parseMoveWithAI(gameId, text, rawTranscript, transcripts);
                 }
               }}
               onParseMoveWithAudio={(audioBase64, mimeType) => {

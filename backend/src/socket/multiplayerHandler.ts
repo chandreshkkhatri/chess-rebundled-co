@@ -3,6 +3,7 @@ import { MultiplayerService } from "../services/multiplayerService.js";
 import { MatchmakingService } from "../services/matchmakingService.js";
 import {
   parseChessMoveWithAI,
+  transcriptCacheText,
   AIParsedMove,
 } from "../services/aiMoveParser.js";
 import { parseChessMoveFromAudio } from "../services/geminiAudioParser.js";
@@ -11,7 +12,7 @@ import { TimeControl } from "../types/multiplayer.js";
 import { WaitingPlayer } from "../services/matchmakingService.js";
 import { getVoiceCalibration, getVoiceCalibrationVersion } from "../services/firestoreService.js";
 import crypto from "crypto";
-import { guardSocketRequest, hasText, isRecord, validAudioParse, validTextParse, validTimeControl } from "../lib/socketRequest.js";
+import { guardSocketRequest, hasText, isRecord, spokenGuesses, validAudioParse, validTextParse, validTimeControl } from "../lib/socketRequest.js";
 import { aiUsageLimiter } from "../services/aiUsageLimiter.js";
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -489,7 +490,7 @@ export class MultiplayerHandler {
 
   private async handleParseMoveWithAI(
     socket: GameSocket,
-    data: { gameId: string; transcript: string; rawTranscript?: string },
+    data: { gameId: string; transcript: string; rawTranscript?: string; transcripts?: string[] },
   ): Promise<void> {
     const game = await this.multiplayerService.getGame(data.gameId);
     if (!game || !socket.data.uid || !this.multiplayerService.getPlayerColor(game, socket.data.uid) || game.status !== 'active') {
@@ -500,9 +501,9 @@ export class MultiplayerHandler {
     const legalMoves = this.multiplayerService.getLegalMoves(game.fen);
 
     try {
-      // Use rawTranscript for AI when available (gives better context than locally-parsed move)
-      const transcriptForAI = data.rawTranscript || data.transcript;
-      const cacheKey = this.getAIParseCacheKey(transcriptForAI, game.fen, socket.data.uid);
+      // The cache key covers every recognizer guess, since a different set can change the answer.
+      const guesses = spokenGuesses(data);
+      const cacheKey = this.getAIParseCacheKey(transcriptCacheText(guesses.transcript, guesses.alternatives), game.fen, socket.data.uid);
       let cached = this.aiParseCache.get(cacheKey);
       let parsed: AIParsedMove;
 
@@ -518,12 +519,13 @@ export class MultiplayerHandler {
         }
         const confusionMap = await this.getUserConfusionMap(socket.data.uid);
         parsed = await parseChessMoveWithAI(
-          transcriptForAI,
+          guesses.transcript,
           game.fen,
           legalMoves,
           {
             allowGuessOnUnclear: false,
             confusionMap,
+            alternativeTranscripts: guesses.alternatives,
           },
         );
         this.cacheAIParse(cacheKey, parsed);

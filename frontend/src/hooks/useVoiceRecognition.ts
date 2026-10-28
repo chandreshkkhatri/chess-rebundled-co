@@ -2,15 +2,34 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { parseVoiceInput } from "@/lib/voiceParser";
+import { CONFIDENT_MATCH, matchSpokenMove } from "@/lib/spokenMoveMatcher";
 
 // Configuration for early interim result triggering
 const INTERIM_STABILITY_MS = 300; // Trigger early if same result for this long
-const INTERIM_MIN_CONFIDENCE = 0.75; // Minimum confidence to trigger early
+const INTERIM_MIN_CONFIDENCE = CONFIDENT_MATCH; // Only a clear, complete match commits early
 
 interface UseVoiceRecognitionOptions {
-  onResult?: (move: string, confidence: number, rawTranscript: string) => void;
+  // transcripts: every guess the recognizer offered, most likely first
+  onResult?: (move: string, confidence: number, rawTranscript: string, transcripts: string[]) => void;
   continuous?: boolean;
   legalMoves?: string[];
+}
+
+interface Interpretation {
+  notation: string;
+  confidence: number;
+  extendable: boolean; // the match may be the start of a longer legal move
+}
+
+// Match every recognizer guess against the legal moves by sound. Without a
+// position (no legal moves) fall back to the word-by-word parser.
+function interpret(transcripts: string[], legalMoves: string[] | undefined): Interpretation {
+  if (legalMoves && legalMoves.length > 0) {
+    const match = matchSpokenMove(transcripts, legalMoves);
+    return { notation: match.move, confidence: match.confidence, extendable: match.extendable };
+  }
+  const parsed = parseVoiceInput(transcripts[0] ?? "");
+  return { notation: parsed.notation, confidence: parsed.confidence, extendable: false };
 }
 
 export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
@@ -59,7 +78,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     recognition.continuous = continuous;
     recognition.interimResults = true;
     recognition.lang = "en-US";
-    recognition.maxAlternatives = 3;
+    recognition.maxAlternatives = 5;
 
     // Boost accuracy for chess commands using a custom JSGF grammar list
     const SpeechGrammarList = (window as any).SpeechGrammarList || (window as any).webkitSpeechGrammarList;
@@ -109,9 +128,15 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       const results = event.results[event.resultIndex];
       const rawTranscript = results[0].transcript.trim();
+      // Every alternative the recognizer offers, not just its first guess.
+      const transcripts: string[] = [];
+      for (let i = 0; i < results.length; i++) {
+        const text = results[i].transcript.trim();
+        if (text && !transcripts.includes(text)) transcripts.push(text);
+      }
 
       // Always update live transcript and a local parsed preview for immediate UI feedback
-      const parsed = parseVoiceInput(rawTranscript, legalMovesRef.current);
+      const parsed = interpret(transcripts, legalMovesRef.current);
       setTranscript(rawTranscript);
       setParsedPreview(parsed.notation);
       setConfidence(parsed.confidence);
@@ -135,6 +160,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
             moveForCallback,
             parsed.confidence,
             rawTranscript,
+            transcripts,
           );
         }
         // Reset for next recognition
@@ -147,8 +173,9 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
         // Skip if we've already triggered for this recognition session
         if (hasTriggeredRef.current) return;
 
-        // Skip if no valid parsed move
-        if (!parsed.notation) {
+        // Skip if no valid parsed move, or if the words so far may be the
+        // start of a longer move ("castle" before "queen side").
+        if (!parsed.notation || parsed.extendable) {
           lastInterimRef.current = null;
           return;
         }
@@ -171,6 +198,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
                 moveForCallback,
                 parsed.confidence,
                 rawTranscript,
+                transcripts,
               );
             }
           }
@@ -201,6 +229,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
                   parsed.notation,
                   parsed.confidence,
                   rawTranscript,
+                  transcripts,
                 );
               }
             }, INTERIM_STABILITY_MS);

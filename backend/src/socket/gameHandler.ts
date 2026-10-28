@@ -2,6 +2,7 @@ import { Server, Socket } from "socket.io";
 import { PracticeService } from "../services/practiceService.js";
 import {
   parseChessMoveWithAI,
+  transcriptCacheText,
   AIParsedMove,
 } from "../services/aiMoveParser.js";
 import { parseChessMoveFromAudio } from "../services/geminiAudioParser.js";
@@ -18,7 +19,7 @@ import {
 } from "../services/gameRepository.js";
 import crypto from "crypto";
 import { ownsPracticeSession } from "../lib/practiceOwnership.js";
-import { guardSocketRequest, hasText, isRecord, validAudioParse, validPracticeOptions, validTextParse } from "../lib/socketRequest.js";
+import { guardSocketRequest, hasText, isRecord, spokenGuesses, validAudioParse, validPracticeOptions, validTextParse } from "../lib/socketRequest.js";
 import { runGameMutation } from "../lib/gameMutationQueue.js";
 import { aiUsageLimiter } from "../services/aiUsageLimiter.js";
 
@@ -488,7 +489,7 @@ export class GameHandler {
 
   private async handleParseMoveWithAI(
     socket: GameSocket,
-    data: { sessionId: string; transcript: string; rawTranscript?: string },
+    data: { sessionId: string; transcript: string; rawTranscript?: string; transcripts?: string[] },
   ): Promise<void> {
     const session = await this.getOwnedSession(socket, data.sessionId);
     if (!session) {
@@ -510,9 +511,10 @@ export class GameHandler {
     const legalMoves = await this.practiceService.getLegalMoves(data.sessionId);
 
     try {
-      // Check cache first for AI parsing results
-      // Use rawTranscript for AI when available (gives better context than locally-parsed move)
-      const transcriptForAI = data.rawTranscript || data.transcript;
+      // Check cache first for AI parsing results. The key covers every recognizer
+      // guess, since a different set of guesses can change the answer.
+      const guesses = spokenGuesses(data);
+      const transcriptForAI = transcriptCacheText(guesses.transcript, guesses.alternatives);
       const calibrationVersion = getVoiceCalibrationVersion(socket.data.uid);
       let parsed = this.getCachedAIParse(transcriptForAI, currentFen, socket.data.uid);
 
@@ -523,10 +525,10 @@ export class GameHandler {
         }
         const confusionMap = await this.getUserConfusionMap(socket.data.uid);
         parsed = await parseChessMoveWithAI(
-          transcriptForAI,
+          guesses.transcript,
           currentFen,
           legalMoves,
-          { confusionMap },
+          { confusionMap, alternativeTranscripts: guesses.alternatives },
         );
         // Cache the result
         this.cacheAIParse(transcriptForAI, currentFen, parsed, socket.data.uid, calibrationVersion);

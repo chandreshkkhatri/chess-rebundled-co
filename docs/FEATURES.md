@@ -79,6 +79,18 @@ Two stored parsing modes are supported:
 - `gemini-audio`: microphone recording submitted to Gemini for transcription and
   move interpretation.
 
+In browser speech mode every guess the recognizer offers is matched by sound
+against the legal moves of the current position (`spokenMoveMatcher.ts`): each
+legal move is expanded into the ways it can be said ("knight f3", "knight to
+foxtrot three", "e takes d5", "castle queenside") and scored against the words
+heard. A clear, complete match is committed in the browser with no server
+request and no parsing allowance spent. Unclear speech, incomplete words, and
+the b/d files (confused so often that both are offered unless said as
+"bravo"/"delta") go to the server with all of the recognizer's guesses, where
+calibration and Gemini decide. Gemini's answer is constrained to the legal
+moves through structured output. Interim speech only commits early when it is
+a clear match that no longer legal move begins with.
+
 The input panel shows listening/recording feedback and can offer alternative
 parses. Voice calibration records speech confusions and stores them in a
 signed-in user's Firestore profile. Saved calibration takes effect immediately

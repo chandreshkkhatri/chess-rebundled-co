@@ -450,7 +450,7 @@ export function usePracticeSocket() {
   }, []);
 
   const parseMoveWithAI = useCallback(
-    (sessionId: string, transcript: string, rawTranscript?: string) => {
+    (sessionId: string, transcript: string, rawTranscript?: string, transcripts?: string[]) => {
       const socket = getSocket();
 
       // Cancel any existing AI parse timeout
@@ -464,6 +464,7 @@ export function usePracticeSocket() {
         sessionId,
         transcript,
         rawTranscript,
+        transcripts,
       });
 
       // Safety timeout: if no parse response arrives within 8s, fall back to the
