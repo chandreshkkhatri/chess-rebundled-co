@@ -32,7 +32,14 @@ The game page shows the board, expected move, move history, progress, and
 historical trivia. Answers can use text, staged piece/destination selection,
 browser speech recognition, or recorded audio interpreted by Gemini. Board
 arrows and legal-destination highlights support move selection. Settings control
-input behavior and automatic submission.
+input behavior and automatic submission. The board keeps one orientation for the
+session (White in both-side mode, the player's color in one-side mode) and has a
+manual flip control. Staged options scroll inside the input panel when they do
+not fit.
+
+Finished sessions can be replayed on the board from the results screen or from
+`/history/[sessionId]`: step through the historical game, flip the board, and
+jump to any move. Each practiced move is marked as found or missed.
 
 Correctness means matching the historical move. On an incorrect answer, the
 sequence advances along the historical game and the app can compare the
@@ -200,6 +207,7 @@ Stored preferences, voice calibration, and any legacy reward data are preserved.
 
 Sources: [profile](../frontend/src/app/profile/page.tsx),
 [history](../frontend/src/app/history/page.tsx),
+[replay](../frontend/src/components/PracticeReplay.tsx),
 [Firestore persistence](../backend/src/services/firestoreService.ts).
 
 ## PWA and blog

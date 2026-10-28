@@ -12,11 +12,15 @@ interface ReplayPly {
   fenAfter: string;
 }
 
+// The fields replay needs; saved sessions load only these from the history API.
+export type ReplayGame = Pick<HistoricalGame, 'title' | 'white' | 'black' | 'result' | 'moves'>;
+
 interface PracticeReplayProps {
-  game: HistoricalGame;
+  game: ReplayGame;
   moveResults: PracticeMoveResult[];
   initialOrientation?: 'white' | 'black';
   onBack: () => void;
+  backLabel?: string;
 }
 
 // Precomputes every position of the historical game for board replay.
@@ -36,7 +40,13 @@ export function buildReplayPlies(moves: string[]): { startFen: string; plies: Re
 }
 
 // Steps through a finished session's game on the board, marking the moves the player was graded on.
-export function PracticeReplay({ game, moveResults, initialOrientation = 'white', onBack }: PracticeReplayProps) {
+export function PracticeReplay({
+  game,
+  moveResults,
+  initialOrientation = 'white',
+  onBack,
+  backLabel = 'Back to results',
+}: PracticeReplayProps) {
   const { startFen, plies } = useMemo(() => buildReplayPlies(game.moves), [game.moves]);
   // ply = number of half-moves played; 0 is the starting position.
   const [ply, setPly] = useState(plies.length);
@@ -118,7 +128,8 @@ export function PracticeReplay({ game, moveResults, initialOrientation = 'white'
           <button
             onClick={onBack}
             className="py-1 px-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-sm transition-colors text-sm"
-            title="Back to results"
+            title={backLabel}
+            aria-label={backLabel}
           >
             ←
           </button>
