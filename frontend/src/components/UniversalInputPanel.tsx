@@ -914,48 +914,52 @@ export function UniversalInputPanel({
           ) : null}
         </div>
 
-        {/* ZONE 2: Staged Selection Grid (flex-1) - Always reserves space */}
+        {/* ZONE 2: Staged Selection Grid (flex-1) - Always reserves space.
+            Header lines stay fixed; the options scroll when they outgrow the space. */}
         <div
-          className={`flex-1 min-h-0 ${tapGridEnabled && isActive ? "" : "invisible"}`}
+          className={`flex-1 min-h-0 flex flex-col ${tapGridEnabled && isActive ? "" : "invisible"}`}
         >
-          <div className="w-full">
-            {/* Stage header with back button - fixed height so the grid stays put */}
-            <div className="h-5 flex items-center justify-between mb-1">
-              {stageState.stage !== "piece" ? (
-                <button
-                  onClick={handleStageBack}
-                  className="text-slate-400 hover:text-white text-xs flex items-center gap-0.5 px-1"
+          {/* Stage header with back button - fixed height so the grid stays put */}
+          <div className="h-5 shrink-0 flex items-center justify-between mb-1">
+            {stageState.stage !== "piece" ? (
+              <button
+                onClick={handleStageBack}
+                className="text-slate-400 hover:text-white text-xs flex items-center gap-0.5 px-1"
+              >
+                <svg
+                  className="w-3 h-3"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  <svg
-                    className="w-3 h-3"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 19l-7-7 7-7"
-                    />
-                  </svg>
-                  Back
-                </button>
-              ) : (
-                <div className="w-12" />
-              )}
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider text-center flex-1 min-w-0 truncate">
-                {getStageLabel(stageState, voiceEnabled)}
-              </div>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+                Back
+              </button>
+            ) : (
               <div className="w-12" />
+            )}
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider text-center flex-1 min-w-0 truncate">
+              {getStageLabel(stageState, voiceEnabled)}
             </div>
+            <div className="w-12" />
+          </div>
 
-            {/* Selection breadcrumb - line is always reserved so the grid stays put */}
-            <div className="h-4 text-xs leading-4 text-slate-400 text-center mb-1 font-mono truncate">
-              {stageState.selectedPiece ? getSelectionBreadcrumb(stageState) : null}
-            </div>
+          {/* Selection breadcrumb - line is always reserved so the grid stays put */}
+          <div className="h-4 shrink-0 text-xs leading-4 text-slate-400 text-center mb-1 font-mono truncate">
+            {stageState.selectedPiece ? getSelectionBreadcrumb(stageState) : null}
+          </div>
 
-            {/* Options grid */}
+          {/* Options grid - scrolls inside the panel; remounts per stage so it starts at the top */}
+          <div
+            key={`${stageState.stage}-${stageState.selectedPiece ?? ""}-${stageState.selectedPawnFile ?? ""}-${stageState.selectedDestination ?? ""}`}
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
+          >
             <div className="grid grid-cols-3 min-[400px]:grid-cols-4 sm:grid-cols-5 gap-1">
               {(stageOptions.length > 0
                 ? stageOptions
@@ -1004,14 +1008,14 @@ export function UniversalInputPanel({
                 );
               })}
             </div>
-
-            {/* Voice tip - only show on piece stage */}
-            {voiceEnabled && stageState.stage === "piece" && (
-              <div className="text-[9px] text-slate-500 text-center mt-1">
-                Tip: Say &quot;delta&quot; for d, &quot;bravo&quot; for b
-              </div>
-            )}
           </div>
+
+          {/* Voice tip - only show on piece stage */}
+          {voiceEnabled && stageState.stage === "piece" && (
+            <div className="shrink-0 text-[9px] text-slate-500 text-center mt-1">
+              Tip: Say &quot;delta&quot; for d, &quot;bravo&quot; for b
+            </div>
+          )}
         </div>
 
         {/* ZONE 3: Feedback (h-8) - Fixed height */}

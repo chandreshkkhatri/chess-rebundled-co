@@ -23,9 +23,10 @@ function getPerformanceMessage(accuracy: number): { emoji: string; text: string 
 interface PracticeResultsProps {
   data: PracticeCompletedData;
   onPlayAgain: () => void;
+  onReviewOnBoard?: () => void;
 }
 
-export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
+export function PracticeResults({ data, onPlayAgain, onReviewOnBoard }: PracticeResultsProps) {
   const accuracyPercent = (data.accuracy * 100).toFixed(1);
   const avgTimePerMove = (data.averageTimePerMove / 1000).toFixed(1);
   const performance = getPerformanceMessage(data.accuracy);
@@ -115,6 +116,15 @@ export function PracticeResults({ data, onPlayAgain }: PracticeResultsProps) {
           View all sessions
         </Link>
       </div>
+
+      {onReviewOnBoard && (
+        <button
+          onClick={onReviewOnBoard}
+          className="w-full mb-2 py-3 px-6 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-lg transition-all"
+        >
+          Replay on Board
+        </button>
+      )}
 
       <button
         onClick={onPlayAgain}
