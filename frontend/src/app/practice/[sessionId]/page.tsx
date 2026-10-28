@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ChessBoard } from '@/components/ChessBoard';
 import { PracticeVoiceInput } from '@/components/PracticeVoiceInput';
 import { PracticeResults } from '@/components/PracticeResults';
+import { PracticeReplay } from '@/components/PracticeReplay';
 import { MoveHistory } from '@/components/MoveHistory';
 import { SettingsModal } from '@/components/SettingsModal';
 import { DiscordIcon } from '@/components/icons/DiscordIcon';
@@ -35,6 +36,7 @@ export default function PracticeGamePage() {
   const [highlightSquares, setHighlightSquares] = useState<string[]>([]);
   const [wrongMoveEvaluation, setWrongMoveEvaluation] = useState<string | null>(null);
   const [isBoardFlipped, setIsBoardFlipped] = useState(false);
+  const [showReplay, setShowReplay] = useState(false);
   const [isEvaluatingWrongMove, setIsEvaluatingWrongMove] = useState(false);
 
   const { isReady: isStockfishReady, evaluatePosition } = useStockfish();
@@ -213,11 +215,25 @@ export default function PracticeGamePage() {
     }
   }, [status, isStarting, isResuming, resumeAttempted, storedSessionId, sessionId, router]);
 
-  // Show results when completed
+  // Show results when completed, with an optional board replay of the game
   if (status === 'completed' && completedData) {
+    if (showReplay) {
+      return (
+        <PracticeReplay
+          game={completedData.game}
+          moveResults={completedData.moveResults}
+          initialOrientation={boardOrientation}
+          onBack={() => setShowReplay(false)}
+        />
+      );
+    }
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
-        <PracticeResults data={completedData} onPlayAgain={handlePlayAgain} />
+        <PracticeResults
+          data={completedData}
+          onPlayAgain={handlePlayAgain}
+          onReviewOnBoard={() => setShowReplay(true)}
+        />
       </main>
     );
   }
@@ -468,7 +484,8 @@ export default function PracticeGamePage() {
           {/* Main content: board + practice controls */}
           <div className="flex flex-col lg:flex-row gap-1 lg:gap-4 flex-1 min-h-0 overflow-hidden">
             <div className="flex justify-center shrink-0 lg:flex-[1.15] lg:shrink min-h-0">
-              <div className="w-full max-w-[min(100%,calc(100vh-250px))] lg:max-w-[min(58vh,620px)] xl:max-w-[min(64vh,700px)] flex flex-col justify-center">
+              {/* Mobile: leave room below the board for the input panel's status, header and option rows */}
+              <div className="w-full max-w-[min(100%,calc(100dvh-380px))] lg:max-w-[min(58vh,620px)] xl:max-w-[min(64vh,700px)] flex flex-col justify-center">
                 
                 {/* Top Player Plate */}
                 <div className="flex items-center gap-2 px-1 py-1.5 lg:py-2 text-white">
