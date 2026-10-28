@@ -120,6 +120,7 @@ The helper waits for health checks and attempts backend image rollback on failur
 | `/play-ai/[gameId]/review` | Review the moves, decision summaries, alternatives, threats, and plans from a completed AI game. |
 | `/trainer` | Thirty-second square recognition exercises. |
 | `/profile`, `/history`, `/settings` | Practice statistics, completed sessions, and speech/input preferences. |
+| `/history/[sessionId]` | Replay a saved practice session on the board. |
 | `/blog` | Articles from local MDX content. |
 
 In historical practice, the expected answer is the move played in that game.

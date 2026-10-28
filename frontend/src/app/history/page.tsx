@@ -241,6 +241,16 @@ export default function HistoryPage() {
                         />
                       </div>
                     )}
+
+                    {/* Replay on board */}
+                    <div className="flex justify-end px-4 pb-3">
+                      <Link
+                        href={`/history/${encodeURIComponent(session.id)}`}
+                        className="text-xs font-semibold text-purple-300 hover:text-purple-200 bg-purple-600/20 hover:bg-purple-600/30 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Replay on Board →
+                      </Link>
+                    </div>
                   </div>
                 );
               })}

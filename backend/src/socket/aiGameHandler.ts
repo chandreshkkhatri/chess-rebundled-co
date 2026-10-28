@@ -12,7 +12,7 @@ import {
 } from "../services/aiGameService.js";
 import { getPersona, toPublicPersona } from "../data/aiPersonas.js";
 
-import { guardSocketRequest, hasText, validTextParse, validAudioParse } from "../lib/socketRequest.js";
+import { guardSocketRequest, hasText, spokenGuesses, validTextParse, validAudioParse } from "../lib/socketRequest.js";
 import { aiUsageLimiter } from "../services/aiUsageLimiter.js";
 import { parseChessMoveWithAI } from "../services/aiMoveParser.js";
 import { parseChessMoveFromAudio } from "../services/geminiAudioParser.js";
@@ -371,9 +371,10 @@ export class AiGameHandler {
     const confusionMap = (await getVoiceCalibration(uid))?.confusionMap;
     const legalMoves = chessFromHistory(state.moves).moves();
     const options = { allowGuessOnUnclear: false, confusionMap };
-    const parsed = audio
-      ? await parseChessMoveFromAudio(data.audioBase64!, data.mimeType!, state.fen, legalMoves, options)
-      : await parseChessMoveWithAI(data.rawTranscript || data.transcript!, state.fen, legalMoves, options);
+    const guesses = audio ? null : spokenGuesses({ transcript: data.transcript!, rawTranscript: data.rawTranscript, transcripts: data.transcripts });
+    const parsed = guesses
+      ? await parseChessMoveWithAI(guesses.transcript, state.fen, legalMoves, { ...options, alternativeTranscripts: guesses.alternatives })
+      : await parseChessMoveFromAudio(data.audioBase64!, data.mimeType!, state.fen, legalMoves, options);
     const fresh = await aiGameService.getGameForUser(data.gameId, uid);
     if (!fresh || !aiGameService.isPlayersTurn(fresh) || fresh.fen !== data.fen) {
       fail("The position changed. Please enter your move again.");

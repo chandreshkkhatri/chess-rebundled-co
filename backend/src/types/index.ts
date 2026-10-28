@@ -294,6 +294,7 @@ export interface ClientToServerEvents {
     sessionId: string;
     transcript: string;
     rawTranscript?: string;
+    transcripts?: string[];
   }) => void;
   // Gemini audio parsing events
   "parse-audio-move-with-gemini": (data: {
@@ -316,6 +317,7 @@ export interface ClientToServerEvents {
     gameId: string;
     transcript: string;
     rawTranscript?: string;
+    transcripts?: string[];
   }) => void;
   "mp-parse-audio-move-with-gemini": (data: {
     gameId: string;

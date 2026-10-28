@@ -309,13 +309,14 @@ export function useMultiplayerSocket() {
   }, []);
 
   const parseMoveWithAI = useCallback(
-    (gameId: string, transcript: string, rawTranscript?: string) => {
+    (gameId: string, transcript: string, rawTranscript?: string, transcripts?: string[]) => {
       const socket = getSocket();
       useMultiplayerStore.getState().setAIParsing(true);
       socket.emit("mp-parse-move-with-ai", {
         gameId,
         transcript,
         rawTranscript,
+        transcripts,
       });
     },
     [],

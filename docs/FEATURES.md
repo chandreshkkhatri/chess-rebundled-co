@@ -32,7 +32,14 @@ The game page shows the board, expected move, move history, progress, and
 historical trivia. Answers can use text, staged piece/destination selection,
 browser speech recognition, or recorded audio interpreted by Gemini. Board
 arrows and legal-destination highlights support move selection. Settings control
-input behavior and automatic submission.
+input behavior and automatic submission. The board keeps one orientation for the
+session (White in both-side mode, the player's color in one-side mode) and has a
+manual flip control. Staged options scroll inside the input panel when they do
+not fit.
+
+Finished sessions can be replayed on the board from the results screen or from
+`/history/[sessionId]`: step through the historical game, flip the board, and
+jump to any move. Each practiced move is marked as found or missed.
 
 Correctness means matching the historical move. On an incorrect answer, the
 sequence advances along the historical game and the app can compare the
@@ -71,6 +78,18 @@ Two stored parsing modes are supported:
   select an Anthropic/Haiku service.
 - `gemini-audio`: microphone recording submitted to Gemini for transcription and
   move interpretation.
+
+In browser speech mode every guess the recognizer offers is matched by sound
+against the legal moves of the current position (`spokenMoveMatcher.ts`): each
+legal move is expanded into the ways it can be said ("knight f3", "knight to
+foxtrot three", "e takes d5", "castle queenside") and scored against the words
+heard. A clear, complete match is committed in the browser with no server
+request and no parsing allowance spent. Unclear speech, incomplete words, and
+the b/d files (confused so often that both are offered unless said as
+"bravo"/"delta") go to the server with all of the recognizer's guesses, where
+calibration and Gemini decide. Gemini's answer is constrained to the legal
+moves through structured output. Interim speech only commits early when it is
+a clear match that no longer legal move begins with.
 
 The input panel shows listening/recording feedback and can offer alternative
 parses. Voice calibration records speech confusions and stores them in a
@@ -200,6 +219,7 @@ Stored preferences, voice calibration, and any legacy reward data are preserved.
 
 Sources: [profile](../frontend/src/app/profile/page.tsx),
 [history](../frontend/src/app/history/page.tsx),
+[replay](../frontend/src/components/PracticeReplay.tsx),
 [Firestore persistence](../backend/src/services/firestoreService.ts).
 
 ## PWA and blog

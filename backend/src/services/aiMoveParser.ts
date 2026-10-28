@@ -1,3 +1,4 @@
+import { Type } from "@google/genai";
 import { genai, GEMINI_MODEL } from "../lib/genaiClient.js";
 import { withTimeout } from "../lib/withTimeout.js";
 
@@ -15,6 +16,16 @@ export interface AIParsedMove {
 export interface AIParseOptions {
   allowGuessOnUnclear?: boolean;
   confusionMap?: Record<string, string[]>;
+  // Other guesses the speech recognizer offered for the same utterance, most likely first.
+  alternativeTranscripts?: string[];
+}
+
+// The schema's stand-in for "no move": the model must pick a listed value.
+const UNCLEAR = "unclear";
+
+/** Joins the recognizer's guesses into one cache key, so the same set of guesses reuses one answer. */
+export function transcriptCacheText(transcript: string, alternatives: string[] = []): string {
+  return [transcript, ...alternatives].join(" | ");
 }
 
 /**
@@ -28,7 +39,7 @@ export async function parseChessMoveWithAI(
   legalMoves: string[],
   options: AIParseOptions = {},
 ): Promise<AIParsedMove> {
-  const { allowGuessOnUnclear = true, confusionMap } = options;
+  const { allowGuessOnUnclear = true, confusionMap, alternativeTranscripts = [] } = options;
 
   // Build user-specific confusion context if calibration data exists
   let userConfusionContext = "";
@@ -47,7 +58,9 @@ export async function parseChessMoveWithAI(
 Current position (FEN): ${currentFen}
 Legal moves in this position: ${legalMoves.join(", ")}
 Spoken text: "${transcript}"
-
+${alternativeTranscripts.length
+    ? `The speech recognizer also offered these guesses for the same words, most likely first:\n${alternativeTranscripts.map((text) => `- "${text}"`).join("\n")}\nThe correct move is usually the legal move that several guesses point to.\n`
+    : ""}
 Parse the spoken text and return the chess move. Consider these common speech patterns:
 
 **NATO Phonetic Alphabet:**
@@ -97,7 +110,7 @@ Return ONLY valid JSON in this exact format, no other text:
 {"move": "e4", "confidence": 0.95, "alternatives": ["d4"], "reasoning": "Echo=e, four=4"}
 
 Rules:
-1. The "move" field MUST be one of the legal moves listed above, or empty string if unparseable
+1. The "move" field MUST be one of the legal moves listed above, or "unclear" if unparseable
 2. "confidence" should be 0.0-1.0 based on how clear the transcript is
 3. "alternatives" should list 0-3 other possible legal moves if ambiguous
 4. "reasoning" briefly explains the interpretation
@@ -108,10 +121,25 @@ ${
 }`;
 
   try {
+    // Structured output: the move can only be one of this position's legal moves
+    // (or "unclear"), so an invented move is rejected before it reaches us.
     const response = await withTimeout(
       genai.models.generateContent({
         model: GEMINI_MODEL,
         contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              move: { type: Type.STRING, enum: [...legalMoves, UNCLEAR] },
+              confidence: { type: Type.NUMBER },
+              alternatives: { type: Type.ARRAY, maxItems: 3, items: { type: Type.STRING, enum: legalMoves } },
+              reasoning: { type: Type.STRING },
+            },
+            required: ["move", "confidence", "alternatives", "reasoning"],
+          },
+        },
       }),
       AI_PARSE_TIMEOUT_MS,
       "AI move parse",
@@ -132,6 +160,9 @@ ${
     }
 
     const parsed = JSON.parse(jsonMatch[0]) as AIParsedMove;
+    if (typeof parsed.move !== "string" || parsed.move === UNCLEAR) parsed.move = "";
+    if (typeof parsed.confidence !== "number" || Number.isNaN(parsed.confidence)) parsed.confidence = 0;
+    parsed.confidence = Math.max(0, Math.min(1, parsed.confidence));
 
     // Validate that the move is in the legal moves list
     if (parsed.move && !legalMoves.includes(parsed.move)) {

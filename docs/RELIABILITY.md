@@ -154,7 +154,9 @@ mocked Firebase/Gemini operations; no cloud credentials are required. AI opponen
 regressions cover legal structured decisions, rejected provider settings, retry
 allowances, request cancellation, quiet fallback behavior, queued chat, move
 emission before conversation, interrupted-turn recovery, and review ownership.
-Live move/reconnect payloads are checked for hidden-summary leakage.
+Live move/reconnect payloads are checked for hidden-summary leakage. Text parse
+payloads accept up to five recognizer guesses; the Gemini request lists them and
+can only answer with one of the position's legal moves or nothing.
 
 Frontend regressions exercise bot replies through component handlers/effects,
 signed-out profile navigation, online matchmaking/invitation controls without
@@ -163,6 +165,10 @@ ordering, cancellation, failures, and timeouts. Additional regressions exercise
 quiet AI play, optional conversation, fallback notices/recovery, structured review,
 microphone noise/max-duration recovery, late permission/read cancellation,
 MP4 recording, AI missing-game/review recovery, and correlated voice results.
+A spoken-move corpus checks that common ways of saying moves match the legal
+move confidently, that b/d and incomplete speech stay unconfident, and that the
+speech hook forwards every recognizer guess and never commits an interim result
+that may be the start of a longer move.
 Component tests use a small hook harness; full browser behavior is a separate integration check.
 
 For live verification, use the services and credentials in [README](../README.md).

@@ -295,7 +295,7 @@ export async function getSession(
 
   if (!sessionDoc.exists) return null;
 
-  return sessionDoc.data() as FirestoreSession;
+  return { id: sessionDoc.id, ...(sessionDoc.data() as FirestoreSession) };
 }
 
 // One shared cache for practice, multiplayer, and AI input. A successful save

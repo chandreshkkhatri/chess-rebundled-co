@@ -41,7 +41,7 @@ export function useAiMoveInput(gameId: string, fen: string, active: boolean) {
     };
   }, [gameId, fen, active, clearAIParseState]);
 
-  const request = useCallback((event: string, payload: Record<string, string>) => {
+  const request = useCallback((event: string, payload: Record<string, string | string[]>) => {
     const socket = getSocket();
     if (!active || pending.current) return;
     if (!socket.connected) { setError('Not connected to server'); return; }
@@ -55,8 +55,12 @@ export function useAiMoveInput(gameId: string, fen: string, active: boolean) {
     setParsing(true);
     socket.emit(event, { gameId, fen, requestId, ...payload });
   }, [gameId, fen, active, clearAIParseState]);
-  const parseText = useCallback((transcript: string, rawTranscript?: string) =>
-    request('ai-parse-move', { transcript, ...(rawTranscript ? { rawTranscript } : {}) }), [request]);
+  const parseText = useCallback((transcript: string, rawTranscript?: string, transcripts?: string[]) =>
+    request('ai-parse-move', {
+      transcript,
+      ...(rawTranscript ? { rawTranscript } : {}),
+      ...(transcripts?.length ? { transcripts } : {}),
+    }), [request]);
   const parseAudio = useCallback((audioBase64: string, mimeType: string) =>
     request('ai-parse-audio', { audioBase64, mimeType }), [request]);
   return { aiParseResult, aiParseError, isAIParsing, clearAIParseState, parseText, parseAudio };

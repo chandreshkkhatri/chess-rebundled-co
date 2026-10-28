@@ -9,6 +9,7 @@ import {
   getVoiceCalibration,
   VoiceCalibration,
 } from "../services/firestoreService.js";
+import { getGameById } from "../services/gameRepository.js";
 
 // Auth middleware for Fastify
 async function authenticateRequest(
@@ -146,6 +147,10 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         return;
       }
 
+      // The historical game's moves let the client replay the session on a board.
+      // A missing game or unavailable catalog still returns the session itself.
+      const game = await getGameById(session.gameId).catch(() => null);
+
       return {
         id: session.id,
         gameId: session.gameId,
@@ -157,6 +162,18 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         completedAt: session.completedAt?.toDate?.() || null,
         moves: session.moves,
         summary: session.summary,
+        game: game
+          ? {
+              id: game.id,
+              title: game.title,
+              event: game.event,
+              year: game.year,
+              white: game.white,
+              black: game.black,
+              result: game.result,
+              moves: game.moves,
+            }
+          : null,
       };
     },
   );

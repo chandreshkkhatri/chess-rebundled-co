@@ -5,6 +5,7 @@ import { useVoiceRecognition } from "@/hooks/useVoiceRecognition";
 import { useGeminiVoice } from "@/hooks/useGeminiVoice";
 import { Chess } from "chess.js";
 import { VoiceDebugOverlay } from "./VoiceDebugOverlay";
+import { CONFIDENT_MATCH } from "@/lib/spokenMoveMatcher";
 import { AudioWaveform } from "./AudioWaveform";
 import {
   StageState,
@@ -119,7 +120,8 @@ export interface UniversalInputPanelProps {
 
   // Callbacks
   onMoveSubmit: (move: string, confidence: number) => void;
-  onParseMoveWithText: (text: string, rawTranscript?: string) => void;
+  // transcripts: every recognizer guess, so the server can weigh them all
+  onParseMoveWithText: (text: string, rawTranscript?: string, transcripts?: string[]) => void;
   onParseMoveWithAudio: (audioBase64: string, mimeType: string) => void;
   clearAIParseState: () => void;
   clearLastMoveResult?: () => void;
@@ -171,6 +173,14 @@ export function UniversalInputPanel({
 
   // Track raw transcript from Web Speech for display
   const [rawTranscript, setRawTranscript] = useState<string | null>(null);
+
+  // A speech match confident enough to skip the server; shown like a server result.
+  const [localParse, setLocalParse] = useState<AIParseResult | null>(null);
+  const shownParse = aiParseResult ?? localParse;
+  const clearParseState = useCallback(() => {
+    setLocalParse(null);
+    clearAIParseState();
+  }, [clearAIParseState]);
 
   const autoListenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoSubmitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -492,7 +502,7 @@ export function UniversalInputPanel({
   // Handle voice result - hook now passes parsed notation (e.g. "e4") directly
   // Block new requests while already parsing to prevent race conditions
   const handleVoiceResult = useCallback(
-    (parsedMove: string, confidence: number, rawTranscriptText?: string) => {
+    (parsedMove: string, confidence: number, rawTranscriptText?: string, transcripts: string[] = []) => {
       if (
         !isSubmitting &&
         !isAIParsing &&
@@ -529,13 +539,25 @@ export function UniversalInputPanel({
         }
 
         // Clear previous state
-        clearAIParseState();
+        clearParseState();
         if (clearLastMoveResult) clearLastMoveResult();
         setSelectedMove(null);
 
-        // Always surface a local parse immediately so the UI feels responsive.
-        // Send both parsed move and raw transcript so backend has full context.
-        onParseMoveWithText(parsedMove, rawTranscriptText);
+        // A clear match against the legal moves is committed locally: no server
+        // round trip, and no parsing allowance spent.
+        if (confidence >= CONFIDENT_MATCH && isLegalMove(parsedMove)) {
+          setLocalParse({
+            parsedMove,
+            transcript: rawTranscriptText ?? parsedMove,
+            confidence,
+            alternatives: [],
+            reasoning: "Matched a legal move locally",
+          });
+        } else {
+          // Ask the server, with every recognizer guess, so calibration and the
+          // language model can settle what the sound-alike words meant.
+          onParseMoveWithText(parsedMove, rawTranscriptText, transcripts);
+        }
 
         // Auto-submit for high confidence legal moves (if enabled)
         if (
@@ -563,7 +585,7 @@ export function UniversalInputPanel({
       isSubmitting,
       isAIParsing,
       isActive,
-      clearAIParseState,
+      clearParseState,
       clearLastMoveResult,
       voiceParsingMode,
       selectedMove,
@@ -584,7 +606,7 @@ export function UniversalInputPanel({
         isActive &&
         voiceParsingMode === "gemini-audio"
       ) {
-        clearAIParseState();
+        clearParseState();
         clearLastMoveResult(); // Clear stale feedback from previous move
         setSelectedMove(null);
         onParseMoveWithAudio(audioBase64, mimeType);
@@ -595,7 +617,7 @@ export function UniversalInputPanel({
       isSubmitting,
       isAIParsing,
       isActive,
-      clearAIParseState,
+      clearParseState,
       clearLastMoveResult,
       voiceParsingMode,
     ],
@@ -696,13 +718,13 @@ export function UniversalInputPanel({
       stopWebSpeechListening();
     }
     // Clear state when switching modes
-    clearAIParseState();
+    clearParseState();
     setSelectedMove(null);
   }, [
     voiceParsingMode,
     stopGeminiListening,
     stopWebSpeechListening,
-    clearAIParseState,
+    clearParseState,
   ]);
 
   // Auto-start listening when active and not submitting/parsing (only in voice mode)
@@ -746,7 +768,7 @@ export function UniversalInputPanel({
     if (lastMoveResult) {
       setSelectedMove(null);
       setRawTranscript(null);
-      clearAIParseState();
+      clearParseState();
       resetStages();
       lastProcessedRef.current = null;
       // Cancel any pending auto-submit since submission completed
@@ -755,11 +777,13 @@ export function UniversalInputPanel({
         autoSubmitTimeoutRef.current = null;
       }
     }
-  }, [lastMoveResult, clearAIParseState, resetStages]);
+  }, [lastMoveResult, clearParseState, resetStages]);
 
-  // Reset stages when position changes (new move to guess)
+  // Reset stages when position changes (new move to guess); a local parse of
+  // the old position no longer applies either.
   useEffect(() => {
     resetStages();
+    setLocalParse(null);
   }, [fen, resetStages]);
 
   // Trigger onHighlightSquares callback when stage changes to destination stage
@@ -785,7 +809,7 @@ export function UniversalInputPanel({
 
   const handleSubmit = useCallback(() => {
     if (selectedMove && isActive && !isSubmitting) {
-      onMoveSubmit(selectedMove, aiParseResult?.confidence || 0.5);
+      onMoveSubmit(selectedMove, shownParse?.confidence || 0.5);
       // Note: State is cleared by lastMoveResult effect when server responds
       // Socket hook has 10s safety timeout if no response
     }
@@ -794,13 +818,13 @@ export function UniversalInputPanel({
     isActive,
     isSubmitting,
     onMoveSubmit,
-    aiParseResult?.confidence,
+    shownParse?.confidence,
   ]);
 
   const handleReset = useCallback(() => {
     setSelectedMove(null);
     setRawTranscript(null);
-    clearAIParseState();
+    clearParseState();
     resetStages();
     lastProcessedRef.current = null;
     if (autoListenTimeoutRef.current) {
@@ -815,7 +839,7 @@ export function UniversalInputPanel({
     startListening,
     isListening,
     isActive,
-    clearAIParseState,
+    clearParseState,
     resetStages,
   ]);
 
@@ -855,32 +879,32 @@ export function UniversalInputPanel({
             <div className="text-red-400 text-xs text-center truncate px-2">
               {getFriendlyErrorMessage(aiParseError)}
             </div>
-          ) : aiParseResult ? (
+          ) : shownParse ? (
             <div className="w-full min-w-0 text-xs text-center px-1 space-y-1 leading-tight">
-              {(rawTranscript || aiParseResult.transcript) && (
+              {(rawTranscript || shownParse.transcript) && (
                 <div className="text-slate-500 truncate">
                   <span className="text-slate-600">Heard:</span>{" "}
                   <span className="italic">
-                    &ldquo;{rawTranscript || aiParseResult.transcript}&rdquo;
+                    &ldquo;{rawTranscript || shownParse.transcript}&rdquo;
                   </span>
                 </div>
               )}
               <div className="text-slate-400 truncate">
                 <span className="text-slate-500">Interpreted:</span>{" "}
                 <span className="font-mono font-semibold text-slate-300">
-                  {aiParseResult.parsedMove || "?"}
+                  {shownParse.parsedMove || "?"}
                 </span>
                 <span className="text-slate-600 ml-1">
-                  {(aiParseResult.confidence * 100).toFixed(0)}%
+                  {(shownParse.confidence * 100).toFixed(0)}%
                 </span>
               </div>
               {/* Clickable alternatives when confidence is low */}
-              {aiParseResult.alternatives &&
-                aiParseResult.alternatives.length > 0 &&
-                aiParseResult.confidence < 0.85 && (
+              {shownParse.alternatives &&
+                shownParse.alternatives.length > 0 &&
+                shownParse.confidence < 0.85 && (
                   <div className="flex items-center justify-center gap-1.5 flex-nowrap overflow-x-auto">
                     <span className="text-[10px] text-slate-500 shrink-0">Did you mean:</span>
-                    {(aiParseResult.alternatives as any[]).map((alt) => {
+                    {(shownParse.alternatives as any[]).map((alt) => {
                       const moveStr = typeof alt === "string" ? alt : alt.text;
                       return (
                         <button

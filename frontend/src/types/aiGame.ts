@@ -149,6 +149,7 @@ export interface AiMoveParseRequest {
   fen: string;
   transcript?: string;
   rawTranscript?: string;
+  transcripts?: string[]; // every recognizer guess, most likely first
   audioBase64?: string;
   mimeType?: string;
 }

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Image from 'next/image';
+import Link from 'next/link';
 
 export function UserMenu() {
   const router = useRouter();
@@ -107,7 +108,7 @@ export function UserMenu() {
 
             {/* Menu Items */}
             <div className="py-1">
-              <a
+              <Link
                 href="/profile"
                 className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
                 onClick={() => setIsOpen(false)}
@@ -116,8 +117,8 @@ export function UserMenu() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
                 Profile & Stats
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/history"
                 className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
                 onClick={() => setIsOpen(false)}
@@ -126,8 +127,8 @@ export function UserMenu() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 Practice History
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/settings"
                 className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
                 onClick={() => setIsOpen(false)}
@@ -137,7 +138,7 @@ export function UserMenu() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 Account Settings
-              </a>
+              </Link>
             </div>
 
             {/* Sign Out */}

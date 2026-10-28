@@ -9,7 +9,23 @@ export function hasText(data: unknown, key: string, max = 128): boolean {
 
 export function validTextParse(data: unknown): boolean {
   return hasText(data, 'transcript', 2000) && isRecord(data) &&
-    (data.rawTranscript === undefined || hasText(data, 'rawTranscript', 2000));
+    (data.rawTranscript === undefined || hasText(data, 'rawTranscript', 2000)) &&
+    (data.transcripts === undefined || (Array.isArray(data.transcripts) && data.transcripts.length <= 5 &&
+      data.transcripts.every(text => typeof text === 'string' && text.trim().length > 0 && text.length <= 2000)));
+}
+
+/** The recognizer's guesses from a validated text-parse payload: the primary text, then the other guesses. */
+export function spokenGuesses(data: { transcript: string; rawTranscript?: string; transcripts?: string[] }): {
+  transcript: string; alternatives: string[];
+} {
+  // rawTranscript carries the words heard; transcript may be the client's own parse of them.
+  const transcript = (data.rawTranscript || data.transcript).trim();
+  const alternatives: string[] = [];
+  for (const text of data.transcripts ?? []) {
+    const guess = text.trim();
+    if (guess && guess !== transcript && !alternatives.includes(guess)) alternatives.push(guess);
+  }
+  return { transcript, alternatives: alternatives.slice(0, 4) };
 }
 
 export function validAudioParse(data: unknown): boolean {
