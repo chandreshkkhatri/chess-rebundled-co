@@ -710,8 +710,13 @@ export function UniversalInputPanel({
       ? stopWebSpeechListening
       : stopGeminiListening;
 
-  // Stop the inactive mode when switching
+  // Stop the inactive mode when switching. Only an actual mode change counts:
+  // the stop callbacks change identity whenever listening starts or ends (as
+  // mobile Chrome does after every phrase), which must not clear a parsed move.
+  const previousModeRef = useRef(voiceParsingMode);
   useEffect(() => {
+    if (previousModeRef.current === voiceParsingMode) return;
+    previousModeRef.current = voiceParsingMode;
     if (voiceParsingMode === "webspeech-haiku") {
       stopGeminiListening();
     } else {
