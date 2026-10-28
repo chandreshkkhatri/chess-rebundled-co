@@ -1,2 +1,6 @@
 *.tsbuildinfo
+# next-pwa build output
 */sw.js
+*/sw.js.map
+*/workbox-*.js
+*/workbox-*.js.map

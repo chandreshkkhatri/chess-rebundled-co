@@ -93,6 +93,7 @@ Changing them for a production frontend requires rebuilding it.
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase web application ID. |
 | `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | Optional Firebase Analytics measurement ID. |
 | `NEXT_PUBLIC_VOICE_PARSING_MODE` | Initial practice preference: `gemini-audio` or legacy-named `webspeech-haiku`. Existing stored preferences can override it. Multiplayer has its own stored preference. |
+| `NEXT_PUBLIC_APP_VERSION` | Optional build label shown in Settings. Defaults to the Vercel commit or `git rev-parse --short HEAD`, else `dev` (Docker builds have no `.git`, so pass it there). Update detection uses a separate per-build ID generated automatically; do not set `NEXT_PUBLIC_BUILD_ID`. |
 
 `webspeech-haiku` is a compatibility value in settings; text AI interpretation
 uses Gemini. It does not configure an Anthropic account or model.

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { PWAInstallPrompt } from '@/components/PWAInstallPrompt';
+import { AppUpdateBanner } from '@/components/AppUpdateBanner';
 import { Providers } from './providers';
 import './globals.css';
 
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900">
         <Providers>
           <PWAInstallPrompt />
+          <AppUpdateBanner />
           {children}
         </Providers>
       </body>
