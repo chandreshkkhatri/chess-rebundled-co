@@ -86,3 +86,21 @@ test('switching the voice mode still clears the previous parse', () => {
   f.props.voiceParsingMode = 'gemini-audio';
   assert.doesNotMatch(f.text(), /Nf3/);
 });
+
+test('a parse with no move shows the reason instead of a bare question mark', () => {
+  const f = fixture();
+  f.props.aiParseResult = {
+    parsedMove: '', transcript: '[audio input]', confidence: 0, alternatives: [],
+    reasoning: 'Audio parsing failed: Gemini audio parse timed out after 12000ms',
+  };
+  const shown = f.text();
+  assert.match(shown, /Interpreted:\s+\?/);
+  assert.match(shown, /Audio parsing failed: Gemini audio parse timed out after 12000ms/);
+
+  // A found move, or alternatives to pick from, keep the panel as before.
+  f.props.aiParseResult = { ...f.props.aiParseResult, parsedMove: 'e4', confidence: 0.95, reasoning: 'Heard echo four' };
+  assert.doesNotMatch(f.text(), /Heard echo four/);
+  f.props.aiParseResult = { parsedMove: '', transcript: 'bee four', confidence: 0.3, alternatives: ['b4', 'd4'], reasoning: 'unclear' };
+  assert.doesNotMatch(f.text(), /unclear/);
+  assert.match(f.text(), /Did you mean:/);
+});

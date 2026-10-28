@@ -929,6 +929,14 @@ export function UniversalInputPanel({
                     })}
                   </div>
                 )}
+              {/* No move and nothing to choose from: say why (e.g. the request failed, or no speech was heard) */}
+              {!shownParse.parsedMove &&
+                !(shownParse.alternatives && shownParse.alternatives.length > 0) &&
+                shownParse.reasoning && (
+                  <div className="text-amber-300/90 truncate" title={shownParse.reasoning}>
+                    {shownParse.reasoning}
+                  </div>
+                )}
             </div>
           ) : error ? (
             <div className="text-red-400 text-xs text-center truncate px-2">
