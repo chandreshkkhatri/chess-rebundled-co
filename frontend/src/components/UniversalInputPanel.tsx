@@ -836,8 +836,9 @@ export function UniversalInputPanel({
     <div className="bg-slate-800 rounded-lg shadow-lg p-1.5 h-full flex flex-row gap-2 overflow-hidden">
       {/* Main content area - left side with fixed zones */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-        {/* ZONE 1: Status Bar - Heard/Interpreted/Alternatives or Processing/Error */}
-        <div className="min-h-[20px] shrink-0 flex items-center justify-center">
+        {/* ZONE 1: Status Bar - Heard/Interpreted/Alternatives or Processing/Error.
+            Fixed to the tallest state (three single-line rows) so the grid below never shifts. */}
+        <div className="h-16 shrink-0 flex items-center justify-center overflow-hidden">
           {!isActive && pendingOpponentMove ? (
             <div className="text-amber-200 text-xs font-medium">
               Opponent played:{" "}
@@ -855,7 +856,7 @@ export function UniversalInputPanel({
               {getFriendlyErrorMessage(aiParseError)}
             </div>
           ) : aiParseResult ? (
-            <div className="text-xs text-center px-1 space-y-1 leading-tight">
+            <div className="w-full min-w-0 text-xs text-center px-1 space-y-1 leading-tight">
               {(rawTranscript || aiParseResult.transcript) && (
                 <div className="text-slate-500 truncate">
                   <span className="text-slate-600">Heard:</span>{" "}
@@ -864,7 +865,7 @@ export function UniversalInputPanel({
                   </span>
                 </div>
               )}
-              <div className="text-slate-400">
+              <div className="text-slate-400 truncate">
                 <span className="text-slate-500">Interpreted:</span>{" "}
                 <span className="font-mono font-semibold text-slate-300">
                   {aiParseResult.parsedMove || "?"}
@@ -877,8 +878,8 @@ export function UniversalInputPanel({
               {aiParseResult.alternatives &&
                 aiParseResult.alternatives.length > 0 &&
                 aiParseResult.confidence < 0.85 && (
-                  <div className="mt-1 flex items-center justify-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] text-slate-500">Did you mean:</span>
+                  <div className="flex items-center justify-center gap-1.5 flex-nowrap overflow-x-auto">
+                    <span className="text-[10px] text-slate-500 shrink-0">Did you mean:</span>
                     {(aiParseResult.alternatives as any[]).map((alt) => {
                       const moveStr = typeof alt === "string" ? alt : alt.text;
                       return (
@@ -891,7 +892,7 @@ export function UniversalInputPanel({
                               onMoveSubmit(moveStr, 1.0);
                             }
                           }}
-                          className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-slate-200 border border-slate-600 rounded-sm text-[10px] font-mono transition-colors"
+                          className="shrink-0 px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-slate-200 border border-slate-600 rounded-sm text-[10px] font-mono transition-colors"
                         >
                           {moveStr}
                         </button>
@@ -918,8 +919,8 @@ export function UniversalInputPanel({
           className={`flex-1 min-h-0 ${tapGridEnabled && isActive ? "" : "invisible"}`}
         >
           <div className="w-full">
-            {/* Stage header with back button */}
-            <div className="flex items-center justify-between mb-1">
+            {/* Stage header with back button - fixed height so the grid stays put */}
+            <div className="h-5 flex items-center justify-between mb-1">
               {stageState.stage !== "piece" ? (
                 <button
                   onClick={handleStageBack}
@@ -943,18 +944,16 @@ export function UniversalInputPanel({
               ) : (
                 <div className="w-12" />
               )}
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider text-center flex-1">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider text-center flex-1 min-w-0 truncate">
                 {getStageLabel(stageState, voiceEnabled)}
               </div>
               <div className="w-12" />
             </div>
 
-            {/* Selection breadcrumb */}
-            {stageState.selectedPiece && (
-              <div className="text-xs text-slate-400 text-center mb-1 font-mono">
-                {getSelectionBreadcrumb(stageState)}
-              </div>
-            )}
+            {/* Selection breadcrumb - line is always reserved so the grid stays put */}
+            <div className="h-4 text-xs leading-4 text-slate-400 text-center mb-1 font-mono truncate">
+              {stageState.selectedPiece ? getSelectionBreadcrumb(stageState) : null}
+            </div>
 
             {/* Options grid */}
             <div className="grid grid-cols-3 min-[400px]:grid-cols-4 sm:grid-cols-5 gap-1">

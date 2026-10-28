@@ -34,6 +34,7 @@ export default function PracticeGamePage() {
   const [isHeaderCompact, setIsHeaderCompact] = useState(false);
   const [highlightSquares, setHighlightSquares] = useState<string[]>([]);
   const [wrongMoveEvaluation, setWrongMoveEvaluation] = useState<string | null>(null);
+  const [isBoardFlipped, setIsBoardFlipped] = useState(false);
   const [isEvaluatingWrongMove, setIsEvaluatingWrongMove] = useState(false);
 
   const { isReady: isStockfishReady, evaluatePosition } = useStockfish();
@@ -99,8 +100,14 @@ export default function PracticeGamePage() {
     return playerName || 'You';
   }, [user, playerName]);
 
-  // Board orientation: in one-side mode, use player's color; otherwise follow current side
-  const boardOrientation = mode === 'one-side' && playerColor ? playerColor : currentSide;
+  // Board orientation stays fixed for the session (player's color in one-side mode,
+  // White otherwise); the user can flip it manually. Following the side to move was disorienting.
+  const baseOrientation: 'white' | 'black' = mode === 'one-side' && playerColor ? playerColor : 'white';
+  const boardOrientation: 'white' | 'black' = isBoardFlipped
+    ? (baseOrientation === 'white' ? 'black' : 'white')
+    : baseOrientation;
+  const isPlayerOnBottom = mode === 'one-side' && playerColor === boardOrientation;
+  const isPlayerOnTop = mode === 'one-side' && !!playerColor && playerColor !== boardOrientation;
 
   // Handle opponent move animation in one-side mode
   useEffect(() => {
@@ -463,14 +470,33 @@ export default function PracticeGamePage() {
             <div className="flex justify-center shrink-0 lg:flex-[1.15] lg:shrink min-h-0">
               <div className="w-full max-w-[min(100%,calc(100vh-250px))] lg:max-w-[min(58vh,620px)] xl:max-w-[min(64vh,700px)] flex flex-col justify-center">
                 
-                {/* Top Player Plate (Opponent in One-Side Mode) */}
+                {/* Top Player Plate */}
                 <div className="flex items-center gap-2 px-1 py-1.5 lg:py-2 text-white">
                   <div className={`w-8 h-8 rounded-sm flex items-center justify-center text-xl bg-slate-700`}>
                     {boardOrientation === 'white' ? '♚' : '♔'}
                   </div>
-                  <div className="font-semibold truncate">
+                  <div className="font-semibold truncate flex items-center gap-2 min-w-0">
                     {boardOrientation === 'white' ? selectedGame.black.name : selectedGame.white.name}
+                    {isPlayerOnTop && (
+                      <span className="text-xs font-normal bg-purple-600/50 text-purple-200 px-2 py-0.5 rounded-sm">You</span>
+                    )}
                   </div>
+                  <button
+                    onClick={() => setIsBoardFlipped((flipped) => !flipped)}
+                    className={`ml-auto shrink-0 p-1.5 rounded-sm transition-colors ${
+                      isBoardFlipped ? 'text-purple-300 bg-purple-600/20' : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Flip board"
+                    aria-label="Flip board"
+                    aria-pressed={isBoardFlipped}
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M7 4v16" />
+                      <path d="M3 8l4-4 4 4" />
+                      <path d="M17 20V4" />
+                      <path d="M21 16l-4 4-4-4" />
+                    </svg>
+                  </button>
                 </div>
 
                 <div className="w-full relative self-center bg-slate-850 rounded-[4px]">
@@ -494,14 +520,14 @@ export default function PracticeGamePage() {
                   />
                 </div>
 
-                {/* Bottom Player Plate (User in One-Side Mode) */}
+                {/* Bottom Player Plate */}
                 <div className="flex items-center gap-2 px-1 py-1.5 lg:py-2 text-white">
                   <div className={`w-8 h-8 rounded-sm flex items-center justify-center text-xl font-bold bg-slate-200 text-slate-800`}>
                     {boardOrientation === 'white' ? '♔' : '♚'}
                   </div>
                   <div className="font-semibold truncate flex items-center gap-2">
                     {boardOrientation === 'white' ? selectedGame.white.name : selectedGame.black.name}
-                    {mode === 'one-side' && (
+                    {isPlayerOnBottom && (
                       <span className="text-xs font-normal bg-purple-600/50 text-purple-200 px-2 py-0.5 rounded-sm">You</span>
                     )}
                   </div>
