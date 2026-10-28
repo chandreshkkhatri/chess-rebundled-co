@@ -229,10 +229,25 @@ through `next-pwa`; PWA generation is disabled in development. Installing the ap
 does not make backend-dependent practice, multiplayer, or Gemini requests work
 offline.
 
+An open page, or an installed app resumed from the background, keeps running
+the build it loaded. Each build publishes its ID at `/version.json`; the app
+compares it with its own build when it returns to the foreground (at most once
+a minute) and every 30 minutes, and shows a "new version available" banner
+with a Reload button when they differ. It never reloads by itself, so a game or
+spoken move is not interrupted. If an old page needs a code file that the
+deploy removed, it reloads once to fetch the current build. Settings shows the
+running version and offers a manual update check.
+
+`next-pwa` 5 injects its service worker registration into the Pages Router
+entry, which App Router pages do not load, so no service worker is registered:
+there is no offline cache, and a full page load always fetches the current
+build.
+
 Blog posts are local MDX files with metadata and reading-time estimates. The
 optional frontend Docker image copies public/static assets and blog content
 alongside the standalone Next.js server.
 
 Sources: [Next.js configuration](../frontend/next.config.mjs),
 [install prompt](../frontend/src/components/PWAInstallPrompt.tsx),
+[update handling](../frontend/src/lib/appUpdate.ts),
 [blog loader](../frontend/src/lib/mdx.ts).

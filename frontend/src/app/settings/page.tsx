@@ -10,6 +10,7 @@ import {
   VoiceCalibrationData,
 } from "@/components/VoiceCalibration";
 import Image from "next/image";
+import { AppVersionSettings } from "@/components/AppVersionSettings";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -589,6 +590,8 @@ export default function SettingsPage() {
               </div>
             )}
           </div>
+
+          <AppVersionSettings />
 
           {/* Sign Out Section */}
           <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
