@@ -54,7 +54,7 @@ export default function PlayAiGamePage() {
 
   const inputActive = isMyTurn && isConnected && !isSubmitting;
   const voice = useAiMoveInput(gameId, fen, inputActive);
-  const { inputMode, voiceParsingMode, autoSubmitEnabled } = usePracticeStore();
+  const { inputMode, voiceParsingMode, autoSubmitEnabled, setVoiceParsingMode } = usePracticeStore();
   const handleNotationMove = useCallback((move: string) => {
     if (inputActive) submitMove(gameId, move);
   }, [inputActive, gameId, submitMove]);
@@ -235,6 +235,7 @@ export default function PlayAiGamePage() {
                     isSubmitting={isSubmitting}
                     inputMode={inputMode}
                     voiceParsingMode={voiceParsingMode}
+                    onVoiceParsingModeChange={setVoiceParsingMode}
                     autoSubmitEnabled={autoSubmitEnabled}
                     aiParseResult={voice.aiParseResult}
                     aiParseError={voice.aiParseError}

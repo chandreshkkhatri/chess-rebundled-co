@@ -1,5 +1,6 @@
 import { genai, GEMINI_MODEL } from "../lib/genaiClient.js";
 import { withTimeout } from "../lib/withTimeout.js";
+import { recordGeminiAudioResult } from "./geminiAudioHealth.js";
 
 // Audio inference is heavier than text, so allow a bit more headroom — but
 // still cap it so a hung request can't strand the client on "Processing...".
@@ -84,6 +85,7 @@ Returns:
     // Extract JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
+      recordGeminiAudioResult(false);
       console.error("[Gemini Audio Parser] No JSON found in response:", text);
       return {
         move: "",
@@ -94,6 +96,7 @@ Returns:
     }
 
     const parsed = JSON.parse(jsonMatch[0]) as GeminiAudioParsedMove;
+    recordGeminiAudioResult(true);
 
     // Validate move is in legal moves list
     if (parsed.move && !legalMoves.includes(parsed.move)) {
@@ -125,6 +128,7 @@ Returns:
 
     return parsed;
   } catch (error) {
+    recordGeminiAudioResult(false);
     console.error("[Gemini Audio Parser] Error:", error);
     return {
       move: "",

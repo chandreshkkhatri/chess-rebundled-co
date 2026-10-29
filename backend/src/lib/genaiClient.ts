@@ -59,6 +59,16 @@ function buildVertexOptions(): GoogleGenAIOptions {
   return options;
 }
 
+// Whether credentials for either backend are present. Configured is not the
+// same as working: see services/geminiAudioHealth.ts for runtime failures.
+export const GEMINI_CONFIGURED = useVertex
+  ? Boolean(
+      process.env.GOOGLE_API_KEY ||
+        ((process.env.GOOGLE_CLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID) &&
+          process.env.GOOGLE_CLOUD_LOCATION),
+    )
+  : Boolean(process.env.GOOGLE_API_KEY);
+
 export const genai = useVertex
   ? new GoogleGenAI(buildVertexOptions())
   : new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });

@@ -91,6 +91,17 @@ calibration and Gemini decide. Gemini's answer is constrained to the legal
 moves through structured output. Interim speech only commits early when it is
 a clear match that no longer legal move begins with.
 
+The input panel's **Voice** toggle switches between browser speech and Gemini
+audio in practice, AI games, and multiplayer, and saves the choice with the
+other input preferences. Gemini audio is offered only when this browser can
+record audio and the server reports it available (`GET /api/speech`): the
+server must have Gemini credentials, and three provider failures in a row
+(errors, timeouts, unreadable replies; not replies that heard no move) pause
+it for five minutes. While it is unavailable, the panel uses browser speech
+and says why, keeping the saved choice for when Gemini recovers. A failed
+Gemini parse re-checks the status. When a parse finds no move, the panel
+shows the reason.
+
 The input panel shows listening/recording feedback and can offer alternative
 parses. Voice calibration records speech confusions and stores them in a
 signed-in user's Firestore profile. Saved calibration takes effect immediately

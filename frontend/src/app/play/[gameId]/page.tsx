@@ -455,6 +455,7 @@ export default function MultiplayerGamePage() {
               isSubmitting={isSubmitting || isGameOver}
               inputMode={inputMode}
               voiceParsingMode={voiceParsingMode}
+              onVoiceParsingModeChange={setVoiceParsingMode}
               autoSubmitEnabled={autoSubmitEnabled}
               autoSubmitConfidenceThreshold={0.97}
               aiParseResult={aiParseResult}
