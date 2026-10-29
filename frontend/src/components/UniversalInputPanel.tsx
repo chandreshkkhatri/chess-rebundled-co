@@ -6,6 +6,7 @@ import { useGeminiVoice } from "@/hooks/useGeminiVoice";
 import { Chess } from "chess.js";
 import { VoiceDebugOverlay } from "./VoiceDebugOverlay";
 import { CONFIDENT_MATCH } from "@/lib/spokenMoveMatcher";
+import { refreshGeminiAudioStatus, useGeminiAudioStatus } from "@/lib/speechAvailability";
 import { AudioWaveform } from "./AudioWaveform";
 import {
   StageState,
@@ -132,6 +133,25 @@ export interface UniversalInputPanelProps {
   // UI toggles
   showDebugPanel?: boolean;
   onCloseDebugPanel?: () => void;
+  // Shows the Browser/Gemini voice engine toggle and saves the player's choice.
+  onVoiceParsingModeChange?: (mode: VoiceParsingMode) => void;
+}
+
+// Which speech engines this browser can run; null until checked after mount
+// (the server render cannot know).
+function useSpeechSupport(): { browserSpeech: boolean | null; recording: boolean | null } {
+  const [support, setSupport] = useState<{ browserSpeech: boolean | null; recording: boolean | null }>({
+    browserSpeech: null,
+    recording: null,
+  });
+  useEffect(() => {
+    const w = window as any;
+    setSupport({
+      browserSpeech: Boolean(w.SpeechRecognition || w.webkitSpeechRecognition),
+      recording: typeof navigator.mediaDevices?.getUserMedia === "function" && Boolean(w.MediaRecorder && w.AudioContext),
+    });
+  }, []);
+  return support;
 }
 
 export function UniversalInputPanel({
@@ -139,7 +159,7 @@ export function UniversalInputPanel({
   isActive,
   isSubmitting,
   inputMode,
-  voiceParsingMode,
+  voiceParsingMode: preferredParsingMode,
   autoSubmitEnabled,
   autoSubmitConfidenceThreshold = AUTO_SUBMIT_CONFIDENCE_THRESHOLD,
   pendingOpponentMove,
@@ -157,9 +177,37 @@ export function UniversalInputPanel({
   isEvaluatingWrongMove,
   showDebugPanel = false,
   onCloseDebugPanel,
+  onVoiceParsingModeChange,
 }: UniversalInputPanelProps) {
   // Determine which features are enabled based on input mode
   const voiceEnabled = inputMode === "voice-tap";
+
+  // The engine actually used: the player's choice, unless it cannot run here
+  // or the server reports Gemini audio unavailable while the other engine can.
+  // The saved choice is kept, so it comes back once Gemini recovers.
+  const speechSupport = useSpeechSupport();
+  const geminiStatus = useGeminiAudioStatus();
+  const geminiUsable = speechSupport.recording !== false && geminiStatus.available !== false;
+  const browserSpeechUsable = speechSupport.browserSpeech !== false;
+  const voiceParsingMode: VoiceParsingMode =
+    preferredParsingMode === "gemini-audio" && !geminiUsable && browserSpeechUsable
+      ? "webspeech-haiku"
+      : preferredParsingMode === "webspeech-haiku" && !browserSpeechUsable && geminiUsable
+        ? "gemini-audio"
+        : preferredParsingMode;
+  const engineNotice =
+    voiceParsingMode === preferredParsingMode
+      ? null
+      : preferredParsingMode === "gemini-audio"
+        ? `${speechSupport.recording === false ? "This browser cannot record audio for Gemini." : geminiStatus.reason ?? "Gemini audio is unavailable."} Using browser speech.`
+        : "Browser speech is not supported here. Using Gemini audio.";
+  const otherEngine: VoiceParsingMode = voiceParsingMode === "gemini-audio" ? "webspeech-haiku" : "gemini-audio";
+  const canSwitchEngine = otherEngine === "gemini-audio" ? geminiUsable : browserSpeechUsable;
+
+  // Ask the server whether Gemini audio works when voice input is in use.
+  useEffect(() => {
+    if (voiceEnabled) void refreshGeminiAudioStatus();
+  }, [voiceEnabled]);
   const tapGridEnabled = true; // Always enabled (voice-tap or tap-only)
 
   // Selected move (from AI result or alternatives)
@@ -768,6 +816,15 @@ export function UniversalInputPanel({
     }
   }, [isSubmitting, isAIParsing, isListening, stopListening]);
 
+  // A Gemini parse that failed or found nothing may mean the service is down:
+  // re-check, so repeated failures switch to browser speech.
+  useEffect(() => {
+    if (voiceParsingMode !== "gemini-audio") return;
+    if (aiParseError || (aiParseResult && !aiParseResult.parsedMove)) {
+      void refreshGeminiAudioStatus({ force: true });
+    }
+  }, [voiceParsingMode, aiParseResult, aiParseError]);
+
   // Clear state when new move result comes in
   useEffect(() => {
     if (lastMoveResult) {
@@ -942,6 +999,10 @@ export function UniversalInputPanel({
             <div className="text-red-400 text-xs text-center truncate px-2">
               {error}
             </div>
+          ) : voiceEnabled && engineNotice ? (
+            <div className="text-amber-300/90 text-xs text-center px-2 leading-tight line-clamp-2">
+              {engineNotice}
+            </div>
           ) : voiceEnabled && isListening ? (
             <AudioWaveform
               isListening={isListening}
@@ -1104,6 +1165,31 @@ export function UniversalInputPanel({
 
       {/* Action buttons - right side, stacked vertically */}
       <div className="flex flex-col gap-2 shrink-0 w-20">
+        {voiceEnabled && onVoiceParsingModeChange && (
+          <button
+            onClick={() => onVoiceParsingModeChange(otherEngine)}
+            disabled={!canSwitchEngine || isSubmitting}
+            title={
+              canSwitchEngine
+                ? `Voice engine: ${voiceParsingMode === "gemini-audio" ? "Gemini audio" : "browser speech"}. Tap to switch.`
+                : engineNotice ?? "The other voice engine is unavailable."
+            }
+            aria-label={`Voice engine: ${voiceParsingMode === "gemini-audio" ? "Gemini audio" : "browser speech"}${
+              canSwitchEngine ? `. Switch to ${otherEngine === "gemini-audio" ? "Gemini audio" : "browser speech"}` : ""
+            }`}
+            className={`h-9 rounded-lg border flex flex-col items-center justify-center leading-none gap-0.5 transition-colors ${
+              canSwitchEngine && !isSubmitting
+                ? "bg-slate-700/60 border-slate-600 hover:bg-slate-600"
+                : "bg-slate-800 border-slate-700 cursor-not-allowed"
+            }`}
+          >
+            <span className="text-[9px] uppercase tracking-wider text-slate-400">Voice</span>
+            <span className="text-[11px] font-semibold text-slate-200 flex items-center gap-1">
+              {engineNotice && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" aria-hidden="true" />}
+              {voiceParsingMode === "gemini-audio" ? "Gemini" : "Browser"}
+            </span>
+          </button>
+        )}
         <button
           onClick={handleReset}
           disabled={isSubmitting || !isActive}

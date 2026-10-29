@@ -38,6 +38,7 @@ export function PracticeVoiceInput({
     autoSubmitEnabled,
     inputMode,
     pendingOpponentMove,
+    setVoiceParsingMode,
   } = usePracticeStore();
 
   const { parseMoveWithAI, parseAudioMoveWithGemini } = usePracticeSocket();
@@ -74,6 +75,7 @@ export function PracticeVoiceInput({
       isEvaluatingWrongMove={isEvaluatingWrongMove}
       showDebugPanel={showDebugPanel}
       onCloseDebugPanel={onCloseDebugPanel}
+      onVoiceParsingModeChange={setVoiceParsingMode}
     />
   );
 }

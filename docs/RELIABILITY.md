@@ -154,7 +154,9 @@ mocked Firebase/Gemini operations; no cloud credentials are required. AI opponen
 regressions cover legal structured decisions, rejected provider settings, retry
 allowances, request cancellation, quiet fallback behavior, queued chat, move
 emission before conversation, interrupted-turn recovery, and review ownership.
-Live move/reconnect payloads are checked for hidden-summary leakage. Text parse
+Live move/reconnect payloads are checked for hidden-summary leakage. Gemini audio
+health pauses the engine after three provider failures in a row and the public
+status endpoint hides provider error details. Text parse
 payloads accept up to five recognizer guesses; the Gemini request lists them and
 can only answer with one of the position's legal moves or nothing.
 
