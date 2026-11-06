@@ -1,9 +1,9 @@
-import { genai, GEMINI_MODEL } from "../lib/genaiClient.js";
+import { genai, GEMINI_TRANSCRIPTION_MODEL } from "../lib/genaiClient.js";
 import { withTimeout } from "../lib/withTimeout.js";
 import { recordGeminiAudioResult } from "./geminiAudioHealth.js";
+import { parseChessMoveWithAI } from "./aiMoveParser.js";
 
-// Audio inference is heavier than text, so allow a bit more headroom — but
-// still cap it so a hung request can't strand the client on "Processing...".
+// Covers both transcription and interpretation, below the client's 14s timeout.
 const AUDIO_PARSE_TIMEOUT_MS = 12000;
 
 export interface GeminiAudioParsedMove {
@@ -19,11 +19,7 @@ export interface GeminiAudioParseOptions {
   confusionMap?: Record<string, string[]>;
 }
 
-/**
- * Parse a chess move directly from audio using Gemini multimodal.
- * Takes raw audio data (base64) and current board position,
- * returns the most likely chess move in SAN notation.
- */
+/** Transcribe without board context, then interpret only the actual words. */
 export async function parseChessMoveFromAudio(
   audioBase64: string,
   mimeType: string,
@@ -31,110 +27,57 @@ export async function parseChessMoveFromAudio(
   legalMoves: string[],
   options: GeminiAudioParseOptions = {},
 ): Promise<GeminiAudioParsedMove> {
-  const { allowGuessOnUnclear = true, confusionMap } = options;
-
-  // Build user-specific confusion context if calibration data exists
-  let userConfusionContext = "";
-  if (confusionMap && Object.keys(confusionMap).length > 0) {
-    const mappings = Object.entries(confusionMap)
-      .map(
-        ([target, heardAs]) =>
-          `- "${target}" often sounds like: ${heardAs.map((h) => `"${h}"`).join(", ")}`,
-      )
-      .join("\n");
-    userConfusionContext = `\nUser-specific patterns:\n${mappings}\n`;
-  }
-
-  const prompt = `You are a fast chess move parser.
-Context:
-- FEN: ${currentFen}
-- Legal Moves: ${legalMoves.join(", ")}
-
-Task: Identify the spoken move from the audio.
-- Match strictly against the Legal Moves list.
-- ${
-    allowGuessOnUnclear
-      ? "If the audio is ambiguous, choose the most phonetically similar legal move."
-      : "If the audio is ambiguous or too noisy to distinguish between legal moves, return an empty move with low confidence instead of guessing."
-  }
-${userConfusionContext}- output JSON only.
-
-Returns:
-{"move": "e4", "confidence": 0.9, "alternatives": ["d4"], "reasoning": "Heard echo-four", "transcription": "echo four"}`;
-
+  const empty = { move: "", confidence: 0, alternatives: [] as string[] };
+  let accepting = true;
   try {
-    const response = await withTimeout(
-      genai.models.generateContent({
-        model: GEMINI_MODEL,
+    return await withTimeout((async () => {
+      // Never give the transcription stage a board, candidate moves, calibration
+      // substitutions, or a worked chess example. In live testing a combined
+      // prompt invented e4 with 90% confidence even for digital silence.
+      const response = await genai.models.generateContent({
+        model: GEMINI_TRANSCRIPTION_MODEL,
+        config: { responseMimeType: "application/json" },
         contents: [
-          {
-            inlineData: {
-              data: audioBase64,
-              mimeType: mimeType,
-            },
-          },
-          prompt,
+          { inlineData: { data: audioBase64, mimeType } },
+          `Transcribe this audio verbatim. Preserve the spoken words and letter names.
+Do not interpret, complete, correct, or guess what the speaker intended.
+If there is silence, noise, music, or no intelligible speech, return an empty
+transcription and speechDetected=false instead of guessing.
+Return JSON with exactly two fields: transcription (string), speechDetected (boolean).`,
         ],
-      }),
-      AUDIO_PARSE_TIMEOUT_MS,
-      "Gemini audio parse",
-    );
-
-    const text = response.text || "";
-
-    // Extract JSON from response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      recordGeminiAudioResult(false);
-      console.error("[Gemini Audio Parser] No JSON found in response:", text);
-      return {
-        move: "",
-        confidence: 0,
-        alternatives: [],
-        reasoning: "Failed to parse AI response",
-      };
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]) as GeminiAudioParsedMove;
-    recordGeminiAudioResult(true);
-
-    // Validate move is in legal moves list
-    if (parsed.move && !legalMoves.includes(parsed.move)) {
-      const cleanParsedMove = parsed.move.replace(/[+#]/g, "");
-      const matchingMove = legalMoves.find(
-        (m) => m.replace(/[+#]/g, "") === cleanParsedMove,
-      );
-      if (matchingMove) {
-        parsed.move = matchingMove;
-      } else {
-        console.warn(
-          "[Gemini Audio Parser] Move not in legal moves:",
-          parsed.move,
-        );
-        parsed.confidence = Math.min(parsed.confidence, 0.3);
-        parsed.reasoning =
-          (parsed.reasoning || "") + " [Warning: move may not be legal]";
+      });
+      if (!accepting) return empty;
+      const json = (response.text || "").match(/\{[\s\S]*\}/);
+      if (!json) {
+        recordGeminiAudioResult(false);
+        return { ...empty, reasoning: "Failed to transcribe audio" };
       }
-    }
-
-    // Filter alternatives to only include legal moves
-    if (parsed.alternatives) {
-      parsed.alternatives = parsed.alternatives.filter((alt: string) =>
-        legalMoves.some(
-          (m) => m.replace(/[+#]/g, "") === alt.replace(/[+#]/g, ""),
-        ),
-      );
-    }
-
-    return parsed;
+      const decoded: unknown = JSON.parse(json[0]);
+      if (!decoded || typeof decoded !== 'object') { recordGeminiAudioResult(false); return empty; }
+      const spoken = decoded as Record<string, unknown>;
+      if (typeof spoken.speechDetected !== 'boolean' || typeof spoken.transcription !== 'string') {
+        recordGeminiAudioResult(false);
+        return { ...empty, reasoning: 'Invalid transcription response' };
+      }
+      const transcription = typeof spoken.transcription === 'string' ? spoken.transcription.trim() : '';
+      if (spoken.speechDetected !== true || !transcription || transcription.length > 500) {
+        recordGeminiAudioResult(true);
+        return { ...empty, transcription: '', reasoning: 'No intelligible speech detected' };
+      }
+      const parsed = await parseChessMoveWithAI(transcription, currentFen, legalMoves, {
+        ...options, allowGuessOnUnclear: options.allowGuessOnUnclear ?? false,
+      });
+      if (accepting) recordGeminiAudioResult(!parsed.reasoning?.startsWith('AI parsing failed:'));
+      return { ...parsed, transcription };
+    })(), AUDIO_PARSE_TIMEOUT_MS, "Gemini audio parse");
   } catch (error) {
     recordGeminiAudioResult(false);
     console.error("[Gemini Audio Parser] Error:", error);
     return {
-      move: "",
-      confidence: 0,
-      alternatives: [],
+      ...empty,
       reasoning: `Audio parsing failed: ${error instanceof Error ? error.message : "Unknown error"}`,
     };
+  } finally {
+    accepting = false;
   }
 }

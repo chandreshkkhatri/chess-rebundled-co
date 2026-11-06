@@ -76,3 +76,7 @@ export const genai = useVertex
 // Default model, overridable per-deployment. Model IDs are the same across both
 // backends; just confirm availability in your chosen Vertex location.
 export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+
+// Short isolated letter/rank audio needs better acoustic discrimination than
+// the lightweight text/chat model. Keep this independently configurable.
+export const GEMINI_TRANSCRIPTION_MODEL = process.env.GEMINI_TRANSCRIPTION_MODEL || "gemini-3.5-flash";

@@ -61,11 +61,21 @@ the deployment still requires one backend instance.
 
 ## Microphone recovery and calibration
 
+See the [speech audit](SPEECH_AUDIT.md) for accuracy findings, regression evidence,
+and the labeled recording replay command. Browser speech submits final results
+only. Clear final phonetic matches use the local path; uncertain matches send
+all recognizer guesses for contextual parsing. Both paths share one submission
+effect, and competing interpretations require manual selection. Both Gemini parsers default to abstention on unclear
+input and validate model output against canonical legal SAN.
+
 After silence or the maximum recording duration, audio monitoring resumes even
 if the audio was too short or quiet to send. Stop/unmount invalidates pending
 permission prompts, recorder events, and audio reads; late callbacks cannot send
 input for an abandoned position. Recording chooses a supported format, including
 MP4 for browsers that provide it, rather than assuming WAV recording support.
+Audio capture begins before voice detection to retain initial consonants. The
+monitor uses waveform RMS; clips need detected signal rather than a minimum
+compressed file size. The default trailing-silence window is 700 ms.
 
 Practice, multiplayer, and AI parsing share the Firestore calibration cache.
 Successful saves replace cached empty or older patterns immediately. An older

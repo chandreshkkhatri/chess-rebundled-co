@@ -66,8 +66,10 @@ for (const audio of [false, true]) {
     const collection = mock.method(getFirestore(), 'collection', () => ({ doc: () => ({
       get: async () => ({ exists: true, data: () => ({ voiceCalibration: calibration }) }),
     }) }) as any);
-    const calls = mock.method(genai.models, 'generateContent', async () => ({
-      text: JSON.stringify({ move: 'Nf3', confidence: 0.95, alternatives: [], transcription: 'knight f3' }),
+    const calls = mock.method(genai.models, 'generateContent', async (request: any) => ({
+      text: JSON.stringify(Array.isArray(request.contents)
+        ? { transcription: 'knight f3', speechDetected: true }
+        : { move: 'Nf3', confidence: 0.95, alternatives: [] }),
     }) as any);
     try {
       const socket = client(f.state.uid);
@@ -81,7 +83,7 @@ for (const audio of [false, true]) {
       assert.equal(result.data.requestId, 'request-one');
       assert.equal(result.data.fen, f.state.fen);
       assert.equal(result.data.parsedMove, 'Nf3');
-      assert.match(JSON.stringify(calls.mock.calls[0].arguments), /night/);
+      assert.match(JSON.stringify(calls.mock.calls.map((call: any) => call.arguments)), /night/);
       assert.deepEqual((await aiGameStore.getGame(f.state.id))?.moves, []);
     } finally { calls.mock.restore(); collection.mock.restore(); await f.close(); }
   });

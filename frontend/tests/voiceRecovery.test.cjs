@@ -15,7 +15,8 @@ function fixture({ formats = ['audio/webm;codecs=opus'], deferredPermission = fa
   }
   class Context {
     createMediaStreamSource() { return { connect() {} }; }
-    createAnalyser() { return { frequencyBinCount: 8, getByteFrequencyData(array) { array.fill(volume); } }; }
+    createAnalyser() { return { fftSize: 2048, getFloatTimeDomainData(array) { array.fill(volume / 255); } }; }
+    async resume() {}
     async close() {}
   }
   class Reader {
@@ -51,13 +52,13 @@ test('discarded audio resumes volume monitoring and the next utterance is delive
   try {
     f.frame(1000, 255);
     f.recorders[0].ondataavailable({ data: new Blob(['noise']) });
-    f.frame(1100, 0); f.frame(1600, 0);
+    f.frame(1100, 0); f.frame(1900, 0);
     assert.equal(f.results.length, 0);
     assert.equal(f.render().isListening, true);
-    f.frame(1800, 255);
+    f.frame(2000, 255); f.frame(2100, 255); f.frame(2200, 255);
     assert.equal(f.recorders[0].state, 'recording');
     f.recorders[0].ondataavailable({ data: new Blob(['x'.repeat(4000)]) });
-    f.frame(2400, 0); f.frame(2900, 0);
+    f.frame(2400, 0); f.frame(3200, 0);
     f.readers[0].onloadend();
     assert.deepEqual(f.results, [['encoded', 'audio/webm']]);
     assert.equal(f.frames.size, 1);
@@ -69,7 +70,7 @@ test('maximum-duration recording resumes monitoring and cancellation discards la
   await f.render().startListening();
   f.frame(1000, 255);
   f.recorders[0].ondataavailable({ data: new Blob(['x'.repeat(4000)]) });
-  f.frame(9100, 255);
+  f.frame(1100, 255); f.frame(1200, 255); f.frame(9100, 255);
   assert.equal(f.frames.size, 1);
   f.render().stopListening();
   f.readers[0].onloadend();
@@ -99,4 +100,44 @@ test('MP4-only browsers use their supported recorder format', async () => {
   assert.equal(f.recorders[0].mimeType, 'audio/mp4');
   assert.equal(f.render().isListening, true);
   f.runtime.unmount();
+});
+
+test('recording precedes detection, retains a short compressed command, and tolerates a 500ms pause', async () => {
+  const f = fixture();
+  await f.render().startListening();
+  try {
+    assert.equal(f.recorders[0].state, 'recording', 'the first consonant is captured before the monitor sees speech');
+    f.frame(1100, 128); f.frame(1200, 128);
+    f.frame(1300, 0); f.frame(1800, 0);
+    assert.equal(f.recorders[0].state, 'recording', 'a pause between file and rank must not split the command');
+    f.frame(1900, 128); f.frame(2000, 128);
+    f.recorders[0].ondataavailable({ data: new Blob(['x'.repeat(500)]) });
+    f.frame(2100, 0); f.frame(2900, 0);
+    assert.equal(f.readers.length, 1, 'valid Opus clips need not exceed 3000 bytes');
+    f.readers[0].onloadend();
+    assert.deepEqual(f.results, [['encoded', 'audio/webm']]);
+  } finally { f.runtime.unmount(); }
+});
+
+test('idle silence is capped and never sent for inference', async () => {
+  const f = fixture();
+  await f.render().startListening();
+  try {
+    f.recorders[0].ondataavailable({ data: new Blob(['x'.repeat(4000)]) });
+    f.frame(9100, 0);
+    assert.equal(f.readers.length, 0);
+    f.frame(9200, 0);
+    assert.equal(f.recorders[0].state, 'recording');
+  } finally { f.runtime.unmount(); }
+});
+
+test('a command beginning near the idle rotation deadline is not truncated', async () => {
+  const f = fixture();
+  await f.render().startListening();
+  try {
+    f.frame(8900, 255); f.frame(9100, 255);
+    assert.equal(f.recorders[0].state, 'recording');
+    f.frame(9300, 0); f.frame(10100, 0);
+    assert.equal(f.frames.size, 1);
+  } finally { f.runtime.unmount(); }
 });

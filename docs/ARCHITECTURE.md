@@ -115,6 +115,10 @@ Conversational AI parse requests include game ID, request ID, and position FEN;
 `useAiMoveInput` clears pending work on a changed position/turn or disconnect.
 The shared calibration cache lives with Firestore persistence and updates after
 successful calibration saves; text-parse caches include user/revision keys.
+Audio parsing transcribes without a FEN, legal-move candidates, or calibration
+hints, then sends detected words to the shared calibrated text parser. This
+separation reduces invented moves on noise/silence. Both stages share the
+12-second audio deadline. One audio parse allowance can cover two provider calls.
 The AI game page rejoins its room and reloads authoritative state on reconnect.
 
 ## Game catalog and content

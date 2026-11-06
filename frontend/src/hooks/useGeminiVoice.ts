@@ -10,7 +10,7 @@ interface UseGeminiVoiceOptions {
 }
 
 export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
-  const { onAudioReady, silenceThreshold = 0.02, silenceDuration = 400, maxDuration = 8000 } = options;
+  const { onAudioReady, silenceThreshold = 0.02, silenceDuration = 700, maxDuration = 8000 } = options;
   const [isListening, setIsListening] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
@@ -79,14 +79,20 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
       streamRef.current = stream;
       const context = new AudioContext();
       audioContextRef.current = context;
+      await context.resume();
+      if (generationRef.current !== generation) return;
       const analyser = context.createAnalyser();
-      analyser.fftSize = 256;
+      analyser.fftSize = 2048;
       context.createMediaStreamSource(stream).connect(analyser);
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 128000 });
       mediaRecorderRef.current = recorder;
       let chunks: Blob[] = [];
       let recordingStart: number | null = null;
       let silenceStart: number | null = null;
+      let speechStart: number | null = null;
+      let speechDuration = 0;
+      let lastFrame = Date.now();
+      const samples = new Float32Array(analyser.fftSize);
       const current = () => generationRef.current === generation && listeningRef.current;
       const schedule = () => {
         if (current()) animationFrameRef.current = requestAnimationFrame(checkVolume);
@@ -94,24 +100,29 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
       const checkVolume = () => {
         animationFrameRef.current = null;
         if (!current()) return;
-        const data = new Uint8Array(analyser.frequencyBinCount);
-        analyser.getByteFrequencyData(data);
-        const volume = data.length ? data.reduce((a, b) => a + b, 0) / data.length / 255 : 0;
-        setVolumeLevel(volume);
         const now = Date.now();
+        // Record before detecting speech, preserving quiet initial consonants.
+        // Every clip is a complete container, capped even during silence.
+        if (recorder.state === 'inactive') {
+          chunks = [];
+          recordingStart = now;
+          recorder.start();
+        }
+        analyser.getFloatTimeDomainData(samples);
+        const volume = Math.sqrt(samples.reduce((sum, value) => sum + value * value, 0) / samples.length);
+        setVolumeLevel(volume);
         if (volume > silenceThreshold) {
+          speechStart ??= now;
+          speechDuration += Math.min(now - lastFrame, 100);
           silenceStart = null;
-          if (recorder.state === 'inactive') {
-            chunks = [];
-            recordingStart = now;
-            recorder.start();
-            setIsRecording(true);
-          }
-        } else if (recorder.state === 'recording') {
+          setIsRecording(true);
+        } else if (speechStart !== null) {
           silenceStart ??= now;
           if (now - silenceStart > silenceDuration) { recorder.stop(); return; }
         }
-        if (recorder.state === 'recording' && recordingStart !== null && now - recordingStart > maxDuration) {
+        lastFrame = now;
+        const durationStart = speechStart ?? recordingStart;
+        if (durationStart !== null && now - durationStart > maxDuration) {
           recorder.stop();
           return;
         }
@@ -123,14 +134,18 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
       recorder.onstop = () => {
         if (!current()) return;
         setIsRecording(false);
-        const duration = recordingStart === null ? 0 : Date.now() - recordingStart;
+        const hasSpeech = speechDuration >= 120;
         const blob = new Blob(chunks, { type: recorder.mimeType || mimeType });
         chunks = [];
         recordingStart = null;
         silenceStart = null;
+        speechStart = null;
+        speechDuration = 0;
+        lastFrame = Date.now();
         // Resume even when a brief noise or quiet recording was discarded.
         schedule();
-        if (blob.size > 3000 && duration > 500) {
+        // Encoded byte size depends on codec/bitrate, not intelligibility.
+        if (blob.size > 0 && hasSpeech) {
           const reader = new FileReader();
           reader.onloadend = () => {
             if (current() && typeof reader.result === 'string') {
@@ -148,6 +163,8 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
       listeningRef.current = true;
       startingRef.current = false;
       setIsListening(true);
+      recordingStart = Date.now();
+      recorder.start();
       schedule();
     } catch (err) {
       if (generationRef.current !== generation) return;

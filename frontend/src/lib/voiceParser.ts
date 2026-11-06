@@ -1,5 +1,13 @@
 // Phonetic alphabet mappings for file disambiguation
 const PHONETIC_FILES: Record<string, string> = {
+  ay: 'a', aye: 'a',
+  bee: 'b', be: 'b',
+  see: 'c', sea: 'c',
+  dee: 'd',
+  ee: 'e',
+  eff: 'f', half: 'f',
+  gee: 'g',
+  aitch: 'h', each: 'h', age: 'h',
   alpha: 'a',
   alfa: 'a',
   bravo: 'b',
@@ -23,6 +31,7 @@ const PHONETIC_FILES: Record<string, string> = {
 };
 
 const PHONETIC_RANKS: Record<string, string> = {
+  won: '1',
   one: '1',
   two: '2',
   too: '2',
@@ -51,7 +60,7 @@ const PIECE_MAPPINGS: Record<string, string> = {
   pawn: '',
 };
 
-const CAPTURE_WORDS = ['takes', 'captures', 'capture', 'take', 'by'];
+const CAPTURE_WORDS = ['takes', 'captures', 'capture', 'take', 'by', 'x'];
 
 export interface ParsedMove {
   notation: string;
@@ -68,42 +77,42 @@ function isLegalMove(notation: string, legalMoves: string[]): boolean {
 }
 
 export function parseVoiceInput(transcript: string, legalMoves?: string[]): ParsedMove {
-  let normalized = transcript.toLowerCase().trim();
+  const empty: ParsedMove = { notation: '', confidence: 0, alternatives: [], hasAmbiguity: false };
+  const clean = (move: string) => move.replace(/[+#]/g, '');
+  const direct = transcript.trim().replace(/[.,!?]+$/g, '');
+  // Preserve SAN's case (B is a bishop, b is a file).
+  const exact = legalMoves?.find(move => clean(move) === clean(direct));
+  if (exact) return { ...empty, notation: exact, confidence: 0.95 };
+  if (/^(?:[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?|O-O(?:-O)?)[+#]?$/.test(direct)) {
+    return { ...empty, notation: direct, confidence: legalMoves ? 0.5 : 0.9 };
+  }
 
-  // Pre-process transcript to map common homophones to standard chess notations
+  let normalized = transcript.toLowerCase().trim().replace(/[.,!?]/g, '');
   normalized = normalized
-    .replace(/\bsee\s*(\d)\b/g, 'c$1')      // "see 4" -> "c4"
-    .replace(/\bsea\s*(\d)\b/g, 'c$1')      // "sea 4" -> "c4"
-    .replace(/\bbe\s*(\d)\b/g, 'b$1')       // "be 4" -> "b4"
-    .replace(/\bbefore\b/g, 'b4')           // "before" -> "b4"
-    .replace(/\bbee\s*(\d)\b/g, 'b$1')      // "bee 4" -> "b4"
-    .replace(/\beff\s*(\d)\b/g, 'f$1')      // "eff 4" -> "f4"
-    .replace(/\bhalf\s*(\d)\b/g, 'f$1')     // "half 4" -> "f4"
-    .replace(/\bgee\s*(\d)\b/g, 'g$1')      // "gee 4" -> "g4"
-    .replace(/\beach\s*(\d)\b/g, 'h$1')     // "each 3" -> "h3"
-    .replace(/\bage\s*(\d)\b/g, 'h$1')      // "age 3" -> "h3"
-    .replace(/\bay\s*(\d)\b/g, 'a$1')       // "ay 1" -> "a1"
-    .replace(/\baye\s*(\d)\b/g, 'a$1')      // "aye 1" -> "a1"
-    .replace(/\bdate\b/g, 'd8')             // "date" -> "d8"
-    .replace(/\btoo\b/g, 'two')             // homophones for ranks
-    .replace(/\bto\b/g, 'two')
-    .replace(/\bfor\b/g, 'four')
-    .replace(/\bfore\b/g, 'four')
-    .replace(/\bate\b/g, 'eight')
+    .replace(/\bbefore\b/g, 'b4')
+    .replace(/\bdate\b/g, 'd8')
     .replace(/\bnight\b/g, 'knight')
-    .replace(/\bbrooke\b/g, 'rook')
-    .replace(/\bbrook\b/g, 'rook');
+    .replace(/\bbrooke?\b/g, 'rook');
+
+  if (/^(?:castle (?:king\s*side|short)|(?:king\s*side|short) castle)$/.test(normalized)) {
+    return { ...empty, notation: 'O-O', confidence: !legalMoves || isLegalMove('O-O', legalMoves) ? 0.95 : 0.5 };
+  }
+  if (/^(?:castle (?:queen\s*side|long)|(?:queen\s*side|long) castle)$/.test(normalized)) {
+    return { ...empty, notation: 'O-O-O', confidence: !legalMoves || isLegalMove('O-O-O', legalMoves) ? 0.95 : 0.5 };
+  }
+
+  let promotion = '';
+  normalized = normalized.replace(/\s+(?:(?:promotes?|promoting)(?: to)?|equals?)\s+(queen|rook|bishop|knight)$/, (_, pieceName: string) => {
+    promotion = '=' + PIECE_MAPPINGS[pieceName];
+    return '';
+  });
+  // "to" before a file is a separator, while "f to" can mean f2.
+  const files = [...Object.keys(PHONETIC_FILES), '[a-h](?:[1-8])?'].join('|');
+  normalized = normalized.replace(new RegExp('\\bto(?=\\s+(?:' + files + ')\\b)', 'g'), ' ');
+  normalized = normalized.replace(/\bcheck(?:mate)?\b/g, ' ').trim();
 
   let alternatives: string[] = [];
   let hasAmbiguity = false;
-
-  // Check for castling first
-  if (/castle\s*(king\s*side|short)/i.test(normalized)) {
-    return { notation: 'O-O', confidence: 0.95, alternatives: [], hasAmbiguity: false };
-  }
-  if (/castle\s*(queen\s*side|long)/i.test(normalized)) {
-    return { notation: 'O-O-O', confidence: 0.95, alternatives: [], hasAmbiguity: false };
-  }
 
   // Parse the move
   let piece = '';
@@ -166,66 +175,52 @@ export function parseVoiceInput(transcript: string, legalMoves?: string[]): Pars
     // Check for combined square (e4, d5, etc.)
     const squareMatch = word.match(/^([a-h])([1-8])$/i);
     if (squareMatch) {
+      if (file) fromFile = file;
       file = squareMatch[1].toLowerCase();
       rank = squareMatch[2];
       continue;
+    } else {
+      // Unknown words need the contextual parser; do not mine a move from noise.
+      return empty;
     }
   }
+
+  if (!file || !rank) return empty;
 
   // Build the notation
   let notation = '';
 
   if (piece) notation += piece;
-  if (fromFile) notation += fromFile;
+  if (fromFile && (piece || isCapture)) notation += fromFile;
   if (isCapture) notation += 'x';
   if (file) notation += file;
   if (rank) notation += rank;
 
-  // Check for d/b ambiguity
-  if (file === 'd' || file === 'b') {
-    hasAmbiguity = true;
-    const altFile = file === 'd' ? 'b' : 'd';
-    const altNotation = notation.replace(file, altFile);
-    alternatives.push(altNotation);
-  }
-
-  // Calculate base confidence
+  notation += promotion;
   let confidence = 0.9;
-  if (hasAmbiguity) confidence = 0.7;
-  if (!file || !rank) confidence = 0.5;
-
-  // Validate against legal moves if provided
-  if (legalMoves && legalMoves.length > 0 && notation) {
-    const mainLegal = isLegalMove(notation, legalMoves);
-
-    if (mainLegal && !hasAmbiguity) {
-      // Exact match, no ambiguity - high confidence
+  if (legalMoves) {
+    const exactMove = legalMoves.find(move => clean(move) === notation);
+    if (exactMove) {
+      notation = exactMove;
       confidence = 0.95;
-    } else if (hasAmbiguity && (file === 'd' || file === 'b')) {
-      // d/b ambiguity - try to resolve using legal moves
-      const altFile = file === 'd' ? 'b' : 'd';
-      const altNotation = notation.replace(file, altFile);
-      const altLegal = isLegalMove(altNotation, legalMoves);
-
-      if (mainLegal && !altLegal) {
-        // Only main is legal - resolve ambiguity
-        confidence = 0.95;
-        hasAmbiguity = false;
-        alternatives = [];
-      } else if (!mainLegal && altLegal) {
-        // Only alt is legal - swap to the legal one
-        notation = altNotation;
-        confidence = 0.95;
-        hasAmbiguity = false;
-        alternatives = [];
-      } else if (mainLegal && altLegal) {
-        // Both are legal - keep ambiguity but note both are valid
-        confidence = 0.75;
-      }
-      // If neither is legal, keep low confidence
-    } else if (!mainLegal) {
-      // Parsed move isn't legal - lower confidence
-      confidence = Math.min(confidence, 0.5);
+    } else {
+      // SAN supplies capture/disambiguation details that speakers often omit.
+      // Resolve only when the explicitly spoken piece and destination are unique.
+      const matches = legalMoves.filter(move => {
+        const match = clean(move).match(/^([KQRBN]?)([a-h1-8]*)(x?)([a-h][1-8])(=[QRBN])?$/);
+        return match && match[1] === piece && match[4] === file + rank &&
+          (!isCapture || match[3] === 'x') && (match[5] || '') === promotion &&
+          (!fromFile || !match[2] || match[2].includes(fromFile));
+      });
+      if (matches.length === 1) {
+        notation = matches[0];
+        confidence = 0.9;
+      } else if (matches.length > 1) {
+        notation = matches[0];
+        alternatives = matches.slice(1);
+        hasAmbiguity = true;
+        confidence = 0.5;
+      } else confidence = 0.5;
     }
   }
 
@@ -234,7 +229,7 @@ export function parseVoiceInput(transcript: string, legalMoves?: string[]): Pars
     confidence,
     alternatives,
     hasAmbiguity,
-    ambiguousType: hasAmbiguity ? 'db' : undefined,
+    ambiguousType: hasAmbiguity ? 'piece' : undefined,
   };
 }
 

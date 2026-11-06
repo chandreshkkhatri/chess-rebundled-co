@@ -1,5 +1,6 @@
 import { Type } from "@google/genai";
 import { genai, GEMINI_MODEL } from "../lib/genaiClient.js";
+import { validateParsedMove } from "../lib/validateParsedMove.js";
 import { withTimeout } from "../lib/withTimeout.js";
 
 // Cap Gemini text-parse latency so a hung request surfaces as an error
@@ -39,7 +40,7 @@ export async function parseChessMoveWithAI(
   legalMoves: string[],
   options: AIParseOptions = {},
 ): Promise<AIParsedMove> {
-  const { allowGuessOnUnclear = true, confusionMap, alternativeTranscripts = [] } = options;
+  const { allowGuessOnUnclear = false, confusionMap, alternativeTranscripts = [] } = options;
 
   // Build user-specific confusion context if calibration data exists
   let userConfusionContext = "";
@@ -110,14 +111,17 @@ Return ONLY valid JSON in this exact format, no other text:
 {"move": "e4", "confidence": 0.95, "alternatives": ["d4"], "reasoning": "Echo=e, four=4"}
 
 Rules:
+Never substitute a popular, strategically good, or expected move for the spoken move.
+If the speaker says d4, do not return Nf3 just because it is a plausible opening.
+Background noise, silence, unrelated speech and incomplete moves must return "unclear".
 1. The "move" field MUST be one of the legal moves listed above, or "unclear" if unparseable
 2. "confidence" should be 0.0-1.0 based on how clear the transcript is
-3. "alternatives" should list 0-3 other possible legal moves if ambiguous
+3. "alternatives" should list 0-3 other possible legal moves ONLY if the speech is actually ambiguous; otherwise use []
 4. "reasoning" briefly explains the interpretation
 ${
   allowGuessOnUnclear
     ? "If the transcript is unclear, pick the most likely legal move based on common chess patterns."
-    : "If the transcript is unclear or multiple legal moves are plausible, return an empty move with low confidence instead of guessing."
+    : 'If the transcript is unclear or multiple legal moves are plausible, return "unclear" with low confidence instead of guessing.'
 }`;
 
   try {
@@ -159,44 +163,8 @@ ${
       };
     }
 
-    const parsed = JSON.parse(jsonMatch[0]) as AIParsedMove;
-    if (typeof parsed.move !== "string" || parsed.move === UNCLEAR) parsed.move = "";
-    if (typeof parsed.confidence !== "number" || Number.isNaN(parsed.confidence)) parsed.confidence = 0;
-    parsed.confidence = Math.max(0, Math.min(1, parsed.confidence));
+    return validateParsedMove(JSON.parse(jsonMatch[0]), legalMoves, transcript);
 
-    // Validate that the move is in the legal moves list
-    if (parsed.move && !legalMoves.includes(parsed.move)) {
-      // Try to find a matching legal move (case-insensitive, ignore check symbols)
-      const cleanParsedMove = parsed.move.replace(/[+#]/g, "");
-      const matchingMove = legalMoves.find(
-        (m) => m.replace(/[+#]/g, "") === cleanParsedMove,
-      );
-      if (matchingMove) {
-        parsed.move = matchingMove;
-      } else {
-        console.warn(
-          "[AI Parser] Move not in legal moves list:",
-          parsed.move,
-          "Legal:",
-          legalMoves,
-        );
-        // Keep the parsed move but lower confidence
-        parsed.confidence = Math.min(parsed.confidence, 0.3);
-        parsed.reasoning =
-          (parsed.reasoning || "") + " [Warning: move may not be legal]";
-      }
-    }
-
-    // Filter alternatives to only include legal moves
-    if (parsed.alternatives) {
-      parsed.alternatives = parsed.alternatives.filter((alt: string) =>
-        legalMoves.some(
-          (m) => m.replace(/[+#]/g, "") === alt.replace(/[+#]/g, ""),
-        ),
-      );
-    }
-
-    return parsed;
   } catch (error) {
     console.error("[AI Parser] Error calling Gemini API:", error);
     return {

@@ -45,7 +45,7 @@ test('the model is told every guess and can only answer with a legal move or not
     assert.deepEqual(request.config.responseSchema.properties.move.enum, [...legalMoves, 'unclear']);
     assert.deepEqual(request.config.responseSchema.properties.alternatives.items.enum, legalMoves);
     assert.equal(parsed.move, '', '"unclear" from the model is reported as no move');
-    assert.equal(parsed.confidence, 0.2);
+    assert.equal(parsed.confidence, 0, 'no-move responses do not carry move confidence');
     assert.deepEqual(parsed.alternatives, ['e4'], 'illegal alternatives are dropped');
   } finally { calls.mock.restore(); }
 });

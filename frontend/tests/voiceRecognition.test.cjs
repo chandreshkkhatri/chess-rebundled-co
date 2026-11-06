@@ -27,7 +27,7 @@ function fixture(legalMoves) {
   });
   const options = { continuous: true, legalMoves, onResult: (...args) => results.push(args) };
   const render = () => runtime.render(() => useVoiceRecognition(options));
-  render();
+  render().startListening();
   const recognition = instances[0];
   const hear = (transcripts, isFinal) => {
     const list = transcripts.map(transcript => ({ transcript }));
@@ -66,15 +66,15 @@ test('a later guess decides the move when the first guess does not name one', ()
   assert.ok(f.results[0][1] >= 0.9);
 });
 
-test('a steady, clear interim result commits early and the final result does not repeat it', () => {
+test('a steady interim result waits for a final result before committing', () => {
   const f = fixture(START);
   f.hear(['e4'], false);
   assert.equal(f.results.length, 0);
   f.advance(300);
-  assert.equal(f.results.length, 1, 'stability timer committed the interim result');
-  assert.equal(f.results[0][0], 'e4');
+  assert.equal(f.results.length, 0, 'interim hypotheses never commit');
   f.hear(['e4'], true);
-  assert.equal(f.results.length, 1, 'final result after an early commit is not delivered again');
+  assert.equal(f.results.length, 1, 'only the final result is delivered');
+  assert.equal(f.results[0][0], 'e4');
 });
 
 test('interim words that may be the start of a longer move never commit early', () => {

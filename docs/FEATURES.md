@@ -74,10 +74,12 @@ Sources: [practice setup](../frontend/src/app/practice/page.tsx),
 Two stored parsing modes are supported:
 
 - `webspeech-haiku`: the legacy setting name for browser speech recognition with
-  local move parsing and Gemini text interpretation when needed. It does not
+  local matching and Gemini text interpretation of unclear final transcripts. It does not
   select an Anthropic/Haiku service.
-- `gemini-audio`: microphone recording submitted to Gemini for transcription and
-  move interpretation.
+- `gemini-audio`: microphone recording transcribed by Gemini without board
+  context, followed by text interpretation of detected speech. Silence and
+  unintelligible input return no move. A single audio parse can use two provider
+  requests within the existing overall timeout.
 
 In browser speech mode every guess the recognizer offers is matched by sound
 against the legal moves of the current position (`spokenMoveMatcher.ts`): each
@@ -88,8 +90,9 @@ request and no parsing allowance spent. Unclear speech, incomplete words, and
 the b/d files (confused so often that both are offered unless said as
 "bravo"/"delta") go to the server with all of the recognizer's guesses, where
 calibration and Gemini decide. Gemini's answer is constrained to the legal
-moves through structured output. Interim speech only commits early when it is
-a clear match that no longer legal move begins with.
+moves through structured output. Interim speech updates previews only; final
+results alone can select or submit a move. Local and server results share one
+auto-submit effect, and conflicting alternatives require manual confirmation.
 
 The input panel's **Voice** toggle switches between browser speech and Gemini
 audio in practice, AI games, and multiplayer, and saves the choice with the

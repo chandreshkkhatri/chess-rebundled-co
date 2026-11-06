@@ -79,9 +79,8 @@ function getFriendlyErrorMessage(error: string): string {
   return "Unable to process voice input. Please try again or type your move.";
 }
 
-// Confidence threshold for local parsing (skip Haiku if above this)
-// Lowered from 0.85 to 0.70 to skip AI for more moves (d/b files get 0.7 confidence)
-const LOCAL_PARSE_CONFIDENCE_THRESHOLD = 0.7;
+// Final local matches and contextual results share one auto-submission effect.
+const LOCAL_PARSE_CONFIDENCE_THRESHOLD = 0.85;
 
 // Confidence threshold for auto-submit (automatically submit if above this AND move is legal)
 const AUTO_SUBMIT_CONFIDENCE_THRESHOLD = 0.85;
@@ -232,6 +231,7 @@ export function UniversalInputPanel({
 
   const autoListenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoSubmitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const ambiguousSpeechRef = useRef(false);
   const lastProcessedRef = useRef<{ move: string; timestamp: number } | null>(
     null,
   );
@@ -547,10 +547,10 @@ export function UniversalInputPanel({
     setStageState(initialStageState);
   }, []);
 
-  // Handle voice result - hook now passes parsed notation (e.g. "e4") directly
+  // Final speech results provide a local preview and contextual parsing request.
   // Block new requests while already parsing to prevent race conditions
   const handleVoiceResult = useCallback(
-    (parsedMove: string, confidence: number, rawTranscriptText?: string, transcripts: string[] = []) => {
+    (parsedMove: string, confidence: number, rawTranscriptText?: string, transcripts: string[] = [], ambiguous = false) => {
       if (
         !isSubmitting &&
         !isAIParsing &&
@@ -578,6 +578,7 @@ export function UniversalInputPanel({
           return;
         }
 
+        ambiguousSpeechRef.current = ambiguous;
         // Track this result
         lastProcessedRef.current = { move: parsedMove, timestamp: now };
 
@@ -593,7 +594,7 @@ export function UniversalInputPanel({
 
         // A clear match against the legal moves is committed locally: no server
         // round trip, and no parsing allowance spent.
-        if (confidence >= CONFIDENT_MATCH && isLegalMove(parsedMove)) {
+        if (confidence >= CONFIDENT_MATCH && !ambiguous && isLegalMove(parsedMove)) {
           setLocalParse({
             parsedMove,
             transcript: rawTranscriptText ?? parsedMove,
@@ -605,22 +606,6 @@ export function UniversalInputPanel({
           // Ask the server, with every recognizer guess, so calibration and the
           // language model can settle what the sound-alike words meant.
           onParseMoveWithText(parsedMove, rawTranscriptText, transcripts);
-        }
-
-        // Auto-submit for high confidence legal moves (if enabled)
-        if (
-          autoSubmitEnabled &&
-          confidence >= autoSubmitConfidenceThreshold &&
-          isLegalMove(parsedMove)
-        ) {
-          setSelectedMove(parsedMove);
-          if (autoSubmitTimeoutRef.current)
-            clearTimeout(autoSubmitTimeoutRef.current);
-          autoSubmitTimeoutRef.current = setTimeout(() => {
-            autoSubmitTimeoutRef.current = null;
-            onMoveSubmit(parsedMove, confidence);
-          }, 150);
-          return;
         }
 
         if (confidence >= LOCAL_PARSE_CONFIDENCE_THRESHOLD) {
@@ -638,9 +623,6 @@ export function UniversalInputPanel({
       voiceParsingMode,
       selectedMove,
       isLegalMove,
-      onMoveSubmit,
-      autoSubmitEnabled,
-      autoSubmitConfidenceThreshold,
     ],
   );
 
@@ -654,6 +636,7 @@ export function UniversalInputPanel({
         isActive &&
         voiceParsingMode === "gemini-audio"
       ) {
+        ambiguousSpeechRef.current = false;
         clearParseState();
         clearLastMoveResult(); // Clear stale feedback from previous move
         setSelectedMove(null);
@@ -674,14 +657,16 @@ export function UniversalInputPanel({
   // Auto-select parsed move when AI result comes in (but not during submission)
   // Also auto-submit for high confidence results (covers Gemini mode and Haiku refinements)
   useEffect(() => {
-    if (aiParseResult?.parsedMove && !isSubmitting && isActive) {
-      setSelectedMove(aiParseResult.parsedMove);
+    if (shownParse?.parsedMove && isLegalMove(shownParse.parsedMove) && !isSubmitting && isActive) {
+      setSelectedMove(shownParse.parsedMove);
 
       // Auto-submit for high confidence legal moves from AI parsing (if enabled)
       if (
         autoSubmitEnabled &&
-        aiParseResult.confidence >= autoSubmitConfidenceThreshold &&
-        isLegalMove(aiParseResult.parsedMove)
+        !ambiguousSpeechRef.current &&
+        shownParse.confidence >= autoSubmitConfidenceThreshold &&
+        shownParse.alternatives.length === 0 &&
+        isLegalMove(shownParse.parsedMove)
       ) {
         // Cancel any pending auto-submit to prevent race conditions
         if (autoSubmitTimeoutRef.current) {
@@ -690,7 +675,7 @@ export function UniversalInputPanel({
         // Small delay to show the selection visually before submitting
         autoSubmitTimeoutRef.current = setTimeout(() => {
           autoSubmitTimeoutRef.current = null;
-          onMoveSubmit(aiParseResult.parsedMove, aiParseResult.confidence);
+          onMoveSubmit(shownParse.parsedMove, shownParse.confidence);
         }, 150);
         return () => {
           if (autoSubmitTimeoutRef.current) {
@@ -701,7 +686,7 @@ export function UniversalInputPanel({
       }
     }
   }, [
-    aiParseResult,
+    shownParse,
     isSubmitting,
     isActive,
     isLegalMove,

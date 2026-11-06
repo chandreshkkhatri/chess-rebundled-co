@@ -4,32 +4,10 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { parseVoiceInput } from "@/lib/voiceParser";
 import { CONFIDENT_MATCH, matchSpokenMove } from "@/lib/spokenMoveMatcher";
 
-// Configuration for early interim result triggering
-const INTERIM_STABILITY_MS = 300; // Trigger early if same result for this long
-const INTERIM_MIN_CONFIDENCE = CONFIDENT_MATCH; // Only a clear, complete match commits early
-
 interface UseVoiceRecognitionOptions {
-  // transcripts: every guess the recognizer offered, most likely first
-  onResult?: (move: string, confidence: number, rawTranscript: string, transcripts: string[]) => void;
+  onResult?: (move: string, confidence: number, rawTranscript: string, transcripts: string[], ambiguous?: boolean) => void;
   continuous?: boolean;
   legalMoves?: string[];
-}
-
-interface Interpretation {
-  notation: string;
-  confidence: number;
-  extendable: boolean; // the match may be the start of a longer legal move
-}
-
-// Match every recognizer guess against the legal moves by sound. Without a
-// position (no legal moves) fall back to the word-by-word parser.
-function interpret(transcripts: string[], legalMoves: string[] | undefined): Interpretation {
-  if (legalMoves && legalMoves.length > 0) {
-    const match = matchSpokenMove(transcripts, legalMoves);
-    return { notation: match.move, confidence: match.confidence, extendable: match.extendable };
-  }
-  const parsed = parseVoiceInput(transcripts[0] ?? "");
-  return { notation: parsed.notation, confidence: parsed.confidence, extendable: false };
 }
 
 export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
@@ -44,12 +22,9 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
   const [confidence, setConfidence] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // Track interim results for early triggering
-  const lastInterimRef = useRef<{ notation: string; timestamp: number } | null>(
-    null,
-  );
-  const hasTriggeredRef = useRef(false); // Prevent double-triggering
-  const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const runningRef = useRef(false);
+  const acceptingRef = useRef(false);
+  const processedIndexRef = useRef(0);
 
   // Keep refs up to date
   useEffect(() => {
@@ -80,28 +55,28 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     recognition.lang = "en-US";
     recognition.maxAlternatives = 5;
 
-    // Boost accuracy for chess commands using a custom JSGF grammar list
-    const SpeechGrammarList = (window as any).SpeechGrammarList || (window as any).webkitSpeechGrammarList;
-    if (SpeechGrammarList) {
-      const grammar = '#JSGF V1.0; grammar chess; public <move> = a | b | c | d | e | f | g | h | one | two | three | four | five | six | seven | eight | king | queen | rook | bishop | knight | castle | takes | captures | alpha | bravo | charlie | delta | echo | foxtrot | golf | hotel ;';
-      const speechRecognitionList = new SpeechGrammarList();
-      speechRecognitionList.addFromString(grammar, 1);
-      recognition.grammars = speechRecognitionList;
-    }
-
+    // Legacy SpeechGrammarList is ignored by recognition services. Resolve
+    // final alternatives against the current legal moves instead.
     recognition.onstart = () => {
+      if (!acceptingRef.current) { recognition.abort(); return; }
       setIsListening(true);
       setError(null);
     };
 
     recognition.onend = () => {
+      runningRef.current = false;
+      acceptingRef.current = false;
       setIsListening(false);
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      acceptingRef.current = false;
       setIsListening(false);
 
       switch (event.error) {
+        case "aborted":
+          // Expected when leaving a turn or pausing input for interpretation.
+          break;
         case "not-allowed":
           setError(
             "Microphone access denied. Click the camera icon in address bar to allow.",
@@ -126,157 +101,72 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const results = event.results[event.resultIndex];
-      const rawTranscript = results[0].transcript.trim();
-      // Every alternative the recognizer offers, not just its first guess.
-      const transcripts: string[] = [];
-      for (let i = 0; i < results.length; i++) {
-        const text = results[i].transcript.trim();
-        if (text && !transcripts.includes(text)) transcripts.push(text);
-      }
-
-      // Always update live transcript and a local parsed preview for immediate UI feedback
-      const parsed = interpret(transcripts, legalMovesRef.current);
-      setTranscript(rawTranscript);
-      setParsedPreview(parsed.notation);
-      setConfidence(parsed.confidence);
-
-      const moveForCallback = parsed.notation || rawTranscript;
-
-      if (results.isFinal) {
-        // Clear stability timer since we got final result
-        if (stabilityTimerRef.current) {
-          clearTimeout(stabilityTimerRef.current);
-          stabilityTimerRef.current = null;
+      if (!acceptingRef.current) return;
+      for (let index = event.resultIndex; index < event.results.length; index++) {
+        const result = event.results[index];
+        if (!result.length || index < processedIndexRef.current) continue;
+        const transcripts = Array.from({ length: result.length }, (_, i) => result[i].transcript.trim()).filter(Boolean);
+        if (!transcripts.length) continue;
+        const raw = transcripts[0];
+        const legalMoves = legalMovesRef.current;
+        const matched = legalMoves?.length ? matchSpokenMove(transcripts, legalMoves) : null;
+        const fallback = parseVoiceInput(raw, legalMoves);
+        const notation = matched ? matched.move : fallback.notation;
+        const candidates = transcripts.map(text => parseVoiceInput(text, legalMoves));
+        const legal = candidates.filter(parsed => parsed.confidence >= CONFIDENT_MATCH && !parsed.hasAmbiguity);
+        const competing = new Set(legal.map(parsed => parsed.notation)).size > 1;
+        const certainty = competing ? Math.min(matched?.confidence ?? fallback.confidence, 0.7)
+          : matched?.confidence ?? fallback.confidence;
+        const ambiguous = competing || (!!notation && certainty < CONFIDENT_MATCH);
+        setTranscript(raw);
+        setParsedPreview(notation);
+        setConfidence(certainty);
+        if (result.isFinal) {
+          processedIndexRef.current = index + 1;
+          const move = notation || raw;
+          if (move) onResultRef.current?.(move, certainty, raw, transcripts, ambiguous);
         }
-
-        // Only trigger if we haven't already triggered early
-        if (
-          !hasTriggeredRef.current &&
-          onResultRef.current &&
-          moveForCallback
-        ) {
-          onResultRef.current(
-            moveForCallback,
-            parsed.confidence,
-            rawTranscript,
-            transcripts,
-          );
-        }
-        // Reset for next recognition
-        hasTriggeredRef.current = false;
-        lastInterimRef.current = null;
-      } else {
-        // Interim result - check for early trigger opportunity
-        const now = Date.now();
-
-        // Skip if we've already triggered for this recognition session
-        if (hasTriggeredRef.current) return;
-
-        // Skip if no valid parsed move, or if the words so far may be the
-        // start of a longer move ("castle" before "queen side").
-        if (!parsed.notation || parsed.extendable) {
-          lastInterimRef.current = null;
-          return;
-        }
-
-        // Check if this is the same result as before
-        if (
-          lastInterimRef.current &&
-          lastInterimRef.current.notation === parsed.notation
-        ) {
-          // Same result - check if stable for long enough
-          const elapsed = now - lastInterimRef.current.timestamp;
-          if (
-            elapsed >= INTERIM_STABILITY_MS &&
-            parsed.confidence >= INTERIM_MIN_CONFIDENCE
-          ) {
-            // Trigger early callback!
-            if (onResultRef.current) {
-              hasTriggeredRef.current = true;
-              onResultRef.current(
-                moveForCallback,
-                parsed.confidence,
-                rawTranscript,
-                transcripts,
-              );
-            }
-          }
-        } else {
-          // New result - start stability timer
-          lastInterimRef.current = {
-            notation: parsed.notation,
-            timestamp: now,
-          };
-
-          // Clear existing timer
-          if (stabilityTimerRef.current) {
-            clearTimeout(stabilityTimerRef.current);
-          }
-
-          // Set new timer to check stability after INTERIM_STABILITY_MS
-          if (parsed.confidence >= INTERIM_MIN_CONFIDENCE) {
-            stabilityTimerRef.current = setTimeout(() => {
-              stabilityTimerRef.current = null;
-              // Re-check conditions in case something changed
-              if (
-                !hasTriggeredRef.current &&
-                lastInterimRef.current?.notation === parsed.notation &&
-                onResultRef.current
-              ) {
-                hasTriggeredRef.current = true;
-                onResultRef.current(
-                  parsed.notation,
-                  parsed.confidence,
-                  rawTranscript,
-                  transcripts,
-                );
-              }
-            }, INTERIM_STABILITY_MS);
-          }
-        }
+        // Interim hypotheses are previews only. A legal prefix such as e4
+        // can still become "e4 takes d5" or be corrected by the recognizer.
       }
     };
 
     recognitionRef.current = recognition;
 
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
-      if (stabilityTimerRef.current) {
-        clearTimeout(stabilityTimerRef.current);
-        stabilityTimerRef.current = null;
-      }
+      acceptingRef.current = false;
+      runningRef.current = false;
+      recognition.abort();
+      recognitionRef.current = null;
     };
   }, [continuous]);
 
   const startListening = useCallback(() => {
-    if (recognitionRef.current && !isListening) {
-      setTranscript("");
-      setParsedPreview("");
-      setConfidence(0);
-      setError(null);
-      // Reset early trigger tracking
-      hasTriggeredRef.current = false;
-      lastInterimRef.current = null;
-      if (stabilityTimerRef.current) {
-        clearTimeout(stabilityTimerRef.current);
-        stabilityTimerRef.current = null;
-      }
-      try {
-        recognitionRef.current.start();
-      } catch (e) {
-        // Already started
-      }
+    if (!recognitionRef.current || runningRef.current) return;
+    setTranscript("");
+    setParsedPreview("");
+    setConfidence(0);
+    setError(null);
+    processedIndexRef.current = 0;
+    runningRef.current = true;
+    acceptingRef.current = true;
+    try {
+      recognitionRef.current.start();
+    } catch {
+      runningRef.current = false;
+      acceptingRef.current = false;
     }
-  }, [isListening]);
+  }, []);
 
   const stopListening = useCallback(() => {
-    if (recognitionRef.current && isListening) {
-      recognitionRef.current.stop();
+    acceptingRef.current = false;
+    if (recognitionRef.current && runningRef.current) {
+      // Abort discards pending hypotheses when leaving a turn or input mode.
+      recognitionRef.current.abort();
     }
-  }, [isListening]);
+    runningRef.current = false;
+    setIsListening(false);
+  }, []);
 
   return {
     isSupported,

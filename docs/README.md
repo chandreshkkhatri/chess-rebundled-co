@@ -1,5 +1,8 @@
 # Documentation
 
+The [speech recognition audit](SPEECH_AUDIT.md) records accuracy findings, fixes,
+validation limits, and a command for replaying labeled audio samples.
+
 The guides describe the current repository. Package manifests and the root
 lockfile define dependency versions; `compose.yaml` defines deployment defaults.
 

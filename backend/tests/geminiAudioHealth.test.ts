@@ -34,7 +34,7 @@ test('the audio parser records provider failures but not replies that heard no m
   const chess = new Chess();
   const parse = () => parseChessMoveFromAudio('ZW5jb2RlZA==', 'audio/webm', chess.fen(), chess.moves());
   const noMove = mock.method(genai.models, 'generateContent', async () =>
-    ({ text: '{"move": "", "confidence": 0, "alternatives": [], "transcription": ""}' }) as any);
+    ({ text: '{"speechDetected": false, "transcription": ""}' }) as any);
   try {
     for (let i = 0; i < 4; i++) assert.equal((await parse()).move, '');
     assert.equal(geminiAudioStatus().available, true, 'a working service that heard nothing stays available');
