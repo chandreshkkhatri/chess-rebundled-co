@@ -62,8 +62,8 @@ export default function SettingsPage() {
           return;
         }
         const apiUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "";
-        const response = await fetch(`${apiUrl}/api/user/voice-calibration`, {
-          method: "PUT",
+        const response = await fetch(`${apiUrl}/api/user/voice-training`, {
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
@@ -551,16 +551,18 @@ export default function SettingsPage() {
           {/* Voice Calibration Section */}
           <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
             <h2 className="text-lg font-semibold text-white mb-2">
-              Voice Calibration
+              Voice Training & Calibration
             </h2>
             <p className="text-slate-400 text-sm mb-4">
-              Train the voice system to understand how your browser transcribes
-              chess moves. This improves accuracy by learning your speech
-              patterns.
+              Check recognition across seven move types, practice weak categories,
+              and save repeated transcription corrections for browser speech and Gemini.
             </p>
 
             {showCalibration ? (
               <VoiceCalibration
+                getIdToken={getIdToken}
+                saving={calibrationStatus === "saving"}
+                saveError={calibrationError}
                 onComplete={handleCalibrationComplete}
                 onCancel={() => setShowCalibration(false)}
               />
@@ -577,7 +579,7 @@ export default function SettingsPage() {
                 >
                   {calibrationStatus === "saving"
                     ? "Saving..."
-                    : "Start Calibration"}
+                    : "Start Voice Training"}
                 </button>
                 {calibrationStatus === "saved" && (
                   <p className="text-sm text-green-400">

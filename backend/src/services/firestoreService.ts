@@ -6,6 +6,8 @@ import {
   PracticeMode,
 } from "../types/index.js";
 import type { AiGameState } from "../types/aiGame.js";
+import { runGameMutation } from "../lib/gameMutationQueue.js";
+import { learnTrainingPatterns, type TrainingAttempt, type TrainingEngine } from './voiceTraining.js';
 
 // Firestore document types
 export interface FirestoreUser {
@@ -38,6 +40,17 @@ export interface VoiceCalibration {
   entries: VoiceCalibrationEntry[];
   confusionMap: Record<string, string[]>;
   calibratedAt: number;
+  trainingAttempts?: TrainingAttempt[];
+  engineConfusionMaps?: Partial<Record<TrainingEngine, Record<string, string[]>>>;
+}
+
+export function voiceConfusionMap(calibration: VoiceCalibration | null, engine: TrainingEngine = 'browser'): Record<string, string[]> | undefined {
+  if (!calibration) return undefined;
+  const map = { ...calibration.confusionMap };
+  for (const [target, heard] of Object.entries(calibration.engineConfusionMaps?.[engine] ?? {})) {
+    map[target] = [...new Set([...(map[target] ?? []), ...heard])].slice(0, 10);
+  }
+  return map;
 }
 
 export interface FirestoreSessionMove {
@@ -350,6 +363,24 @@ export async function getVoiceCalibration(
     ? (userDoc.data() as FirestoreUser).voiceCalibration ?? null : null;
   calibrationCache.set(uid, { data: calibration, loadedAt: Date.now() });
   return calibration;
+}
+
+/** Preserve older hints and the other engine's observations when saving a drill. */
+export async function saveVoiceTraining(uid: string, attempts: TrainingAttempt[]): Promise<void> {
+  return runGameMutation(`voice-training:${uid}`, async () => {
+    const previous = await getVoiceCalibration(uid);
+    const byId = new Map((previous?.trainingAttempts ?? []).map(attempt => [attempt.id, attempt]));
+    for (const attempt of attempts) if (!byId.has(attempt.id)) byId.set(attempt.id, attempt);
+    const history = [...byId.values()].sort((a, b) => a.timestamp - b.timestamp).slice(-200);
+    await saveVoiceCalibration(uid, {
+      entries: previous?.entries ?? [], confusionMap: previous?.confusionMap ?? {}, calibratedAt: Date.now(),
+      trainingAttempts: history,
+      engineConfusionMaps: {
+        browser: learnTrainingPatterns(history, 'browser', previous?.engineConfusionMaps?.browser),
+        gemini: learnTrainingPatterns(history, 'gemini', previous?.engineConfusionMaps?.gemini),
+      },
+    });
+  });
 }
 
 /**

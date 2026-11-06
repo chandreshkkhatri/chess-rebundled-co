@@ -83,6 +83,13 @@ in-flight read cannot replace newly saved data. Cached text parses are scoped
 to the user and calibration revision, so calibration updates also invalidate
 old interpretations.
 
+Voice training retains only explicitly confirmed observations. First-try
+diagnostic scores stay separate from retries/practice, and repeated-pattern
+learning is scoped to one engine. Saves merge by observation ID under a per-user
+queue; duplicate saves do not duplicate evidence. Capture cancellation stops
+microphone resources and aborts pending HTTP requests, including late auth reads.
+See [voice training](VOICE_TRAINING.md) for endpoint bounds and verification.
+
 ## Socket request boundaries and AI quotas
 
 Practice and multiplayer listeners use `backend/src/lib/socketRequest.ts` to

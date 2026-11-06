@@ -10,7 +10,7 @@ import { parseChessMoveFromAudio } from "../services/geminiAudioParser.js";
 import { ClientToServerEvents, ServerToClientEvents } from "../types/index.js";
 import { TimeControl } from "../types/multiplayer.js";
 import { WaitingPlayer } from "../services/matchmakingService.js";
-import { getVoiceCalibration, getVoiceCalibrationVersion } from "../services/firestoreService.js";
+import { getVoiceCalibration, getVoiceCalibrationVersion, voiceConfusionMap } from "../services/firestoreService.js";
 import crypto from "crypto";
 import { guardSocketRequest, hasText, isRecord, spokenGuesses, validAudioParse, validTextParse, validTimeControl } from "../lib/socketRequest.js";
 import { aiUsageLimiter } from "../services/aiUsageLimiter.js";
@@ -562,7 +562,7 @@ export class MultiplayerHandler {
         socket.emit('mp-audio-parse-error', { message: 'Daily voice parsing limit reached. Please type your move.' });
         return;
       }
-      const confusionMap = await this.getUserConfusionMap(socket.data.uid);
+      const confusionMap = await this.getUserConfusionMap(socket.data.uid, 'gemini');
       const parsed = await parseChessMoveFromAudio(
         data.audioBase64,
         data.mimeType,
@@ -589,11 +589,12 @@ export class MultiplayerHandler {
 
   private async getUserConfusionMap(
     uid: string | undefined,
+    engine: 'browser' | 'gemini' = 'browser',
   ): Promise<Record<string, string[]> | undefined> {
     if (!uid) return undefined;
 
     try {
-      return (await getVoiceCalibration(uid))?.confusionMap;
+      return voiceConfusionMap(await getVoiceCalibration(uid), engine);
     } catch (error) {
       console.warn(
         "[MultiplayerHandler] Failed to load calibration for user",

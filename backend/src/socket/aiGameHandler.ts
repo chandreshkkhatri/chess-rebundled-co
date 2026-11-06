@@ -367,8 +367,8 @@ export class AiGameHandler {
       fail("Daily voice parsing limit reached. Please type your move.");
       return;
     }
-    const { getVoiceCalibration } = await import("../services/firestoreService.js");
-    const confusionMap = (await getVoiceCalibration(uid))?.confusionMap;
+    const { getVoiceCalibration, voiceConfusionMap } = await import("../services/firestoreService.js");
+    const confusionMap = voiceConfusionMap(await getVoiceCalibration(uid), audio ? 'gemini' : 'browser');
     const legalMoves = chessFromHistory(state.moves).moves();
     const options = { allowGuessOnUnclear: false, confusionMap };
     const guesses = audio ? null : spokenGuesses({ transcript: data.transcript!, rawTranscript: data.rawTranscript, transcripts: data.transcripts });

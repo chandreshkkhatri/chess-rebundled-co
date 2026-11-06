@@ -111,6 +111,12 @@ signed-in user's Firestore profile. Saved calibration takes effect immediately
 in subsequent server parsing requests, including when the prior cache was empty. Browser speech and microphone support vary;
 use HTTPS or localhost, grant microphone access, and retain text/tap fallback.
 
+Settings includes a [22-exercise voice diagnostic](VOICE_TRAINING.md) covering
+seven move categories, with targeted practice using alternate phrasing. Browser
+and Gemini scores/hints stay separate. First-try scores exclude successful
+retries, and only repeated, explicitly confirmed transcription mistakes become
+saved hints. The expected answer never enters recognition requests.
+
 Practice, multiplayer, and conversational AI move parsing share the
 [daily parsing allowance](RELIABILITY.md#socket-request-boundaries-and-ai-quotas).
 

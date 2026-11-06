@@ -15,6 +15,7 @@ lockfile define dependency versions; `compose.yaml` defines deployment defaults.
 | [Deployment](DEPLOYMENT.md) | Production-only CI/CD, backend Compose deployment, optional frontend, health checks, rollback, and PM2 migration. |
 | [Dependencies](DEPENDENCIES.md) | Supported tools, upgrade decisions, installation recovery, and checks. |
 | [Reliability](RELIABILITY.md) | Ownership, reconnection, quotas, game mutations, worker cancellation, and tests. |
+| [Voice training](VOICE_TRAINING.md) | Position-aware diagnostics, targeted practice, per-engine scores, and repeated-pattern calibration. |
 | [Narration script](marketing/NARRATION_SCRIPT.md) | Promotional narration source for the ElevenLabs utility; not a setup guide. |
 
 ## Common tasks

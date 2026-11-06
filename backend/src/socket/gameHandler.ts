@@ -11,7 +11,7 @@ import {
   saveCompletedSession,
   ensureUserExists,
 } from "../services/firestoreService.js";
-import { getVoiceCalibration, getVoiceCalibrationVersion } from "../services/firestoreService.js";
+import { getVoiceCalibration, getVoiceCalibrationVersion, voiceConfusionMap } from "../services/firestoreService.js";
 import {
   getPlayerList,
   getRandomGameByPlayer,
@@ -96,11 +96,12 @@ export class GameHandler {
   // Get user's voice calibration confusion map (cached)
   private async getUserConfusionMap(
     uid: string | undefined,
+    engine: 'browser' | 'gemini' = 'browser',
   ): Promise<Record<string, string[]> | undefined> {
     if (!uid) return undefined;
 
     try {
-      return (await getVoiceCalibration(uid))?.confusionMap;
+      return voiceConfusionMap(await getVoiceCalibration(uid), engine);
     } catch (error) {
       console.warn(
         "[GameHandler] Failed to load calibration for user",
@@ -577,7 +578,7 @@ export class GameHandler {
         socket.emit('audio-parse-error', { message: 'Daily voice parsing limit reached. Please type your move.' });
         return;
       }
-      const confusionMap = await this.getUserConfusionMap(socket.data.uid);
+      const confusionMap = await this.getUserConfusionMap(socket.data.uid, 'gemini');
       const parsed = await parseChessMoveFromAudio(
         data.audioBase64,
         data.mimeType,

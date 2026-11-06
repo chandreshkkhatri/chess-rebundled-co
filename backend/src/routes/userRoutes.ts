@@ -8,14 +8,24 @@ import {
   saveVoiceCalibration,
   getVoiceCalibration,
   VoiceCalibration,
+  ensureUserExists,
 } from "../services/firestoreService.js";
 import { getGameById } from "../services/gameRepository.js";
+import { Chess } from 'chess.js';
+import { TRAINING_EXERCISES, validateTrainingAttempts } from '../services/voiceTraining.js';
+import { saveVoiceTraining, voiceConfusionMap } from '../services/firestoreService.js';
+import { validAudioParse, validTextParse, isRecord, spokenGuesses } from '../lib/socketRequest.js';
+import { parseChessMoveWithAI } from '../services/aiMoveParser.js';
+import { parseChessMoveFromAudio } from '../services/geminiAudioParser.js';
+import { aiUsageLimiter } from '../services/aiUsageLimiter.js';
+import { geminiAudioStatus } from '../services/geminiAudioHealth.js';
+import { runGameMutation } from '../lib/gameMutationQueue.js';
 
 // Auth middleware for Fastify
 async function authenticateRequest(
   request: FastifyRequest,
   reply: FastifyReply,
-): Promise<{ uid: string } | null> {
+): Promise<{ uid: string; email?: string } | null> {
   const authHeader = request.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -31,10 +41,64 @@ async function authenticateRequest(
     return null;
   }
 
-  return { uid: decodedToken.uid };
+  return { uid: decodedToken.uid, ...(decodedToken.email ? { email: decodedToken.email } : {}) };
 }
 
 export async function userRoutes(fastify: FastifyInstance): Promise<void> {
+  fastify.get('/api/user/voice-training', async (request, reply) => {
+    const auth = await authenticateRequest(request, reply);
+    if (!auth) return;
+    reply.header('Cache-Control', 'private, no-store');
+    const calibration = await getVoiceCalibration(auth.uid);
+    return { exercises: TRAINING_EXERCISES, attempts: calibration?.trainingAttempts ?? [] };
+  });
+
+  // Recognition receives only the position and actual input, never a drill ID,
+  // expected move or target phrase. Grading happens after this request returns.
+  fastify.post('/api/user/voice-training/parse', async (request, reply) => {
+    const auth = await authenticateRequest(request, reply);
+    if (!auth) return;
+    const data = request.body;
+    if (!isRecord(data) || !['browser', 'gemini'].includes(String(data.engine)) ||
+      typeof data.fen !== 'string' || data.fen.length > 120 ||
+      Object.keys(data).some(key => !['engine', 'fen', 'transcript', 'rawTranscript', 'transcripts', 'audioBase64', 'mimeType'].includes(key)) ||
+      !(data.engine === 'gemini' ? validAudioParse(data) : validTextParse(data))) {
+      reply.code(400).send({ error: 'Invalid voice training input' }); return;
+    }
+    let chess: Chess;
+    try { chess = new Chess(data.fen); } catch {
+      reply.code(400).send({ error: 'Invalid position' }); return;
+    }
+    const engine = data.engine as 'browser' | 'gemini';
+    if (engine === 'gemini' && !geminiAudioStatus().available) {
+      reply.code(503).send({ error: 'Gemini audio is temporarily unavailable. Try browser speech.' }); return;
+    }
+    if (!(await aiUsageLimiter.tryConsumeParse(`user:${auth.uid}`))) {
+      reply.code(429).send({ error: 'Daily voice parsing limit reached. Please try again tomorrow.' }); return;
+    }
+    const confusionMap = voiceConfusionMap(await getVoiceCalibration(auth.uid), engine);
+    const options = { allowGuessOnUnclear: false, confusionMap };
+    const guesses = engine === 'browser' ? spokenGuesses(data as unknown as { transcript: string; rawTranscript?: string; transcripts?: string[] }) : null;
+    const parsed = engine === 'gemini'
+      ? await parseChessMoveFromAudio(data.audioBase64 as string, data.mimeType as string, chess.fen(), chess.moves(), options)
+      : await parseChessMoveWithAI(guesses!.transcript, chess.fen(), chess.moves(), { ...options, alternativeTranscripts: guesses!.alternatives });
+    if (parsed.reasoning?.startsWith('AI parsing failed:') || parsed.reasoning?.startsWith('Audio parsing failed:') ||
+      parsed.reasoning?.startsWith('Failed to') || parsed.reasoning === 'Invalid transcription response') {
+      reply.code(502).send({ error: 'Voice processing failed. Please retry; this attempt was not scored.' }); return;
+    }
+    return { ...parsed, transcription: 'transcription' in parsed ? parsed.transcription : guesses!.transcript };
+  });
+
+  fastify.post('/api/user/voice-training', async (request, reply) => {
+    const auth = await authenticateRequest(request, reply);
+    if (!auth) return;
+    const attempts = validateTrainingAttempts(isRecord(request.body) ? request.body.attempts : null);
+    if (!attempts) { reply.code(400).send({ error: 'Invalid training observations' }); return; }
+    await ensureUserExists(auth.uid, auth.email ?? null);
+    await saveVoiceTraining(auth.uid, attempts);
+    return { success: true };
+  });
+
   // Get user profile and stats
   fastify.get("/api/user/profile", async (request, reply) => {
     const auth = await authenticateRequest(request, reply);
@@ -235,7 +299,10 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
       calibratedAt,
     };
 
-    await saveVoiceCalibration(auth.uid, calibration);
+    await runGameMutation(`voice-training:${auth.uid}`, async () => {
+      const previous = await getVoiceCalibration(auth.uid);
+      await saveVoiceCalibration(auth.uid, { ...previous, ...calibration });
+    });
     return { success: true };
   });
 

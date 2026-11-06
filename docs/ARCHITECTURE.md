@@ -105,6 +105,8 @@ process-local rooms, timers, matchmaking, and multiplayer mutation queues.
 | `GET /api/user/sessions` | Bearer token; recent practice summaries. |
 | `GET /api/user/sessions/:sessionId` | Bearer token; one owned session's results. |
 | `GET`, `PUT /api/user/voice-calibration` | Bearer token; speech calibration. |
+| `GET`, `POST /api/user/voice-training` | Bearer token; exercise catalog/saved observations and bounded observation saves. |
+| `POST /api/user/voice-training/parse` | Bearer token; recognition without an expected exercise answer, using shared parsing quota. |
 
 Socket event families are declared in
 [backend types](../backend/src/types/index.ts). Practice uses events such as
@@ -115,6 +117,11 @@ Conversational AI parse requests include game ID, request ID, and position FEN;
 `useAiMoveInput` clears pending work on a changed position/turn or disconnect.
 The shared calibration cache lives with Firestore persistence and updates after
 successful calibration saves; text-parse caches include user/revision keys.
+The [voice training flow](VOICE_TRAINING.md) retains up to 200 confirmed
+observations plus separate browser/Gemini hints within `voiceCalibration`.
+Diagnostic answers are graded locally after recognition; the parse endpoint
+rejects exercise/expected-answer fields. Saves serialize per UID and invalidate
+the same shared calibration revision used by gameplay.
 Audio parsing transcribes without a FEN, legal-move candidates, or calibration
 hints, then sends detected words to the shared calibrated text parser. This
 separation reduces invented moves on noise/silence. Both stages share the
