@@ -136,3 +136,53 @@ by supplying text fixtures or by replaying a WAV through the Gemini parser.
 For model comparisons, override `GEMINI_TRANSCRIPTION_MODEL` for audio and
 `GEMINI_MODEL` for text interpretation explicitly. Avoid changing both when
 trying to isolate an acoustic problem.
+
+## Latency
+
+Added on 2026-11-09. In the replay runner, the final configuration above took
+about 3.3–4.0 seconds per spoken move. A player also waits for the silence gap
+and the upload. Where the time goes, from the end of speech:
+
+1. The recorder waits for 700 ms of quiet. Kept: shorter gaps split file/rank
+   phrases.
+2. Upload. Recording previously ran continuously and rotated containers every
+   8 seconds of silence, so a move said after a pause uploaded that pause as
+   well (128 kbps: up to ~170 KB of base64). The recorder now hears the
+   microphone through a 300 ms delay and starts when speech is detected, so a
+   clip holds 300 ms before the speech, the speech, and 400 ms after it. This
+   also removes the rotation gap in which the start of a move could be lost.
+3. Transcription (`GEMINI_TRANSCRIPTION_MODEL`, Gemini 3.5 Flash).
+4. Interpretation (`GEMINI_MODEL`). Skipped when the transcription is literal
+   legal SAN and the speaker's calibration does not name those words as another
+   move: `validateParsedMove` would only accept that same move from it.
+
+Each Gemini call logs one line with its model, duration and token counts:
+
+```bash
+docker compose logs backend | grep "timing"
+# [Gemini Audio Parser] transcription timing {"model":"gemini-3.5-flash","ms":…,"thoughtTokens":…,"outputTokens":…,"inputTokens":…}
+# [AI Parser] timing {"model":"gemini-3.1-flash-lite","ms":…,"thoughtTokens":…,"outputTokens":…,"inputTokens":…}
+```
+
+`thoughtTokens` shows how much of a call was thinking. Thinking is generated
+before the answer, so it usually dominates a slow call; transcription and
+choosing from a short list need little of it. Both calls take a thinking level
+from `GEMINI_TRANSCRIPTION_THINKING_LEVEL` and `GEMINI_MOVE_PARSER_THINKING_LEVEL`
+(unset keeps the model's own). These are unchanged by default because no
+labeled recordings of real speech have been replayed with them yet. To compare,
+replay the same labeled samples once per setting:
+
+```bash
+pnpm --filter backend exec node --import tsx src/scripts/auditSpeech.ts \
+  /tmp/speech-samples.json /tmp/speech-default.json
+GEMINI_TRANSCRIPTION_THINKING_LEVEL=minimal pnpm --filter backend exec \
+  node --import tsx src/scripts/auditSpeech.ts /tmp/speech-samples.json /tmp/speech-minimal.json
+```
+
+Reports record the thinking settings, per-sample `timing` (transcription and
+interpretation milliseconds, transcription thinking tokens) and the median
+latency. Adopt a lower level only if `wrong` and `wrongAutoSubmissions` do not
+rise. The same applies to trying `gemini-3.5-flash-lite` for transcription now
+that recording uses 128 kbps, which was the configuration Flash-Lite misheard.
+The panel shows end-of-speech-to-answer time beside each Gemini result, for
+checking a setting on a real device and network.

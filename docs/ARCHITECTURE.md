@@ -126,6 +126,9 @@ Audio parsing transcribes without a FEN, legal-move candidates, or calibration
 hints, then sends detected words to the shared calibrated text parser. This
 separation reduces invented moves on noise/silence. Both stages share the
 12-second audio deadline. One audio parse allowance can cover two provider calls.
+A transcription that is already literal legal SAN skips the second call, since
+validation would only accept that move from it; calibration naming those words
+as another move keeps the second call.
 The AI game page rejoins its room and reloads authoritative state on reconnect.
 
 ## Game catalog and content

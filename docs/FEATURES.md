@@ -79,7 +79,9 @@ Two stored parsing modes are supported:
 - `gemini-audio`: microphone recording transcribed by Gemini without board
   context, followed by text interpretation of detected speech. Silence and
   unintelligible input return no move. A single audio parse can use two provider
-  requests within the existing overall timeout.
+  requests within the existing overall timeout; a transcription that is
+  literally a legal move ("d4", "Nf3") is used directly, unless the speaker's
+  calibration says those words are often another move.
 
 In browser speech mode every guess the recognizer offers is matched by sound
 against the legal moves of the current position (`spokenMoveMatcher.ts`): each
@@ -104,6 +106,15 @@ it for five minutes. While it is unavailable, the panel uses browser speech
 and says why, keeping the saved choice for when Gemini recovers. A failed
 Gemini parse re-checks the status. When a parse finds no move, the panel
 shows the reason.
+
+Gemini audio records only around speech. The recorder hears the microphone
+300 ms late while speech detection hears it live, so each clip starts just
+before the speech did, keeps quiet initial consonants, and carries no idle
+silence from the pause before a move. Recording ends after 700 ms of quiet.
+The panel shows the time from the end of speech to the answer beside the
+result, and the backend logs one `timing` line per Gemini call (model,
+milliseconds, input/thinking/output tokens); see
+[the speech audit](SPEECH_AUDIT.md#latency) for comparing settings.
 
 The input panel shows listening/recording feedback and can offer alternative
 parses. Voice calibration records speech confusions and stores them in a

@@ -15,6 +15,11 @@ interface Sample {
   mimeType?: string;
 }
 
+const median = (values: number[]) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted.length ? sorted[Math.floor((sorted.length - 1) / 2)] : null;
+};
+
 // Deliberately separate from gameplay: replay labeled samples without affecting
 // games or user statistics. Calls the same parsers and uses backend/.env.
 async function main() {
@@ -55,10 +60,13 @@ async function main() {
   }
   const report = {
     model: GEMINI_MODEL, transcriptionModel: GEMINI_TRANSCRIPTION_MODEL,
+    transcriptionThinking: process.env.GEMINI_TRANSCRIPTION_THINKING_LEVEL || 'default',
+    moveParserThinking: process.env.GEMINI_MOVE_PARSER_THINKING_LEVEL || 'default',
     recordedAt: new Date().toISOString(), total: rows.length,
     correct: rows.filter(row => row.outcome === 'correct').length,
     wrong: rows.filter(row => row.outcome === 'wrong').length,
     abstained: rows.filter(row => row.outcome === 'abstained').length,
+    medianLatencyMs: median(rows.map(row => row.latencyMs)),
     wrongAutoSubmissions: rows.filter(row => row.outcome === 'wrong' && row.wouldAutoSubmit).length,
     samples: rows,
   };

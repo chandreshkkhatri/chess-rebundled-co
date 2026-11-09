@@ -2,15 +2,28 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 
+export interface AudioTiming {
+  /** When the speaker went quiet (Date.now()), for measuring end-of-speech latency. */
+  speechEndedAt: number;
+}
+
 interface UseGeminiVoiceOptions {
-  onAudioReady?: (audioBase64: string, mimeType: string) => void;
+  onAudioReady?: (audioBase64: string, mimeType: string, timing: AudioTiming) => void;
   silenceThreshold?: number;
   silenceDuration?: number;
   maxDuration?: number;
+  /**
+   * Audio kept from before speech was detected, so quiet initial consonants
+   * survive. Capped at silenceDuration - 100 ms, which is how much trailing
+   * quiet the clip keeps after the speech.
+   */
+  prerollDuration?: number;
 }
 
 export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
-  const { onAudioReady, silenceThreshold = 0.02, silenceDuration = 700, maxDuration = 8000 } = options;
+  const {
+    onAudioReady, silenceThreshold = 0.02, silenceDuration = 700, maxDuration = 8000, prerollDuration = 300,
+  } = options;
   const [isListening, setIsListening] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
@@ -83,11 +96,21 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
       if (generationRef.current !== generation) return;
       const analyser = context.createAnalyser();
       analyser.fftSize = 2048;
-      context.createMediaStreamSource(stream).connect(analyser);
-      const recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 128000 });
+      const source = context.createMediaStreamSource(stream);
+      source.connect(analyser);
+      // Speech detection hears the microphone live; the recorder hears it
+      // prerollDuration late. A recording started when speech is detected
+      // therefore begins just before the speech did, and holds no idle
+      // silence before it (fewer bytes to upload, nothing to mishear).
+      const delay = context.createDelay(1);
+      delay.delayTime.value = Math.max(0, Math.min(prerollDuration, silenceDuration - 100)) / 1000;
+      const delayed = context.createMediaStreamDestination();
+      delayed.channelCount = 1;
+      source.connect(delay);
+      delay.connect(delayed);
+      const recorder = new MediaRecorder(delayed.stream, { mimeType, audioBitsPerSecond: 128000 });
       mediaRecorderRef.current = recorder;
       let chunks: Blob[] = [];
-      let recordingStart: number | null = null;
       let silenceStart: number | null = null;
       let speechStart: number | null = null;
       let speechDuration = 0;
@@ -101,18 +124,16 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
         animationFrameRef.current = null;
         if (!current()) return;
         const now = Date.now();
-        // Record before detecting speech, preserving quiet initial consonants.
-        // Every clip is a complete container, capped even during silence.
-        if (recorder.state === 'inactive') {
-          chunks = [];
-          recordingStart = now;
-          recorder.start();
-        }
         analyser.getFloatTimeDomainData(samples);
         const volume = Math.sqrt(samples.reduce((sum, value) => sum + value * value, 0) / samples.length);
         setVolumeLevel(volume);
         if (volume > silenceThreshold) {
-          speechStart ??= now;
+          if (speechStart === null) {
+            // The delayed recorder starts with the audio from before this moment.
+            chunks = [];
+            speechStart = now;
+            recorder.start();
+          }
           speechDuration += Math.min(now - lastFrame, 100);
           silenceStart = null;
           setIsRecording(true);
@@ -121,8 +142,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
           if (now - silenceStart > silenceDuration) { recorder.stop(); return; }
         }
         lastFrame = now;
-        const durationStart = speechStart ?? recordingStart;
-        if (durationStart !== null && now - durationStart > maxDuration) {
+        if (speechStart !== null && now - speechStart > maxDuration) {
           recorder.stop();
           return;
         }
@@ -135,9 +155,9 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
         if (!current()) return;
         setIsRecording(false);
         const hasSpeech = speechDuration >= 120;
+        const speechEndedAt = silenceStart ?? Date.now();
         const blob = new Blob(chunks, { type: recorder.mimeType || mimeType });
         chunks = [];
-        recordingStart = null;
         silenceStart = null;
         speechStart = null;
         speechDuration = 0;
@@ -149,7 +169,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
           const reader = new FileReader();
           reader.onloadend = () => {
             if (current() && typeof reader.result === 'string') {
-              onAudioReadyRef.current?.(reader.result.split(',')[1], blob.type.split(';')[0]);
+              onAudioReadyRef.current?.(reader.result.split(',')[1], blob.type.split(';')[0], { speechEndedAt });
             }
           };
           reader.readAsDataURL(blob);
@@ -163,8 +183,6 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
       listeningRef.current = true;
       startingRef.current = false;
       setIsListening(true);
-      recordingStart = Date.now();
-      recorder.start();
       schedule();
     } catch (err) {
       if (generationRef.current !== generation) return;
@@ -179,7 +197,7 @@ export function useGeminiVoice(options: UseGeminiVoiceOptions = {}) {
         setError(err instanceof Error ? err.message : 'Unable to record audio');
       }
     }
-  }, [silenceThreshold, silenceDuration, maxDuration, releaseResources, stopListening]);
+  }, [silenceThreshold, silenceDuration, maxDuration, prerollDuration, releaseResources, stopListening]);
 
   useEffect(() => releaseResources, [releaseResources]);
   return { isListening, isRecording, isSupported, error, startListening, stopListening, volumeLevel, silenceThreshold };

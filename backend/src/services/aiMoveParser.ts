@@ -1,7 +1,8 @@
 import { Type } from "@google/genai";
-import { genai, GEMINI_MODEL } from "../lib/genaiClient.js";
+import { genai, GEMINI_MODEL, MOVE_PARSER_THINKING } from "../lib/genaiClient.js";
 import { validateParsedMove } from "../lib/validateParsedMove.js";
 import { withTimeout } from "../lib/withTimeout.js";
+import { logGeminiTiming } from "../lib/geminiTiming.js";
 
 // Cap Gemini text-parse latency so a hung request surfaces as an error
 // instead of leaving the client awaiting forever.
@@ -127,6 +128,7 @@ ${
   try {
     // Structured output: the move can only be one of this position's legal moves
     // (or "unclear"), so an invented move is rejected before it reaches us.
+    const started = Date.now();
     const response = await withTimeout(
       genai.models.generateContent({
         model: GEMINI_MODEL,
@@ -143,12 +145,14 @@ ${
             },
             required: ["move", "confidence", "alternatives", "reasoning"],
           },
+          thinkingConfig: MOVE_PARSER_THINKING,
         },
       }),
       AI_PARSE_TIMEOUT_MS,
       "AI move parse",
     );
 
+    logGeminiTiming("[AI Parser]", GEMINI_MODEL, started, response.usageMetadata);
     const text = response.text || "";
 
     // Extract JSON from response (in case there's any extra text)

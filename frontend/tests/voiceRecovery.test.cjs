@@ -2,19 +2,22 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { loadSource, hookHarness } = require('./helpers.cjs');
 
-function fixture({ formats = ['audio/webm;codecs=opus'], deferredPermission = false } = {}) {
+function fixture({ formats = ['audio/webm;codecs=opus'], deferredPermission = false, ...hookOptions } = {}) {
   const runtime = hookHarness();
   let time = 1000, volume = 255, nextFrame = 0, stopped = 0, resolvePermission;
   const frames = new Map(), recorders = [], results = [], readers = [];
   const stream = { getTracks: () => [{ stop() { stopped++; } }] };
   class Recorder {
     static isTypeSupported(type) { return formats.includes(type); }
-    constructor(_stream, options) { this.state = 'inactive'; this.mimeType = options.mimeType; recorders.push(this); }
+    constructor(stream, options) { this.stream = stream; this.state = 'inactive'; this.mimeType = options.mimeType; recorders.push(this); }
     start() { this.state = 'recording'; }
     stop() { this.state = 'inactive'; this.onstop?.(); }
   }
+  const graph = { sources: [], delays: [], delayed: [] };
   class Context {
-    createMediaStreamSource() { return { connect() {} }; }
+    createMediaStreamSource() { return { connect(node) { graph.sources.push(node); } }; }
+    createDelay(max) { const node = { max, delayTime: { value: 0 }, connect(to) { node.to = to; } }; graph.delays.push(node); return node; }
+    createMediaStreamDestination() { const node = { stream: { delayed: true }, channelCount: 2 }; graph.delayed.push(node); return node; }
     createAnalyser() { return { fftSize: 2048, getFloatTimeDomainData(array) { array.fill(volume / 255); } }; }
     async resume() {}
     async close() {}
@@ -31,9 +34,10 @@ function fixture({ formats = ['audio/webm;codecs=opus'], deferredPermission = fa
     requestAnimationFrame: callback => { frames.set(++nextFrame, callback); return nextFrame; },
     cancelAnimationFrame: id => frames.delete(id),
   });
-  const options = { onAudioReady: (...args) => results.push(args) };
+  const options = { onAudioReady: (...args) => results.push(args), ...hookOptions };
   return {
-    runtime, frames, recorders, results, readers,
+    runtime, frames, recorders, results, readers, graph,
+    delivered: () => JSON.parse(JSON.stringify(results)),
     render: () => runtime.render(() => useGeminiVoice(options)),
     resolvePermission: () => resolvePermission(stream),
     get stopped() { return stopped; },
@@ -60,7 +64,7 @@ test('discarded audio resumes volume monitoring and the next utterance is delive
     f.recorders[0].ondataavailable({ data: new Blob(['x'.repeat(4000)]) });
     f.frame(2400, 0); f.frame(3200, 0);
     f.readers[0].onloadend();
-    assert.deepEqual(f.results, [['encoded', 'audio/webm']]);
+    assert.deepEqual(f.delivered(), [['encoded', 'audio/webm', { speechEndedAt: 2400 }]]);
     assert.equal(f.frames.size, 1);
   } finally { f.runtime.unmount(); }
 });
@@ -102,12 +106,36 @@ test('MP4-only browsers use their supported recorder format', async () => {
   f.runtime.unmount();
 });
 
-test('recording precedes detection, retains a short compressed command, and tolerates a 500ms pause', async () => {
+test('the recorder hears the microphone through a delay, so it keeps audio from before detection', async () => {
   const f = fixture();
   await f.render().startListening();
   try {
-    assert.equal(f.recorders[0].state, 'recording', 'the first consonant is captured before the monitor sees speech');
-    f.frame(1100, 128); f.frame(1200, 128);
+    const [delay] = f.graph.delays;
+    const [delayed] = f.graph.delayed;
+    assert.equal(delay.delayTime.value, 0.3, '300 ms of audio from before speech was detected');
+    assert.equal(delay.to, delayed);
+    assert.ok(f.graph.sources.includes(delay), 'the microphone feeds the delay');
+    assert.equal(delayed.channelCount, 1);
+    assert.equal(f.recorders[0].stream, delayed.stream, 'records the delayed copy, not the live stream');
+    assert.equal(f.recorders[0].state, 'inactive', 'nothing is recorded before speech');
+  } finally { f.runtime.unmount(); }
+});
+
+test('the pre-roll always leaves trailing quiet after the speech', async () => {
+  const f = fixture({ silenceDuration: 350, prerollDuration: 500 });
+  await f.render().startListening();
+  try {
+    assert.equal(f.graph.delays[0].delayTime.value, 0.25, 'capped at silenceDuration minus 100 ms');
+  } finally { f.runtime.unmount(); }
+});
+
+test('a short compressed command is retained, and a 500ms pause does not split it', async () => {
+  const f = fixture();
+  await f.render().startListening();
+  try {
+    f.frame(1100, 128);
+    assert.equal(f.recorders[0].state, 'recording', 'speech starts the delayed recording');
+    f.frame(1200, 128);
     f.frame(1300, 0); f.frame(1800, 0);
     assert.equal(f.recorders[0].state, 'recording', 'a pause between file and rank must not split the command');
     f.frame(1900, 128); f.frame(2000, 128);
@@ -115,29 +143,23 @@ test('recording precedes detection, retains a short compressed command, and tole
     f.frame(2100, 0); f.frame(2900, 0);
     assert.equal(f.readers.length, 1, 'valid Opus clips need not exceed 3000 bytes');
     f.readers[0].onloadend();
-    assert.deepEqual(f.results, [['encoded', 'audio/webm']]);
+    assert.deepEqual(f.delivered(), [['encoded', 'audio/webm', { speechEndedAt: 2100 }]]);
   } finally { f.runtime.unmount(); }
 });
 
-test('idle silence is capped and never sent for inference', async () => {
+test('idle silence is never recorded or sent, however long the pause before a move', async () => {
   const f = fixture();
   await f.render().startListening();
   try {
-    f.recorders[0].ondataavailable({ data: new Blob(['x'.repeat(4000)]) });
-    f.frame(9100, 0);
+    f.frame(1000, 0); f.frame(9100, 0); f.frame(30_000, 0);
+    assert.equal(f.recorders[0].state, 'inactive');
     assert.equal(f.readers.length, 0);
-    f.frame(9200, 0);
-    assert.equal(f.recorders[0].state, 'recording');
-  } finally { f.runtime.unmount(); }
-});
-
-test('a command beginning near the idle rotation deadline is not truncated', async () => {
-  const f = fixture();
-  await f.render().startListening();
-  try {
-    f.frame(8900, 255); f.frame(9100, 255);
-    assert.equal(f.recorders[0].state, 'recording');
-    f.frame(9300, 0); f.frame(10100, 0);
-    assert.equal(f.frames.size, 1);
+    f.frame(30_100, 255);
+    assert.equal(f.recorders[0].state, 'recording', 'the clip starts with the speech (plus the pre-roll)');
+    f.frame(30_300, 255);
+    f.recorders[0].ondataavailable({ data: new Blob(['x'.repeat(800)]) });
+    f.frame(30_400, 0); f.frame(31_200, 0);
+    f.readers[0].onloadend();
+    assert.deepEqual(f.delivered(), [['encoded', 'audio/webm', { speechEndedAt: 30_400 }]]);
   } finally { f.runtime.unmount(); }
 });

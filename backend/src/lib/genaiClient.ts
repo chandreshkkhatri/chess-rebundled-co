@@ -1,4 +1,4 @@
-import { GoogleGenAI, type GoogleGenAIOptions } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel, type GoogleGenAIOptions, type ThinkingConfig } from "@google/genai";
 
 /**
  * Shared Google Gen AI client.
@@ -80,3 +80,25 @@ export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
 // Short isolated letter/rank audio needs better acoustic discrimination than
 // the lightweight text/chat model. Keep this independently configurable.
 export const GEMINI_TRANSCRIPTION_MODEL = process.env.GEMINI_TRANSCRIPTION_MODEL || "gemini-3.5-flash";
+
+const THINKING_LEVELS: Record<string, ThinkingLevel> = {
+  minimal: ThinkingLevel.MINIMAL,
+  low: ThinkingLevel.LOW,
+  medium: ThinkingLevel.MEDIUM,
+  high: ThinkingLevel.HIGH,
+};
+
+/**
+ * A thinking level from a deployment setting. Thinking tokens are generated
+ * before the answer, so they are usually most of a slow reply. Unset, empty,
+ * "default" or an unknown value keeps the model's own setting, which models
+ * without thinking levels (Gemini 2.5) require.
+ */
+export function thinkingConfigFor(setting: string | undefined): ThinkingConfig | undefined {
+  const level = THINKING_LEVELS[(setting ?? "").trim().toLowerCase()];
+  return level ? { thinkingLevel: level } : undefined;
+}
+
+// Voice parsing thinking levels; see docs/CONFIGURATION.md and docs/SPEECH_AUDIT.md.
+export const TRANSCRIPTION_THINKING = thinkingConfigFor(process.env.GEMINI_TRANSCRIPTION_THINKING_LEVEL);
+export const MOVE_PARSER_THINKING = thinkingConfigFor(process.env.GEMINI_MOVE_PARSER_THINKING_LEVEL);

@@ -39,6 +39,7 @@ Backend credentials are supplied at runtime, not as frontend build arguments.
 | `FIREBASE_PRIVATE_KEY` | Firebase service-account private key; the loader converts escaped `\n` to newlines. |
 | `GOOGLE_API_KEY` | Gemini Developer API key by default, or a Vertex express-mode key when Vertex mode is enabled. |
 | `GEMINI_MODEL` | Model override; current code defaults to `gemini-3.1-flash-lite`. |
+| `GEMINI_TRANSCRIPTION_THINKING_LEVEL`, `GEMINI_MOVE_PARSER_THINKING_LEVEL` | Thinking for voice audio transcription and for text move interpretation: `minimal`, `low`, `medium` or `high`. Unset (or `default`) keeps the model's own setting, which models without thinking levels (Gemini 2.5) require. Less thinking answers sooner; check accuracy with the [replay runner](SPEECH_AUDIT.md#latency) before changing it. |
 | `GEMINI_TRANSCRIPTION_MODEL` | Audio-only transcription model, default `gemini-3.5-flash`. Text move interpretation keeps `GEMINI_MODEL`. Audio parsing may make two provider calls within its 12-second deadline. |
 | `GOOGLE_GENAI_USE_VERTEXAI` | Set to `true` to use Vertex instead of the Developer API. |
 | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | Project and location for Vertex service-account/ADC mode; the project can fall back to `FIREBASE_PROJECT_ID`. |
