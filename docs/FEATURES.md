@@ -102,6 +102,18 @@ and says why, keeping the saved choice for when Gemini recovers. A failed
 Gemini parse re-checks the status. When a parse finds no move, the panel
 shows the reason.
 
+Gemini audio is tuned for speed. The recorder hears the microphone 250 ms late
+while the volume check hears it live, so each clip starts just before the
+speech did and a soft first sound is not cut, without waiting any longer at
+the end. Recording ends after 400 ms of quiet. The server asks Gemini for the
+least thinking (`GEMINI_AUDIO_THINKING_LEVEL`), with structured output that
+can only name a legal move or "unclear", plus what was heard; there is no
+free-text reasoning to generate and no SDK retry. Each parse logs one
+`[Gemini Audio Parser] timing` line (model, milliseconds, audio size, input,
+thinking and output tokens), and the panel shows the time from the end of
+speech to the answer beside the result, so models can be compared with
+`GEMINI_AUDIO_MODEL`.
+
 The input panel shows listening/recording feedback and can offer alternative
 parses. Voice calibration records speech confusions and stores them in a
 signed-in user's Firestore profile. Saved calibration takes effect immediately

@@ -35,7 +35,9 @@ function fixture({ recording = true, browserSpeech = true, geminiStatus = { avai
     isSupported: true, isListening: false, isRecording: false, error: null,
     startListening: () => {}, stopListening: () => {}, volumeLevel: 0, silenceThreshold: 0.02,
   };
-  const useGeminiVoice = () => gemini;
+  const useGeminiVoice = options => { gemini.onAudioReady = options.onAudioReady; return gemini; };
+  const clock = { now: 1_000_000 };
+  class FakeDate extends Date { static now() { return clock.now; } }
   const stageParser = loadSource('src/lib/moveStageParser.ts', {
     'chess.js': { Chess }, './distractorGenerator': loadSource('src/lib/distractorGenerator.ts'),
   });
@@ -48,15 +50,15 @@ function fixture({ recording = true, browserSpeech = true, geminiStatus = { avai
     '@/lib/speechAvailability': speechAvailability,
     './VoiceDebugOverlay': { VoiceDebugOverlay: () => null },
     './AudioWaveform': { AudioWaveform: () => null },
-  }, browser);
-  const calls = { submit: [], server: [], modes: [] };
+  }, { ...browser, Date: FakeDate });
+  const calls = { submit: [], server: [], modes: [], audio: [] };
   const props = {
     fen: new Chess().fen(), isActive: true, isSubmitting: false, inputMode: 'voice-tap',
     voiceParsingMode: 'webspeech-haiku', autoSubmitEnabled: false,
     aiParseResult: null, aiParseError: null, isAIParsing: false,
     onMoveSubmit: (...args) => calls.submit.push(args),
     onParseMoveWithText: (...args) => calls.server.push(args),
-    onParseMoveWithAudio: () => {}, clearAIParseState: () => {},
+    onParseMoveWithAudio: (...args) => calls.audio.push(args), clearAIParseState: () => {},
     onVoiceParsingModeChange: mode => calls.modes.push(mode),
   };
   const render = () => runtime.render(() => UniversalInputPanel(props));
@@ -73,7 +75,7 @@ function fixture({ recording = true, browserSpeech = true, geminiStatus = { avai
     return findToggle(tree.props?.children);
   };
   return {
-    speech, calls, props, refreshes, render, text: () => text(render()),
+    speech, calls, props, refreshes, render, text: () => text(render()), gemini, clock,
     toggle: () => { const button = findToggle(render()); return button && { ...button.props, label: text(button) }; },
     // Listening ends (mobile Chrome ends the session after each phrase): the
     // hook reports it and its stop callback gets a new identity.
@@ -178,4 +180,21 @@ test('a Gemini parse that found no move re-checks whether Gemini audio is availa
   f.props.aiParseResult = { parsedMove: '', transcript: '[audio input]', confidence: 0, alternatives: [], reasoning: 'Audio parsing failed: timeout' };
   f.render();
   assert.deepEqual(JSON.parse(JSON.stringify(f.refreshes.slice(before))), [{ force: true }]);
+});
+
+test('a Gemini answer shows the time from the end of speech', () => {
+  const f = fixture();
+  f.props.voiceParsingMode = 'gemini-audio';
+  f.render();
+  const log = console.info;
+  console.info = () => {};
+  try {
+    f.gemini.onAudioReady('UklGRg==', 'audio/wav', { speechEndedAt: f.clock.now - 400 });
+    assert.deepEqual(f.calls.audio, [['UklGRg==', 'audio/wav']]);
+    f.clock.now += 900;
+    f.props.aiParseResult = { parsedMove: 'e4', transcript: 'echo four', confidence: 0.95, alternatives: [] };
+    assert.match(f.text(), /Interpreted:\s+e4\s+95\s*%\s+·\s+1\.3\s*s/);
+    f.props.voiceParsingMode = 'webspeech-haiku';
+    assert.doesNotMatch(f.text(), /1\.3\s*s/, 'browser speech results carry no Gemini timing');
+  } finally { console.info = log; }
 });

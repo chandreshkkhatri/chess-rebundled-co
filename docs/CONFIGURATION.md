@@ -39,6 +39,8 @@ Backend credentials are supplied at runtime, not as frontend build arguments.
 | `FIREBASE_PRIVATE_KEY` | Firebase service-account private key; the loader converts escaped `\n` to newlines. |
 | `GOOGLE_API_KEY` | Gemini Developer API key by default, or a Vertex express-mode key when Vertex mode is enabled. |
 | `GEMINI_MODEL` | Model override; current code defaults to `gemini-3.1-flash-lite`. |
+| `GEMINI_AUDIO_MODEL` | Model for voice moves parsed from audio; defaults to `GEMINI_MODEL`. Use the fastest model that stays accurate; compare with the backend's `[Gemini Audio Parser] timing` log lines. |
+| `GEMINI_AUDIO_THINKING_LEVEL` | Thinking for audio parsing: `minimal` (default), `low`, `medium`, `high`, or `default` to leave the model's own setting (needed for models without thinking levels, such as Gemini 2.5). |
 | `GOOGLE_GENAI_USE_VERTEXAI` | Set to `true` to use Vertex instead of the Developer API. |
 | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | Project and location for Vertex service-account/ADC mode; the project can fall back to `FIREBASE_PROJECT_ID`. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Optional Google SDK Application Default Credentials file; container paths must refer to files available inside the container. |

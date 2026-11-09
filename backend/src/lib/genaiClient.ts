@@ -76,3 +76,7 @@ export const genai = useVertex
 // Default model, overridable per-deployment. Model IDs are the same across both
 // backends; just confirm availability in your chosen Vertex location.
 export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+
+// Voice move parsing from audio is latency-sensitive and needs no deep
+// reasoning, so it can use a faster model than the AI opponent.
+export const GEMINI_AUDIO_MODEL = process.env.GEMINI_AUDIO_MODEL || GEMINI_MODEL;

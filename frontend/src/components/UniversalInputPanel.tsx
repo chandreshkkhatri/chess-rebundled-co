@@ -2,7 +2,7 @@
 
 import { useEffect, useCallback, useState, useRef, useMemo } from "react";
 import { useVoiceRecognition } from "@/hooks/useVoiceRecognition";
-import { useGeminiVoice } from "@/hooks/useGeminiVoice";
+import { useGeminiVoice, type AudioTiming } from "@/hooks/useGeminiVoice";
 import { Chess } from "chess.js";
 import { VoiceDebugOverlay } from "./VoiceDebugOverlay";
 import { CONFIDENT_MATCH } from "@/lib/spokenMoveMatcher";
@@ -229,6 +229,9 @@ export function UniversalInputPanel({
     setLocalParse(null);
     clearAIParseState();
   }, [clearAIParseState]);
+  // Time from the end of speech to the Gemini answer, shown beside the result.
+  const [voiceLatencyMs, setVoiceLatencyMs] = useState<number | null>(null);
+  const speechEndedAtRef = useRef<number | null>(null);
 
   const autoListenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoSubmitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -647,7 +650,7 @@ export function UniversalInputPanel({
   // Handle audio ready from Gemini voice (Gemini mode)
   // Block new requests while already parsing to prevent race conditions
   const handleAudioReady = useCallback(
-    (audioBase64: string, mimeType: string) => {
+    (audioBase64: string, mimeType: string, timing?: AudioTiming) => {
       if (
         !isSubmitting &&
         !isAIParsing &&
@@ -657,6 +660,8 @@ export function UniversalInputPanel({
         clearParseState();
         clearLastMoveResult(); // Clear stale feedback from previous move
         setSelectedMove(null);
+        speechEndedAtRef.current = timing?.speechEndedAt ?? null;
+        setVoiceLatencyMs(null);
         onParseMoveWithAudio(audioBase64, mimeType);
       }
     },
@@ -816,6 +821,16 @@ export function UniversalInputPanel({
     }
   }, [isSubmitting, isAIParsing, isListening, stopListening]);
 
+  // The answer (or error) for the audio just sent: record how long it took.
+  useEffect(() => {
+    const speechEndedAt = speechEndedAtRef.current;
+    if (speechEndedAt === null || (!aiParseResult && !aiParseError)) return;
+    speechEndedAtRef.current = null;
+    const latency = Date.now() - speechEndedAt;
+    setVoiceLatencyMs(latency);
+    console.info(`[Voice] Gemini audio: end of speech to answer ${latency} ms`);
+  }, [aiParseResult, aiParseError]);
+
   // A Gemini parse that failed or found nothing may mean the service is down:
   // re-check, so repeated failures switch to browser speech.
   useEffect(() => {
@@ -959,6 +974,11 @@ export function UniversalInputPanel({
                 <span className="text-slate-600 ml-1">
                   {(shownParse.confidence * 100).toFixed(0)}%
                 </span>
+                {voiceLatencyMs !== null && aiParseResult && voiceParsingMode === "gemini-audio" && (
+                  <span className="text-slate-600 ml-1" title="Time from the end of speech to the answer">
+                    · {(voiceLatencyMs / 1000).toFixed(1)}s
+                  </span>
+                )}
               </div>
               {/* Clickable alternatives when confidence is low */}
               {shownParse.alternatives &&
